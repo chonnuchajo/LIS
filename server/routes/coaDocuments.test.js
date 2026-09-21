@@ -37,6 +37,20 @@ function response() {
   };
 }
 
+function sortedLimitedLean(items) {
+  return {
+    sort() {
+      return {
+        limit() {
+          return { lean: async () => items };
+        },
+        lean: async () => items,
+      };
+    },
+    lean: async () => items,
+  };
+}
+
 async function invoke(path, method, { body = {}, params = {}, query = {} } = {}) {
   const res = response();
   await handler(path, method)({ body, params, query }, res);
@@ -97,15 +111,17 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
     },
     labRequests: [{
       reportCustomerName: 'Report Customer',
-      requester: { department: 'Quality', email: 'customer@example.com', phone: '1234' },
+      requester: { fullName: 'Keyer Name', department: 'Quality', email: 'customer@example.com', phone: '1234' },
     }],
     parameters: [
       { _id: 'qc-parameter', scope: 'qc' },
+      { _id: 'physical-parameter', name: 'กายภาพ', scope: 'qc' },
       { _id: 'lab-parameter', scope: 'lab' },
     ],
     qcResults: [
       { itemSeq: 1, parameterId: 'lab-parameter', values: { Assay: 'Ignored' } },
       { itemSeq: 2, parameterId: 'qc-parameter', values: { Appearance: 'Ignored' } },
+      { itemSeq: 2, parameterId: 'physical-parameter', parameterName: 'กายภาพ', values: { 'ลักษณะ': 'ของเหลวใส', 'สี': 'สีส้ม' } },
       { itemSeq: 2, parameterId: 'lab-parameter', values: { Assay: 99.5, Moisture: '' } },
     ],
     selectedItemSeqs: [2],
@@ -113,8 +129,8 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
 
   assert.equal(snapshots.petitionNoSnapshot, 'P-2608-0001');
   assert.deepEqual(snapshots.customerSnapshot, {
-    name: 'Report Customer',
-    company: 'บริษัท ไอ ซี พี ลัดดา จำกัด',
+    name: 'Keyer Name',
+    company: 'Report Customer',
     department: 'Quality',
     email: 'customer@example.com',
     phone: '1234',
@@ -127,7 +143,7 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
     lotNo: 'L-2',
     productionDate: '',
     sampleId: '',
-    condition: '',
+    condition: 'ของเหลวใส สีส้ม',
     manufacturer: 'Manufacturer',
   }]);
   assert.deepEqual(snapshots.resultSnapshots, [
@@ -216,6 +232,173 @@ test('actorFromRequest rejects inactive users', async () => {
     );
   } finally {
     restore();
+  }
+});
+
+test('GET / includes requested COA rows for Lab-approved petitions without COA documents', async () => {
+  const originals = {
+    coaFind: CoaDocument.find,
+    petitionFind: Petition.find,
+    labRequestFind: LabRequest.find,
+    fetch: global.fetch,
+  };
+  try {
+    CoaDocument.find = () => sortedLimitedLean([]);
+    Petition.find = () => sortedLimitedLean([{
+      _id: 'petition-1',
+      petitionNo: 'P-2609-0002',
+      labApprovedAt: new Date('2026-09-05T09:46:39.203Z'),
+      submittedBy: { name: 'Requester Name', email: 'requester@example.com' },
+      items: [{ seq: 1, sampleName: 'Trade A', commonName: 'Common A', batchNo: 'B-001', lotNo: 'L-001', productionDate: '2026-09-01' }],
+    }]);
+    LabRequest.find = () => ({ lean: async () => [{
+      petitionId: 'petition-1',
+      sampleSeq: 1,
+      reportCustomerName: 'Customer A',
+      requester: { fullName: 'Requester Name', department: 'R&D', email: 'requester@example.com', phone: '1234' },
+    }] });
+    global.fetch = async () => ({ ok: true, status: 200, text: async () => '[]' });
+
+    const res = await invoke('/', 'get');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.items.length, 1);
+    assert.deepEqual(res.body.items[0], {
+      _id: 'requested:petition-1',
+      coaNo: null,
+      revision: 0,
+      status: 'requested',
+      petitionId: 'petition-1',
+      petitionNoSnapshot: 'P-2609-0002',
+      selectedItemSeqs: [1],
+      customerSnapshot: {
+        name: 'Requester Name',
+        company: 'Customer A',
+        department: 'R&D',
+        email: 'requester@example.com',
+        phone: '1234',
+      },
+      sampleSnapshots: [{ itemSeq: 1, sampleName: 'Trade A', commonName: 'Common A', batchNo: 'B-001', lotNo: 'L-001', productionDate: '2026-09-01', sampleId: '', condition: '', manufacturer: '' }],
+      resultSnapshots: [],
+      trendSnapshots: [],
+      print: { printCount: 0 },
+      createdAt: new Date('2026-09-05T09:46:39.203Z'),
+      updatedAt: new Date('2026-09-05T09:46:39.203Z'),
+    });
+  } finally {
+    CoaDocument.find = originals.coaFind;
+    Petition.find = originals.petitionFind;
+    LabRequest.find = originals.labRequestFind;
+    global.fetch = originals.fetch;
+  }
+});
+
+test('externalCoaRowsToDocuments maps only ERP rows that ask for COA', () => {
+  const docs = router.externalCoaRowsToDocuments(JSON.stringify([
+    {
+      CompanySource: 'ICPL',
+      SaleName: 'PIMSIRI',
+      CustomerName: 'Customer A',
+      SaleOrderNo: 'SO26040020',
+      Line: 10000,
+      SaleOrderDate: '2026-04-02T00:00:00.000Z',
+      ItemNo: 'FC-CAVAL-1X16',
+      TradeName: 'Carval',
+      CommonName: 'SPIRODICLOFEN 24 % W/V SC',
+      PackingSize: '16*1 L',
+      Quantity: 100,
+      OutstandingQty: 100,
+      Unit: 'carton',
+      PendingStatus: 'pending shipment',
+      UpdateDate: '2026-04-02T04:02:29.360Z',
+      ShipmentDate: '2026-05-26T00:00:00.000Z',
+      remark: 'send with COA',
+    },
+    {
+      CustomerName: 'Customer B',
+      SaleOrderNo: 'SO26040021',
+      Line: 10000,
+      remark: 'no special document',
+    },
+  ]));
+
+  assert.equal(docs.length, 1);
+  assert.equal(docs[0]._id, 'external-coa-request-SO26040020-10000');
+  assert.equal(docs[0].status, 'requested');
+  assert.equal(docs[0].petitionNoSnapshot, 'SO26040020');
+  assert.equal(docs[0].customerSnapshot.name, 'Customer A');
+  assert.deepEqual(docs[0].sampleSnapshots[0], {
+    itemSeq: 10000,
+    sampleName: 'Carval',
+    commonName: 'SPIRODICLOFEN 24 % W/V SC',
+    sampleId: 'FC-CAVAL-1X16',
+    condition: '16*1 L',
+  });
+  assert.equal(docs[0].externalCoaRequest.pendingStatus, 'pending shipment');
+});
+
+test('GET / merges external COA requests with stored and Lab-approved requested rows', async () => {
+  const originals = {
+    coaFind: CoaDocument.find,
+    petitionFind: Petition.find,
+    labRequestFind: LabRequest.find,
+    fetch: global.fetch,
+  };
+  try {
+    let coaFindCalls = 0;
+    CoaDocument.find = () => {
+      coaFindCalls += 1;
+      if (coaFindCalls === 1) {
+        return sortedLimitedLean([{
+          _id: 'stored-coa',
+          coaNo: '00012026',
+          revision: 0,
+          status: 'draft',
+          petitionId: '507f1f77bcf86cd799439031',
+          petitionNoSnapshot: 'P-2608-0001',
+          selectedItemSeqs: [1],
+          sampleSnapshots: [],
+          resultSnapshots: [],
+          updatedAt: '2026-04-01T00:00:00.000Z',
+        }]);
+      }
+      return sortedLimitedLean([]);
+    };
+    Petition.find = () => sortedLimitedLean([{
+      _id: 'petition-1',
+      petitionNo: 'P-2609-0002',
+      labApprovedAt: new Date('2026-04-03T00:00:00.000Z'),
+      submittedBy: { name: 'Requester Name', email: 'requester@example.com' },
+      items: [{ seq: 1, sampleName: 'Trade A', commonName: 'Common A' }],
+    }]);
+    LabRequest.find = () => ({ lean: async () => [{ petitionId: 'petition-1', sampleSeq: 1 }] });
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify([{
+        CustomerName: 'Customer A',
+        SaleOrderNo: 'SO26040020',
+        Line: 10000,
+        TradeName: 'Carval',
+        CommonName: 'SPIRODICLOFEN 24 % W/V SC',
+        UpdateDate: '2026-04-02T00:00:00.000Z',
+        remark: 'send with COA',
+      }]),
+    });
+
+    const res = await invoke('/', 'get');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.items.map((item) => item._id), [
+      'requested:petition-1',
+      'external-coa-request-SO26040020-10000',
+      'stored-coa',
+    ]);
+  } finally {
+    CoaDocument.find = originals.coaFind;
+    Petition.find = originals.petitionFind;
+    LabRequest.find = originals.labRequestFind;
+    global.fetch = originals.fetch;
   }
 });
 

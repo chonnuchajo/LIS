@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -61,6 +61,11 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     accessibleTabsMock.defaultKey = "environment";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders a config card for each of the 3 env rooms", async () => {
@@ -166,6 +171,17 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("label-65x25").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("does not show a default print source setting", async () => {
+    accessibleTabsMock.defaultKey = "printers";
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "A4" });
+    expect(screen.queryByText("แหล่งพิมพ์เริ่มต้น")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Server/CUPS" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "เครื่องนี้" })).not.toBeInTheDocument();
+  });
+
   it("creates a printer with department, paper size, and more than one document assignment", async () => {
     vi.mocked(api.getPrinterConfigs).mockResolvedValueOnce([]);
     vi.mocked(api.get).mockResolvedValueOnce({
@@ -176,6 +192,7 @@ describe("SettingsPage", () => {
     renderPage();
 
     fireEvent.click(await screen.findAllByRole("button", { name: /เพิ่มเครื่องพิมพ์/ }).then((buttons) => buttons[1]));
+    expect(await screen.findByRole("dialog", { name: "เพิ่มเครื่องพิมพ์ Sticker (ฉลาก)" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("ชื่อเรียก"), { target: { value: "Zebra QC" } });
     fireEvent.change(screen.getByLabelText("Printer IP / URL"), { target: { value: "192.168.1.51" } });
     expect(screen.getByRole("combobox", { name: "แผนกประจำเครื่อง" })).toBeInTheDocument();
@@ -199,6 +216,29 @@ describe("SettingsPage", () => {
         },
       ],
     }));
+  });
+
+  it("lists printer departments from the employee webhook", async () => {
+    vi.mocked(api.getPrinterConfigs).mockResolvedValueOnce([]);
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { data: { roles: [], users: [{ id: "u1", department: "Old Access Department" }] } },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { employee_id: "1", name: "A", department: "Lab/วิเคราะห์", is_active: 1 },
+        { employee_id: "2", name: "B", department: "IT", is_active: 1 },
+        { employee_id: "3", name: "C", department: "Lab/วิเคราะห์", is_active: 1 },
+      ],
+    } as Response);
+    accessibleTabsMock.defaultKey = "printers";
+
+    renderPage();
+
+    fireEvent.click(await screen.findAllByRole("button", { name: /เพิ่มเครื่องพิมพ์/ }).then((buttons) => buttons[1]));
+    expect(await screen.findByRole("option", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "IT" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Old Access Department" })).not.toBeInTheDocument();
   });
 
   it("edits printer department, paper size, and document assignment", async () => {

@@ -4,52 +4,43 @@ import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { AlertCircle, CheckCircle2, Keyboard, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
-import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
+import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { normalizeRoles } from '@/lib/roles';
+import { additionalSamplePayload, extractScannedCode, fetchPetitionByScannedCode, getScannedAdditionalSample, type AdditionalSampleRequest } from '@/lib/additionalSampleQr';
 
 const READER_ID = 'qc-receive-qr-reader';
 type Phase = 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
 
 interface ReceivedRow {
+  scanKey: string;
   _id: string;
   petitionNo: string;
   dept: Petition['dept'];
+  submittedBy?: Petition['submittedBy'];
   itemCount: number;
 }
 
-function extractScannedCode(raw: string): string {
-  const text = raw.trim();
-  if (!text) return '';
-  try {
-    const payload = JSON.parse(text) as { id?: unknown; petitionId?: unknown; petitionNo?: unknown; sampleId?: unknown };
-    const value = payload.id ?? payload.petitionId ?? payload.petitionNo ?? payload.sampleId;
-    if (value) return String(value).trim();
-  } catch { /* not JSON */ }
-  try {
-    const url = new URL(text);
-    const parts = url.pathname.split('/').filter(Boolean);
-    return decodeURIComponent(parts[parts.length - 1] || text).trim();
-  } catch {
-    return text;
-  }
-}
 
-async function fetchPetitionByScannedCode(code: string): Promise<Petition> {
-  try {
-    const res = await api.get<Petition>(`/petitions/scan/${encodeURIComponent(code)}`);
-    return res.data.data;
-  } catch {
-    const res = await api.get<Petition>(`/petitions/${encodeURIComponent(code)}`);
-    return res.data.data;
-  }
-}
-
-async function receivePetition(id: string, actor?: string): Promise<Petition> {
-  const res = await api.patch<Petition>(`/petitions/${id}/receive`, { actor, side: 'qc' });
+async function receivePetition(id: string, actor?: string, request?: AdditionalSampleRequest | null): Promise<Petition> {
+  const res = await api.patch<Petition>(`/petitions/${id}/receive`, { actor, side: 'qc', ...additionalSamplePayload(request) });
   return res.data.data;
+}
+
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (data && typeof data === 'object') {
+    const direct = (data as { message?: unknown }).message;
+    if (typeof direct === 'string' && direct.trim()) return direct;
+    const nested = (data as { error?: { message?: unknown } }).error?.message;
+    if (typeof nested === 'string' && nested.trim()) return nested;
+  }
+  const message = (err as { message?: unknown })?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
 }
 
 interface Props {
@@ -66,6 +57,9 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
   const [phase, setPhase] = useState<Phase>('scanning');
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
+  const [additionalRequest, setAdditionalRequest] = useState<AdditionalSampleRequest | null>(null);
+  const scanBusy = useRef(false);
+  const receiveBusy = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [continuousMode, setContinuousMode] = useState(true);
   const [receivedList, setReceivedList] = useState<ReceivedRow[]>([]);
@@ -77,6 +71,9 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
+      scanBusy.current = false;
+      receiveBusy.current = false;
+      setAdditionalRequest(null);
       setPhase('scanning');
       setPetition(null);
       setPendingId('');
@@ -155,13 +152,19 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
 
   async function fetchAndConfirm(rawCode: string) {
     const code = extractScannedCode(rawCode);
-    if (!code) return;
+    if (!code || scanBusy.current) return;
+    scanBusy.current = true;
     setPendingId(code);
     setPhase('loading');
     try {
       const found = await fetchPetitionByScannedCode(code);
+      const request = getScannedAdditionalSample(found, code, 'qc');
+      if (request && !normalizeRoles(user).some((role) => ['admin', 'qc-head', 'qc-staff'].includes(role))) {
+        throw new Error('คุณไม่มีสิทธิ์รับตัวอย่างฝั่ง QC');
+      }
+      setAdditionalRequest(request ?? null);
       // Dedup: skip if already received in this session
-      if (receivedList.some((r) => r._id === found._id)) {
+      if (receivedList.some((row) => row.scanKey === (request?._id || found._id))) {
         setPetition(found);
         setErrorMsg(`คำร้อง ${found.petitionNo} รับไปแล้วใน session นี้`);
         setPhase('error');
@@ -170,21 +173,20 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
       setPetition(found);
       setPendingId(found._id);
       // QC รับไปแล้ว → กันรับซ้ำ (status อาจ pendingReview จากฝั่ง Lab รับก่อน จึงเช็คที่ qcReceivedAt)
-      if (found.qcReceivedAt) {
+      if (!request && found.qcReceivedAt) {
         setErrorMsg(`คำร้องนี้รับฝั่ง QC ไปแล้ว — ไม่สามารถรับซ้ำได้`);
         setPhase('error');
         return;
       }
       // ปิดงานแล้ว → รับไม่ได้
-      if (['success', 'approved', 'rejected'].includes(found.status)) {
+      if (!request && ['success', 'approved', 'rejected'].includes(found.status)) {
         setErrorMsg(`คำร้องนี้สถานะ "${PETITION_STATUS_CONFIG[found.status]?.label ?? found.status}" — ไม่สามารถรับตัวอย่างได้`);
         setPhase('error');
         return;
       }
       setPhase('confirming');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'ไม่พบข้อมูลคำร้อง';
-      setErrorMsg(msg);
+      setErrorMsg(apiErrorMessage(err, 'ไม่พบข้อมูลคำร้อง'));
       setPhase('error');
     }
   }
@@ -200,14 +202,22 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
 
   async function confirmReceive() {
     const id = petition?._id || pendingId;
-    if (!id) return;
+    if (!id || receiveBusy.current || phase !== 'confirming') return;
+    receiveBusy.current = true;
     setPhase('loading');
     try {
-      const received = await receivePetition(id, user?.name || user?.email);
+      const received = await receivePetition(id, user?.name || user?.email, additionalRequest);
       onReceived();
       if (continuousMode) {
         setReceivedList((prev) => [
-          { _id: received._id, petitionNo: received.petitionNo, dept: received.dept, itemCount: received.items?.length ?? 0 },
+          {
+            scanKey: additionalRequest?._id || received._id,
+            _id: received._id,
+            petitionNo: received.petitionNo,
+            dept: received.dept,
+            submittedBy: received.submittedBy,
+            itemCount: received.items?.length ?? 0,
+          },
           ...prev,
         ]);
         showFlash(`รับแล้ว: ${received.petitionNo}`);
@@ -215,6 +225,9 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
         setPetition(null);
         setPendingId('');
         setErrorMsg('');
+        scanBusy.current = false;
+        receiveBusy.current = false;
+        setAdditionalRequest(null);
         setPhase('scanning');
       } else {
         setPetition(received);
@@ -223,13 +236,15 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
         navigate(`/qc-testing/${received._id}`);
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่';
-      setErrorMsg(msg);
+      setErrorMsg(apiErrorMessage(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'));
       setPhase('error');
     }
   }
 
   function rescan() {
+    scanBusy.current = false;
+    receiveBusy.current = false;
+    setAdditionalRequest(null);
     setPetition(null);
     setPendingId('');
     setErrorMsg('');
@@ -333,8 +348,9 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
                 <Badge variant={targetStatusCfg.variant}>→ {targetStatusCfg.label}</Badge>
               </div>
               <div className="text-sm space-y-1 text-grey-600">
+                {additionalRequest && <p className="font-semibold text-foreground">ตัวอย่างเพิ่ม · QC · {additionalRequest.reason}</p>}
                 <p>ผู้นำส่ง: <span className="text-black-500">{petition.submittedBy?.name ?? '-'}</span></p>
-                <p>แผนก: <span className="text-black-500">{petition.dept}</span></p>
+                <p>แผนก: <span className="text-black-500">{petitionDepartmentLabel(petition)}</span></p>
                 <p>จำนวน: <span className="text-black-500">{petition.items.length} รายการ</span></p>
               </div>
               <div className="flex gap-2 pt-2">
@@ -387,14 +403,14 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
               <ul className="space-y-1 max-h-40 overflow-y-auto">
                 {receivedList.map((r) => (
                   <li
-                    key={r._id}
+                    key={r.scanKey}
                     className="flex items-center justify-between gap-2 rounded-md bg-grey-50 px-3 py-2 text-sm"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                       <span className="font-semibold text-primary-500">{r.petitionNo}</span>
                       <span className="text-xs text-grey-500 truncate">
-                        {PETITION_DEPT_LABELS[r.dept]} · {r.itemCount} รายการ
+                        {petitionDepartmentLabel(r)} · {r.itemCount} รายการ
                       </span>
                     </div>
                   </li>

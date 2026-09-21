@@ -40,6 +40,7 @@ app.use(apiGuard);
 // API Routes
 mountApi('/samples', require('./routes/samples'));
 mountApi('/auth', require('./routes/auth'));
+mountApi('/profile', require('./routes/profile'));
 mountApi('/physical-results', require('./routes/physicalResults'));
 mountApi('/approvals', require('./routes/approvals'));
 mountApi('/densities', require('./routes/densities'));
@@ -80,6 +81,7 @@ mountApi('/dashboard-layout', require('./routes/dashboardLayout'));
 mountApi('/user-favorites', require('./routes/userFavorites')); // รายการโปรดบน sidebar ต่อ user
 mountApi('/print', require('./routes/print'));
 mountApi('/ai', require('./routes/ai'));
+mountApi('/validation-ai', require('./routes/validationAi'));
 mountApi('/line', require('./routes/line')); // LINE webhook + group registry
 mountApi('/dev', require('./routes/dev')); // dev-only helpers (gated by ALLOW_DEV_STATUS)
 

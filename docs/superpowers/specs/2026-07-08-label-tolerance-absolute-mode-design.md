@@ -32,7 +32,7 @@
 ```ts
 mode?: "percent" | "abs" | "range"   // เดิม "percent" | "range"
 autoAbs?: number | null              // ใหม่ — ± ช่วงผ่าน (หน่วยจริงของ field)
-headAbs?: number | null              // ใหม่ — ± ช่วงหัวหน้าตรวจสอบ (ไม่บังคับ)
+headAbs?: number | null              // ใหม่ — ± ช่วงเกณฑ์กรม (ไม่บังคับ)
 ```
 
 Migration: ไม่มี doc เดิมไม่มี `mode` → default `"percent"` ตามเดิม `autoPct`/`headPct` คงอยู่ครบ
@@ -78,10 +78,10 @@ headAbs = headSet ? (isAbs ? std.headAbs : Math.abs(center) * std.headPct / 100)
 ## UI — `src/components/lis/LabelToleranceDialog.tsx`
 
 - radio โหมด 3 ตัว: `เปอร์เซ็นต์ ±` / `± ค่าคงที่` / `ช่วงกำหนดเอง`
-- โหมด `abs` ใช้ layout เดียวกับ `percent` เป๊ะ: ช่อง "ผ่าน" + ช่อง "หัวหน้าตรวจสอบ" (ช่องหลัง gate ด้วย `canEditHeadFields` = admin / qc-head เหมือนเดิม) ต่างแค่ผูกกับ `autoAbs` / `headAbs` และ placeholder เป็นค่าหน่วยจริง (เช่น `0.05`)
+- โหมด `abs` ใช้ layout เดียวกับ `percent` เป๊ะ: ช่อง "ผ่าน" + ช่อง "เกณฑ์กรม" (ช่องหลัง gate ด้วย `canEditHeadFields` = admin / qc-head เหมือนเดิม) ต่างแค่ผูกกับ `autoAbs` / `headAbs` และ placeholder เป็นค่าหน่วยจริง (เช่น `0.05`)
 - `emptyRule()` คงค่าเริ่มต้น `mode: "percent"` — สลับโหมดไม่ต้องล้างค่าของอีกโหมด (field คนละชุด)
 - `previewLine()` โหมด `abs`: ใช้ `center = rule.labelPercent ?? 1` เหมือน `percent` แล้วพิมพ์
-  `ABAMECTIN 1.8% -> ผ่าน 1.75000-1.85000 | หัวหน้าตรวจสอบ 1.70000-1.90000`
+  `ABAMECTIN 1.8% -> ผ่าน 1.75000-1.85000 | เกณฑ์กรม 1.70000-1.90000`
   (คืน `""` เมื่อ `autoAbs == null || autoAbs <= 0`)
 
 ## Validation — mirror 3 จุด

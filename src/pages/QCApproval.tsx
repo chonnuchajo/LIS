@@ -5,11 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, AlertTriangle, RotateCcw, Sparkles, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { usePetitionList } from "@/hooks/usePetition";
-import { PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
+import type { Petition } from "@/types/petition.types";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import { getAiStatus, streamDraftNote } from "@/lib/aiApi";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
 
@@ -135,7 +136,7 @@ const QCApproval = () => {
     {
       key: "dept",
       header: "แผนก",
-      cell: (p) => <Badge variant="blue-soft">{PETITION_DEPT_LABELS[p.dept]}</Badge>,
+      cell: (p) => <Badge variant="blue-soft">{petitionDepartmentLabel(p)}</Badge>,
     },
     { key: "submitter", header: "ผู้นำส่ง", cell: (p) => p.submittedBy?.name ?? "-" },
     {

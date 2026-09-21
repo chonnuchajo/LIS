@@ -141,6 +141,8 @@ beforeEach(() => {
     createdAt: "2026-07-13T05:00:00.000Z",
   }];
   Object.assign(mocks.petition, {
+    additionalSampleRequests: undefined,
+    productionWorkflow: undefined,
     status: "inProgress",
     approvedAt: null,
     submittedBy: { name: "Requester", submittedAt: "2026-07-13T01:00:00.000Z" },
@@ -180,6 +182,37 @@ afterEach(() => {
 });
 
 describe("PetitionTimelineDetailPage", () => {
+  it.each(['employeeId', 'workflowEmail'] as const)('opens bell route and prints extra samples for requester matched by %s without exposing timeline results', async (identity) => {
+    mocks.user = { employeeId: identity === 'employeeId' ? 'REQUESTER-1' : 'OTHER', name: 'Different display name', roles: ['viewer'] };
+    Object.assign(mocks.user, { email: 'requester@example.test' });
+    mocks.petition.submittedBy.employeeId = 'REQUESTER-1';
+    mocks.petition.productionWorkflow = identity === 'workflowEmail' ? { requesterEmail: 'requester@example.test' } : undefined;
+    const qrCode = 'LIS-EXTRA-11111111-1111-4111-8111-111111111111';
+    mocks.petition.additionalSampleRequests = [{
+      _id: 'round-1', qrCode, side: 'qc', reason: 'ตัวอย่างไม่พอ', status: 'requested',
+      items: [{ itemSeq: 1, quantity: 2 }], requestedAt: at(12), requestedBy: { name: 'QC Reviewer' },
+    }];
+    render(<MemoryRouter basename="/LIS" initialEntries={['/LIS/petition/petition-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <Routes><Route path="/petition/:id" element={<PetitionTimelineDetailPage />} /></Routes>
+    </MemoryRouter>);
+    expect(await screen.findByText('รอนำส่ง')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'พิมพ์ใบนำส่งตัวอย่างเพิ่ม' }));
+    expect(screen.getByText('ใบนำส่งตัวอย่างเพิ่ม')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'QR ' + qrCode })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Parameter ที่ต้องตรวจสอบ')).not.toBeInTheDocument();
+  });
+
+  it('shows the same extra sample print actions within the normal timeline', async () => {
+    mocks.petition.additionalSampleRequests = [{
+      _id: 'round-1', qrCode: 'LIS-EXTRA-11111111-1111-4111-8111-111111111111', side: 'lab', reason: 'ตรวจซ้ำ', status: 'requested',
+      items: [{ itemSeq: 1, quantity: 2 }], requestedAt: at(12), requestedBy: { name: 'LAB Reviewer' },
+    }];
+    renderDetail();
+    expect(await screen.findByRole('heading', { name: 'P-2607-001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'พิมพ์ใบนำส่งตัวอย่างเพิ่ม' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'พิมพ์ฉลากตัวอย่างเพิ่ม' })).toBeInTheDocument();
+  });
+
   it("renders one petition's header, required task progress, and same-day timeline", async () => {
     renderDetail();
 
@@ -197,6 +230,15 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).toHaveTextContent("Required checks");
     expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).toHaveTextContent("1/2");
     expect(screen.getByLabelText("petition timeline")).not.toHaveTextContent("Required checks");
+  });
+
+  it("keeps the sample image placeholder compact on tablet and mobile", async () => {
+    renderDetail();
+
+    const imageArea = await screen.findByLabelText("พื้นที่รูปตัวอย่าง");
+
+    expect(imageArea).toHaveClass("h-20", "w-20", "sm:h-24", "sm:w-24", "xl:h-28", "xl:w-28", "justify-self-start");
+    expect(imageArea).not.toHaveClass("aspect-square", "w-full");
   });
 
   it("highlights unreceived estimate status in large orange text", async () => {
@@ -558,8 +600,22 @@ describe("PetitionTimelineDetailPage", () => {
     expect(documentButtons[2]).toHaveClass("border-red-500");
   });
 
-  it("shows the lab-result print button when Lab has issued results", async () => {
-    mocks.petition.labApprovedAt = "2026-07-14T00:00:00.000Z";
+  it("hides the lab-result print button when QC has not confirmed Final Result", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      labApprovedAt: "2026-07-14T00:00:00.000Z",
+    });
+    renderDetail();
+    await screen.findByRole("heading", { name: "P-2607-001" });
+    expect(screen.queryByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the lab-result print button when Lab has issued results and QC has confirmed Final Result", async () => {
+    Object.assign(mocks.petition, {
+      status: "approved",
+      approvedAt: "2026-07-13T08:00:00.000Z",
+      labApprovedAt: "2026-07-14T00:00:00.000Z",
+    });
     renderDetail();
     await screen.findByRole("heading", { name: "P-2607-001" });
     expect(screen.getByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument();

@@ -24,6 +24,11 @@ describe("statusBadge", () => {
   it("shows approved petitions as completed with the purple final-result tone", () => {
     expect(statusBadge("approved")).toEqual({ label: "เสร็จสิ้น", variant: "purple-soft" });
   });
+
+  it("shows rejected petitions as Rework with the existing red tone", () => {
+    expect(statusBadge("rejected")).toEqual({ label: "Rework", variant: "red-soft" });
+    expect(petitionStatusBadge({ status: "rejected" } as Petition)).toEqual({ label: "Rework", variant: "red-soft" });
+  });
 });
 
 describe("toneBadge", () => {
@@ -34,6 +39,21 @@ describe("toneBadge", () => {
 });
 
 describe("petitionStatusBadge", () => {
+  it("shows delivering sample as an active yellow status before receive", () => {
+    const badge = petitionStatusBadge({ status: "deliveringQC" } as Petition);
+    expect(badge.label).toBe("กำลังส่งตัวอย่าง");
+    expect(badge.variant).toBe("yellow-soft");
+  });
+
+  it("shows received label for stale deliveringQC petitions that already have a receive timestamp", () => {
+    const badge = petitionStatusBadge({
+      status: "deliveringQC",
+      qcReceivedAt: "2026-09-03T06:05:34.767Z",
+    } as Petition);
+    expect(badge.label).toBe("รับตัวอย่างแล้ว");
+    expect(badge.variant).toBe("yellow-soft");
+  });
+
   it("shows QC completed instead of raw inProgress", () => {
     const b = petitionStatusBadge({ status: "inProgress", qcCompletedAt: "2026-07-02" } as Petition);
     expect(b.label).toBe("QC ตรวจครบ · รอส่วนอื่น");
@@ -99,6 +119,14 @@ describe("hasLabTrack", () => {
 });
 
 describe("petitionStatusSteps", () => {
+  it("marks delivering as current while receive stays pending", () => {
+    const steps = petitionStatusSteps({ status: "deliveringQC" } as Petition);
+    expect(steps.find((s) => s.key === "delivering")?.label).toBe("กำลังส่งตัวอย่าง");
+    expect(steps.find((s) => s.key === "delivering")?.current).toBe(true);
+    expect(steps.find((s) => s.key === "received")?.done).toBe(false);
+    expect(steps.find((s) => s.key === "received")?.current).toBeFalsy();
+  });
+
   it("marks the next open gate as current", () => {
     const steps = petitionStatusSteps({
       status: "inProgress",

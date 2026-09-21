@@ -63,6 +63,26 @@ describe("ParameterDetailDrawer", () => {
     expect(screen.queryByText(/\+1/)).not.toBeInTheDocument();
   });
 
+  it("ใช้กับ: โชว์หลายกฎเป็น item 1 / item 2", () => {
+    renderDrawer({
+      _id: "p1",
+      name: "X",
+      applyRules: [
+        { productTypes: ["powder"] },
+        { commonNames: ["EC"] },
+      ],
+      excludeCommonNames: ["SC"],
+      valueFields: [],
+    });
+
+    expect(screen.getByText("item 1")).toBeInTheDocument();
+    expect(screen.getByText("item 2")).toBeInTheDocument();
+    expect(screen.getByText("ประเภท: ผง")).toBeInTheDocument();
+    expect(screen.getByText("ประเภท Common Name: EC")).toBeInTheDocument();
+    expect(screen.getByText("ยกเว้น ประเภท Common Name:")).toBeInTheDocument();
+    expect(screen.getByText("SC")).toBeInTheDocument();
+  });
+
   it("number ค่าเดียว: ข้อความเกณฑ์ between + หน่วย", () => {
     renderDrawer({
       _id: "p1",

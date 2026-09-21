@@ -25,7 +25,9 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { qcReceivedAt, qcReceivedBy, qcTrackStatusBadge } from '@/lib/receiveStatus';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
-import { requiresQcTrack } from '@/lib/petitionRouting';
+import { isVisibleInQcTestingQueue } from '@/lib/petitionQueueVisibility';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { rankSearchResults } from '@/lib/searchRanking';
 
 
 export default function QCTestingPage() {
@@ -41,8 +43,36 @@ export default function QCTestingPage() {
     dept: dept || undefined,
     limit: 50,
   });
+  const {
+    data: staleReceivedData,
+    loading: staleReceivedLoading,
+    refresh: refreshStaleReceived,
+  } = usePetitionList({
+    status: 'deliveringQC',
+    search,
+    dept: dept || undefined,
+    limit: 50,
+  });
 
-  const petitions: Petition[] = (data?.items ?? []).filter((p) => requiresQcTrack(p));
+  const visiblePetitions: Petition[] = [
+    ...(data?.items ?? []),
+    ...(staleReceivedData?.items ?? []),
+  ].filter(isVisibleInQcTestingQueue);
+  const petitions = rankSearchResults(visiblePetitions, search, (petition) => {
+    const items = petition.items ?? [];
+    const itemNos = items.map((item) => item.itemNo).filter((itemNo) => itemNo?.trim());
+    return {
+      primary: itemNos.length ? itemNos : [petition.petitionNo],
+      secondary: [
+        petition.petitionNo,
+        ...(petition.prodOrderNos ?? []),
+        petition.productionWorkflow?.requestNo,
+        petition.productionWorkflow?.lisPetitionNo,
+        petition.submittedBy?.name,
+        ...items.flatMap((item) => [item.sampleName, item.commonName, item.batchNo, item.lotNo]),
+      ],
+    };
+  });
 
   // Bulk-fetch abnormal flag for petitions that may have results
   // (sampleSent has no results yet, so skip it)
@@ -87,7 +117,7 @@ export default function QCTestingPage() {
               )}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">
-              โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
+              โดย {p.submittedBy?.name ?? '-'} จาก {petitionDepartmentLabel(p)}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{items.length} รายการ</div>
           </>
@@ -204,7 +234,7 @@ export default function QCTestingPage() {
         columns={columns}
         data={petitions}
         rowKey={(p) => p._id}
-        isLoading={loading}
+        isLoading={loading || staleReceivedLoading}
         rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
         onRowClick={(p) => {
           if (qcReceivedAt(p)) navigate(`/qc-testing/${p._id}`);
@@ -215,7 +245,10 @@ export default function QCTestingPage() {
     <QrReceiveModal
       open={scanOpen}
       onClose={() => setScanOpen(false)}
-      onReceived={refresh}
+      onReceived={() => {
+        refresh();
+        refreshStaleReceived();
+      }}
     />
     </AppLayout>
   );

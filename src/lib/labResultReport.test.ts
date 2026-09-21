@@ -13,15 +13,15 @@ const qcResults = [] as never;
 const groupMembership = new Map<string, string[]>();
 
 describe('buildLabResultReportPages', () => {
-  it('passes only Lab-scope parameters to buildApprovalGroups', () => {
+  it('passes Lab-scope and physical parameters to buildApprovalGroups', () => {
     const parameters = [
-      { _id: 'a', scope: 'lab' },
+      { _id: 'a', scope: 'lab', name: 'สารสำคัญ' },
       { _id: 'b', scope: 'qc' },
-      { _id: 'c' }, // undefined scope defaults to qc
+      { _id: 'c', name: 'กายภาพ' }, // undefined scope defaults to qc, but feeds sample condition
     ] as never;
     buildLabResultReportPages({ petition, labRequests, parameters, qcResults, groupMembership });
     const labParamsArg = buildApprovalGroups.mock.calls[0][1] as Array<{ _id: string }>;
-    expect(labParamsArg.map((p) => p._id)).toEqual(['a']);
+    expect(labParamsArg.map((p) => p._id)).toEqual(['a', 'c']);
   });
 
   it('returns the pages from buildLabReportPages', () => {

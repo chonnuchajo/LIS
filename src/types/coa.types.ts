@@ -51,6 +51,23 @@ export type CoaAuditLogEntry = {
   createdAt: string;
 };
 
+export type ExternalCoaRequestSnapshot = {
+  companySource?: string;
+  saleName?: string;
+  saleOrderNo?: string;
+  line?: number;
+  saleOrderDate?: string;
+  itemNo?: string;
+  packingSize?: string;
+  quantity?: number;
+  outstandingQty?: number;
+  unit?: string;
+  pendingStatus?: string;
+  pendingStatusDetail?: string;
+  shipmentDate?: string;
+  remark?: string;
+};
+
 export type CoaDocument = {
   _id: string;
   coaNo?: string | null;
@@ -84,6 +101,7 @@ export type CoaDocument = {
   updatedBy?: CoaPerson;
   createdAt?: string;
   updatedAt?: string;
+  externalCoaRequest?: ExternalCoaRequestSnapshot;
 };
 
 export type EligibleCoaPetition = {

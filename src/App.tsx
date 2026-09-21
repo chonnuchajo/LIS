@@ -6,21 +6,23 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SampleProvider } from "@/context/SampleContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { AppPreferencesProvider } from "@/context/AppPreferencesContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ConfirmProvider } from "@/context/ConfirmDialog";
 import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
 import PetitionFlowWatcher from "@/components/lis/PetitionFlowWatcher";
-import StandardExpiryWatcher from "@/components/lis/StandardExpiryWatcher";
 import PrivateRoute from "@/components/PrivateRoute";
 import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
+import GlobalStockQrScanListener from "@/components/lis/GlobalStockQrScanListener";
 import { RouteLoading } from "@/components/RouteLoading";
 import { StartupLoadingGate } from "@/components/StartupLoadingGate";
 
 // Route-level code splitting: each page is its own chunk, loaded on demand.
 // Keeps the initial bundle to the app shell + only the landing route.
 const Home = lazy(() => import("./pages/Home"));
+const ValidationPage = lazy(() => import("./pages/ValidationPage"));
 const QueueDisplay = lazy(() => import("./pages/QueueDisplay"));
 const Login = lazy(() => import("./pages/Login"));
 const Logout = lazy(() => import("./pages/Logout"));
@@ -34,6 +36,7 @@ const Report = lazy(() => import("./pages/Report"));
 const Stock = lazy(() => import("./pages/Stock"));
 const StockUnitScanPage = lazy(() => import("./pages/StockUnitScanPage"));
 const MasterItems = lazy(() => import("./pages/MasterItems"));
+const MfGapMedicinesPage = lazy(() => import("./pages/MfGapMedicinesPage"));
 const SimpleMethodPage = lazy(() =>
   import("./pages/MasterItems").then((m) => ({ default: m.SimpleMethodPage })),
 );
@@ -47,7 +50,9 @@ const LabApprovalReviewPage = lazy(() => import("./pages/LabApprovalReviewPage")
 const AdminData = lazy(() => import("./pages/AdminData"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
+const FullSpecPage = lazy(() => import("./pages/FullSpecPage"));
 const AccessControl = lazy(() => import("./pages/AccessControl"));
+const SignatureCapturePage = lazy(() => import("./pages/SignatureCapturePage"));
 const StockDeduction = lazy(() => import("./pages/StockDeduction"));
 const StockPublicViewPage = lazy(() => import("./pages/StockPublicViewPage"));
 const DailyCheckLayout = lazy(() => import("./pages/daily-check/DailyCheckLayout"));
@@ -60,6 +65,7 @@ const StandardTimePage = lazy(() => import("./pages/StandardTimePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ScannerPage = lazy(() => import("./pages/ScannerPage"));
 const PetitionListPage = lazy(() => import("./pages/PetitionListPage"));
+const LabSendConditionsPage = lazy(() => import("./pages/LabSendConditionsPage"));
 const PetitionTimelinePage = lazy(() => import("./pages/PetitionTimelinePage"));
 const PetitionTimelineDetailPage = lazy(() => import("./pages/PetitionTimelineDetailPage"));
 const PetitionNewPage = lazy(() => import("./pages/PetitionNewPage"));
@@ -90,22 +96,23 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ConfirmProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter
-        basename={import.meta.env.BASE_URL}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+    <AppPreferencesProvider>
+      <TooltipProvider>
+        <ConfirmProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter
+          basename={import.meta.env.BASE_URL}
+          future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        >
         <RoutePointerLockGuard />
+        <GlobalStockQrScanListener />
         <AuthProvider>
           <DevRoleSwitcher />
           <EmployeeLinkGate />
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <PetitionFlowWatcher />
-            <StandardExpiryWatcher />
             <SampleProvider>
               <StartupLoadingGate minimumDurationMs={1500}>
               <Suspense fallback={<RouteLoading />}>
@@ -120,6 +127,7 @@ const App = () => (
               <Route path="/queue/lab" element={<QueueDisplay mode="lab" />} />
               <Route path="/queue/qc" element={<QueueDisplay mode="qc" />} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
+              <Route path="/validation" element={<PrivateRoute><ValidationPage /></PrivateRoute>} />
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
               <Route path="/record-results" element={<PrivateRoute><AnalysisResults /></PrivateRoute>} />
               <Route path="/record-results/:id" element={<PrivateRoute><PetitionDetailPage mode="result" /></PrivateRoute>} />
@@ -148,19 +156,24 @@ const App = () => (
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
               <Route path="/stock/scan/:qrId" element={<PrivateRoute><StockUnitScanPage /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
+              <Route path="/mf-gap-medicines" element={<PrivateRoute><MfGapMedicinesPage /></PrivateRoute>} />
               <Route path="/simple-method" element={<PrivateRoute><SimpleMethodPage /></PrivateRoute>} />
               <Route path="/machines" element={<PrivateRoute><MachinesPage /></PrivateRoute>} />
               <Route path="/admin-data" element={<PrivateRoute><AdminData /></PrivateRoute>} />
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
+              <Route path="/profile/signature" element={<PrivateRoute><SignatureCapturePage /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
+              <Route path="/full-spec" element={<PrivateRoute><FullSpecPage /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
               <Route path="/petitions-old" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/petition" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
+              <Route path="/lab-send-conditions" element={<PrivateRoute><LabSendConditionsPage /></PrivateRoute>} />
+              <Route path="/petition/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petition/:id" element={<PrivateRoute><PetitionTimelineDetailPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
-              <Route path="/petitions-old/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
+              <Route path="/petitions-old/assign" element={<Navigate to="/petition/assign" replace />} />
               <Route path="/petitions-old/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions-old/production/new" element={<PrivateRoute><ProductionIntegrationPetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />
@@ -180,9 +193,10 @@ const App = () => (
             </SampleProvider>
           </NotificationProvider>
         </AuthProvider>
-      </BrowserRouter>
-      </ConfirmProvider>
-    </TooltipProvider>
+        </BrowserRouter>
+        </ConfirmProvider>
+      </TooltipProvider>
+    </AppPreferencesProvider>
   </QueryClientProvider>
 );
 

@@ -10,6 +10,9 @@ const ROLE_PRIORITY = {
   'qc-staff': 5,
 };
 
+const ADMIN_ROLE_ID = 'admin';
+const DENY_PREFIX = 'deny:';
+
 function roleRank(role) {
   return ROLE_PRIORITY[role] ?? 4;
 }
@@ -36,10 +39,15 @@ function normalizeRoles(user) {
 }
 
 function unionPermissions(roles, permsByRole) {
+  const adminMode = roles.includes(ADMIN_ROLE_ID);
+  const sourceRoles = adminMode
+    ? roles.concat(Object.keys(permsByRole).filter((role) => !roles.includes(role)))
+    : roles;
   const seen = new Set();
   const out = [];
-  for (const role of roles) {
+  for (const role of sourceRoles) {
     for (const perm of permsByRole[role] || []) {
+      if (adminMode && perm.startsWith(DENY_PREFIX)) continue;
       if (!seen.has(perm)) {
         seen.add(perm);
         out.push(perm);

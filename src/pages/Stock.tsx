@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown, Download } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
@@ -27,6 +27,7 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeRoles, type RoleHolder } from "@/lib/roles";
 import { requisitionUser } from "@/lib/standardRequisition";
@@ -46,6 +47,7 @@ import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
+import { formatStockQuantity, formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { visibleBottles } from "@/lib/stockUnit";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
@@ -105,6 +107,19 @@ function formatExportDateRangeLabel(startDate: string, endDate: string) {
 
 function safeDownloadSegment(value: string | undefined) {
   return (value || "stock").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "_") || "stock";
+}
+
+function formatStockDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatStockMonth(value: string | undefined) {
+  if (!value) return "-";
+  const date = new Date(`${value}-01T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
 }
 
 function downloadStockExport(blob: Blob, filename: string) {
@@ -186,12 +201,13 @@ function StandardsTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return data.filter(s => {
+    const matches = data.filter(s => {
       const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilters.size === 0) return true;
       return standardMatchesStatuses(sum, statusFilters);
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    return rankSearchResults(matches, search, (standard) => ({ primary: [standard.code], secondary: [standard.name] }));
   }, [data, search, statusFilters, now, unitsByCode]);
 
   const visibleStandards = data;
@@ -622,7 +638,7 @@ function SolventsTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+    return rankSearchResults(q ? data.filter(s => s.name.toLowerCase().includes(q)) : data, search, (solvent) => ({ primary: [solvent.name] }));
   }, [data, search]);
 
   const visibleSolvents = data;
@@ -799,12 +815,11 @@ function GlasswareTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const visible = data.filter(s => Number(s.qty) > 0);
-    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
+    return rankSearchResults(q ? data.filter(s => s.name.toLowerCase().includes(q)) : data, search, (glassware) => ({ primary: [glassware.name] }));
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
-  const visibleGlassware = data.filter(s => Number(s.qty) > 0);
+  const visibleGlassware = data;
   const outList = visibleGlassware.filter(s => glasswareLevel(s.qty) === "out");
 
   const deleteItem = async () => {
@@ -1133,10 +1148,10 @@ function HistoryTab() {
                   </TableCell>
                   <TableCell><ActionBadge action={t.action} /></TableCell>
                   <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
-                    {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
+                    {t.delta != null ? `${t.delta > 0 ? "+" : ""}${formatStockQuantity(t.delta)}` : "-"}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
+                    {formatStockQuantity(t.beforeQty)} → <strong>{formatStockQuantity(t.afterQty)}</strong> {t.unit || ""}
                   </TableCell>
                   <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
@@ -1763,6 +1778,7 @@ const StockPage = () => {
   const [action, setAction] = useState<"discard" | null>(null);
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
+  const stockDefaultKey = tabs.some((tab) => tab.key === defaultKey) ? defaultKey : tabs[0]?.key;
 
   const onScanned = async (qrId: string) => {
     setScanOpen(false);
@@ -1788,7 +1804,7 @@ const StockPage = () => {
         title={<span className="inline-flex items-center gap-2"><Package className="w-6 h-6" /> Stock Management</span>}
         description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
       />
-      <Tabs key={defaultKey} defaultValue={defaultKey}>
+      <Tabs key={stockDefaultKey} defaultValue={stockDefaultKey}>
         <TabsList className="mb-4 flex-wrap h-auto">
           {tabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
@@ -1804,13 +1820,6 @@ const StockPage = () => {
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>
 
-      <Button
-        className="fixed bottom-6 right-6 rounded-full shadow-lg h-14 w-14 p-0"
-        title="สแกน QR ขวด" onClick={() => setScanOpen(true)}
-      >
-        <ScanLine className="w-6 h-6" />
-      </Button>
-
       <StockQrScanner open={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
 
       {scannedQr && scannedUnit && !action && (
@@ -1819,7 +1828,7 @@ const StockPage = () => {
             <DialogHeader>
               <DialogTitle>{scannedUnit.itemName}</DialogTitle>
               <DialogDescription>
-                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
+                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {formatStockQuantityWithUnit(scannedUnit.volume?.remaining, scannedUnit.volume?.unit)}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 py-2">

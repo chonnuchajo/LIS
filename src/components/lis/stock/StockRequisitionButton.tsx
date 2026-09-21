@@ -65,7 +65,9 @@ export default function StockRequisitionButton({
   const [chooser, setChooser] = useState(false);
   const [which, setWhich] = useState<"chemical" | "standard" | null>(null);
   const [initialStandardQrId, setInitialStandardQrId] = useState<string | null>(null);
+  const [initialStandardUnit, setInitialStandardUnit] = useState<StockUnitItem | null>(null);
   const [initialSolventId, setInitialSolventId] = useState<string | null>(null);
+  const [initialSolventUnitQrId, setInitialSolventUnitQrId] = useState<string | null>(null);
   const consumedQrRef = useRef<string | null>(null);
   const normalizedInitialQrId = initialQrId?.trim() ?? "";
   const shouldResolveInitialQr = Boolean(normalizedInitialQrId) && consumedQrRef.current !== normalizedInitialQrId;
@@ -121,8 +123,20 @@ export default function StockRequisitionButton({
         if (existing) return current.map((row) => (row.qrId === scannedUnit.qrId ? scannedUnit : row));
         return [scannedUnit, ...current];
       });
+      if (scannedUnit.itemType === "solvent") {
+        setInitialStandardQrId(null);
+        setInitialStandardUnit(null);
+        setInitialSolventId(scannedUnit.itemId || scannedUnit.itemCode);
+        setInitialSolventUnitQrId(scannedUnit.qrId);
+        setWhich("chemical");
+        setChooser(false);
+        onInitialQrConsumed?.();
+        return;
+      }
       setInitialStandardQrId(scannedUnit.qrId);
+      setInitialStandardUnit(scannedUnit);
       setInitialSolventId(null);
+      setInitialSolventUnitQrId(null);
       setWhich("standard");
       setChooser(false);
       onInitialQrConsumed?.();
@@ -132,7 +146,9 @@ export default function StockRequisitionButton({
     const matchedSolvent = solvents.find((row) => row._id === normalizedInitialQrId);
     if (matchedSolvent) {
       setInitialStandardQrId(null);
+      setInitialStandardUnit(null);
       setInitialSolventId(normalizedInitialQrId);
+      setInitialSolventUnitQrId(null);
       setWhich("chemical");
       setChooser(false);
       onInitialQrConsumed?.();
@@ -162,7 +178,9 @@ export default function StockRequisitionButton({
 
   const openChooser = (target: "chemical" | "standard") => {
     setInitialStandardQrId(null);
+    setInitialStandardUnit(null);
     setInitialSolventId(null);
+    setInitialSolventUnitQrId(null);
     setWhich(target);
     setChooser(false);
   };
@@ -194,7 +212,9 @@ export default function StockRequisitionButton({
           onClose={() => {
             setWhich(null);
             setInitialSolventId(null);
+            setInitialSolventUnitQrId(null);
           }}
+          initialSolventUnitQrId={initialSolventUnitQrId}
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: ["stock", "pending-deductions"] });
             queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
@@ -207,9 +227,11 @@ export default function StockRequisitionButton({
       {which === "standard" && (
         <StandardRequisitionDialog
           initialQrId={initialStandardQrId}
+          initialUnit={initialStandardUnit}
           onClose={() => {
             setWhich(null);
             setInitialStandardQrId(null);
+            setInitialStandardUnit(null);
           }}
           onSaved={refreshStandards}
         />

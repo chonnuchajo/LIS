@@ -18,6 +18,7 @@ import {
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
 import { buildLocalStandardLabelCodeDefaults, mergeStandardLabelCodeDefaults, standardLabelCodeFromSuffix, standardLabelCodePrefix, standardLabelCodeSuffix } from "@/lib/standardLabelCode";
@@ -216,7 +217,7 @@ export default function ReceiveCart() {
               type: receiveType, bottles: buildBottles(row),
             });
           } else if (row.category === "solvent") {
-            await api.receiveSolvent(row.itemId, {
+            const received = await api.receiveSolvent(row.itemId, {
               qty: Number(row.qty),
               lotNo: row.lotNo.trim(),
               exp: row.exp,
@@ -224,6 +225,7 @@ export default function ReceiveCart() {
               price: Number(row.price),
               note: row.note,
             });
+            created = received.receivedUnits ?? [];
           } else if (row.category === "glassware") {
             await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
           }
@@ -240,16 +242,22 @@ export default function ReceiveCart() {
             if (row.category === "standard") {
               for (const u of created) labels.push(await buildStockLabelHtml(u));
             } else if (row.category === "solvent") {
-              const n = Math.max(1, Number(row.qty));
               const receivedDate = localDateInputValue();
-              for (let i = 0; i < n; i++) {
+              const unitsForLabels = created.length > 0 ? created : Array.from({ length: Math.max(1, Number(row.qty)) }, (_, index) => ({
+                qrId: row.itemId,
+                lotNo: row.lotNo,
+                exp: row.exp || null,
+                receivedDate,
+                lotBottleNo: index + 1,
+              } as Partial<StockUnitItem>));
+              for (const unit of unitsForLabels) {
                 labels.push(await buildSolventLabelHtml({
                   name: row.itemName,
-                  idForQr: row.itemId,
-                  lotNo: row.lotNo,
-                  receivedDate,
-                  exp: row.exp || null,
-                  bottleNo: i + 1,
+                  idForQr: unit.qrId || row.itemId,
+                  lotNo: unit.lotNo || row.lotNo,
+                  receivedDate: unit.receivedDate || receivedDate,
+                  exp: unit.exp || row.exp || null,
+                  bottleNo: unit.lotBottleNo ?? undefined,
                 }));
               }
             }
@@ -683,6 +691,16 @@ export default function ReceiveCart() {
   );
 }
 
+function groupPickOptions(options: PickOption[]): { cat: CartCategory; items: PickOption[] }[] {
+  const groups: { cat: CartCategory; items: PickOption[] }[] = [];
+  for (const option of options) {
+    const previous = groups[groups.length - 1];
+    if (previous?.cat === option.category) previous.items.push(option);
+    else groups.push({ cat: option.category, items: [option] });
+  }
+  return groups;
+}
+
 function ReceiveSearchInput({
   options, value, onValueChange, onSubmit, onPick,
 }: {
@@ -704,11 +722,11 @@ function ReceiveSearchInput({
     return [option.label, option.name, option.code, ...(option.barcodes ?? [])]
       .some((text) => text.toLowerCase().includes(query));
   };
-  const groups: { cat: CartCategory; items: PickOption[] }[] = [
-    { cat: "standard", items: options.filter((option) => option.category === "standard" && match(option)) },
-    { cat: "solvent", items: options.filter((option) => option.category === "solvent" && match(option)) },
-    { cat: "glassware", items: options.filter((option) => option.category === "glassware" && match(option)) },
-  ];
+  const matches = rankSearchResults(options.filter(match), query, (option) => ({
+    primary: [option.code || option.name, ...(option.barcodes ?? [])],
+    secondary: [option.name, option.label],
+  }));
+  const groups = groupPickOptions(matches);
   const anyVisible = groups.some((group) => group.items.length > 0);
 
   const resetExpanded = () => setExpanded({ standard: false, solvent: false, glassware: false });
@@ -758,11 +776,11 @@ function ReceiveSearchInput({
         <div className="absolute bottom-full left-0 z-50 mb-2 w-80 max-w-[calc(100vw-3rem)] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
           <div id="stock-receive-search-options" role="listbox" aria-label="รายการ stock ที่ค้นหา" className="max-h-72 overflow-auto py-1">
             {!anyVisible && <div className="px-3 py-2 text-sm text-muted-foreground">ไม่พบรายการ</div>}
-            {groups.map((group) => {
+            {groups.map((group, groupIndex) => {
               if (group.items.length === 0) return null;
               const groupOpen = searching || expanded[group.cat];
               return (
-                <div key={group.cat}>
+                <div key={`${group.cat}-${groupIndex}`}>
                   <button
                     type="button"
                     aria-expanded={groupOpen}
@@ -825,12 +843,12 @@ function ItemPicker({
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
   const match = (o: PickOption) => !searching || o.label.toLowerCase().includes(q);
+  const matches = rankSearchResults(options.filter(match), query, (option) => ({
+    primary: [option.code || option.name],
+    secondary: [option.name, option.label],
+  }));
 
-  const groups: { cat: CartCategory; items: PickOption[] }[] = [
-    { cat: "standard", items: options.filter((o) => o.category === "standard" && match(o)) },
-    { cat: "solvent", items: options.filter((o) => o.category === "solvent" && match(o)) },
-    { cat: "glassware", items: options.filter((o) => o.category === "glassware" && match(o)) },
-  ];
+  const groups = groupPickOptions(matches);
   const anyVisible = groups.some((g) => g.items.length > 0);
 
   return (
@@ -846,11 +864,11 @@ function ItemPicker({
           <CommandInput placeholder="ค้นหา code หรือชื่อ" value={query} onValueChange={setQuery} />
           <CommandList>
             {!anyVisible && <CommandEmpty>ไม่พบรายการ</CommandEmpty>}
-            {groups.map((g) => {
+            {groups.map((g, groupIndex) => {
               if (g.items.length === 0) return null;
               const isOpen = searching || expanded[g.cat];
               return (
-                <CommandGroup key={g.cat} className="p-0">
+                <CommandGroup key={`${g.cat}-${groupIndex}`} className="p-0">
                   <button
                     type="button"
                     onClick={() => setExpanded((p) => ({ ...p, [g.cat]: !p[g.cat] }))}

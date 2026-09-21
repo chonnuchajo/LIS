@@ -230,8 +230,10 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     ).length;
     const assignedToMeCount = petitions.filter((p) => isAssignedToUser(p, user)).length;
     const dailyCheckProgress = dailyCheckProgressFromSources({
+      scaleRecords: dailySummary?.scaleRecords,
       scaleIds: dailySummary?.scaleIds,
       scaleCount: dailySummary?.count,
+      environmentRecords: envSummary?.roomRecords,
       environmentRooms: envSummary?.rooms,
       environmentCount: envSummary?.count,
       equipmentRecords: equipmentCheckQueries.flatMap((query) => query.data ?? []),

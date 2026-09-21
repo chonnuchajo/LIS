@@ -1,0 +1,683 @@
+{
+  "sourceFile": "Method Validation Cypermethrin 16092026.pdf",
+  "sourceSha256": "c03dc5c473e9c10ca2001dbf7952f0dc43637da648b13c3bf6fb738b538857d1",
+  "sourcePageCount": 24,
+  "contents": "สารบัญ \n  หน้า \n \n \nปก \nสารบัญ \n1. วัตถุประสงค์ \n2. ขอบเขต \n3. เอกสารอ้างอิง \n4. เครื่องมือ วัสดุ และสารเคมี \n4.1 เครื่องมือและอุปกรณ์ส าหรับการทดสอบ \n4.2 วัสดุสิ้นเปลือง \n4.3 สารเคมี \n5. สรุปวิธีวิเคราะห์ \n5.1 สารละลาย \n5.2 สภาวะโครมาโทกราฟี \n5.3 ความเหมาะสมของระบบ \n5.4 สารมาตรฐาน \n5.5 ตัวอย่างการค านวณผล \n6. วิธีการด าเนินการ \n6.1 การเตรียม Solvent \n6.2 การเตรียมสารละลาย stock ของ Reference Standard (RS) \n6.3 การเตรียม Matrix Blank \n6.4 ระดับความเป็นเส้นตรง \n6.5 การเตรียมตัวอย่างเติมสารส าหรับ Accuracy, Repeatability และ \nIntermediate Precision \n6.6 การเตรียมตัวอย่างเติมสารส าหรับ Intermediate Precision \n6.7 การเตรียมและการฉีดสารละลายตัวอย่างทดสอบ (Test Sample) \n7. การตรวจสอบความใช้ได้ของวิธีวิเคราะห์ \n7.1 ความจ าเพาะของวิธีวิเคราะห์ (Specificity/Identification) \n7.2 ความเป็นเส้นตรงและช่วงการวิเคราะห์ (Linearity & Range) \n7.3 ความถูกต้อง (Accuracy; Recovery in Matrix) \n7.4 ความเที่ยงแบบท าซ ้า (Repeatability Precision) \n7.5 ความเที่ยงระหว่างวันวิเคราะห์ (Intermediate Precision)\n\n8. ผลการทดสอบ \n8.1 ความจ าเพาะของวิธีวิเคราะห์ (Specificity) \n8.2 ความเป็นเส้นตรงและช่วงการวิเคราะห์ (Linearity & Range) \n8.3 ความถูกต้อง (Accuracy; Recovery in Matrix) \n8.4 ความเที่ยงของวิธีวิเคราะห์ (Precision: Repeatability and \nIntermediate Precision) \n9. สรุปผลการตรวจสอบความถูกต้องและสถานะ \n10. บทสรุป \n11. ผลการวิเคราะห์ตัวอย่างทดสอบและการประเมิน QC \n11.1 ผลการวิเคราะห์ตัวอย่างทดสอบ \n11.2 การค านวณผลการวิเคราะห์ตัวอย่างทดสอบ \n11.3 ผลการประเมิน QC \n11.4 สรุปผลการวิเคราะห์ตัวอย่างทดสอบและ QC",
+  "blocks": [
+    {
+      "type": "text",
+      "source": "1. วัตถุประสงค์ \n      เพื่อตรวจสอบ และแสดงความใช้ ได้ของวิธีการวิเคราะห์สารออก ฤทธิ์ Cypermethrin 10 % W/V EC, \nCypermethrin 25 % W/V EC และ Cypermethrin 35 % W/V EC ในสารก าจัดศัตรูพืชโดยดัดแปลงวิธีการของ  \nCIPAC 3807, Guidelines on  method validation to be performed in  support of analytical methods for \nagrochemical formulations (RF-18-003) โดยเทคนิค GC ที่บริษัท ไอซีพี  ลัดดา  จ ากัด จะน ามาใช้เป็นวิธี\nมาตรฐานการปฏิบัติงานเพื่อให้มีความเหมาะสมต่อการใช้งานและเป็นไปตามข้อก าหนดและเป็นไปตามมาตรฐาน \nISO/IEC 17025:2017 \n \n2. ขอบเขต           \n  วิธีปฏิบัตินี้ครอบคลุมการตรวจสอบความใช้ได้ของวิธีวิเคราะห์เพื่อหาปริมาณสารออกฤทธิ์ \nCypermethrin ในผลิตภัณฑ์สารก าจัดศัตรูพืชชนิด emulsifiable concentrate (EC) ได้แก่ Cypermethrin 10% \nW/V EC, Cypermethrin 25% W/V EC และ Cypermethrin 35% W/V EC โดยเทคนิค Gas Chromatography \nwith Flame Ionization Detector (GC-FID) \n  การตรวจสอบความใช้ได้ของวิธีวิเคราะห์ครอบคลุมพารามิเตอร์ ได้แก่ ความจ าเพาะของวิธีวิเคราะห์ \n(Specificity/Identification), ความเป็นเส้นตรงและช่วงการวิเคราะห์ ( Linearity and Range), ความถูกต้อง \n(Accuracy/Trueness), ความเที่ยงแบบท าซ ้า ( Repeatability Precision) และความเที่ยงระหว่างวันวิเคราะห์ \n(Intermediate Precision) \n  ในการศึกษานี้ใช้ผลิตภัณฑ์ Cypermethrin 25% W/V EC เป็นตัวแทนของผลิตภัณฑ์ Cypermethrin EC \nเนื่องจากผลิตภัณฑ์ ทั้งสามระดับความเข้มข้นของผลิตภัณฑ์ มีสารออกฤทธิ์ชนิดเดียวกัน อยู่ในรูปแบบผลิตภัณฑ์\nเดียวกัน ใช้หลักการเตรียมตัวอย่าง ตัวท าละลาย และสภาวะโครมาโทกราฟีเดียวกัน อีกทั้งสารละลายตัวอย่างของ\nแต่ละสูตรผลิตภัณฑ์สามารถเตรียมให้มีความเข้มข้นของ Cypermethrin อยู่ภายในช่วงการวิเคราะห์ที่ตรวจสอบ\nแล้ว คือ 0.10-1.00 mg/mL \n  การใช้ Cypermethrin 25% W/V EC เป็นตัวแทนนี้ใช้ได้ภายใต้เงื่อนไขว่าผลิตภัณฑ์ Cypermethrin 10% \nW/V EC, 25% W/V EC และ 35% W/V EC มีองค์ประกอบของสูตรต ารับและลักษณะเมทริกซ์ที่ไม่แตกต่างกัน\nอย่างมีนัยส าคัญ และการวิเคราะห์ตัวอย่างต้องเตรียมให้ความเข้มข้นสุดท้ายอยู่ภายในช่วงการวิเคราะห์ที่ได้รับ\nการตรวจสอบแล้ว \n \n3. เอกสารอ้างอิง \n                   3.1 CIPAC. (2003). Guidelines on method validation to be performed in support of analytical \n  methods for agrochemical formulations. CIPAC Document No. 3807. \n      3.2 AOAC INTERNATIONAL. AOAC Official Method 985.03: Cypermethrin in Pesticide  \n  Formulations: Capillary Gas Chromatographic Method. In Official Methods of Analysis of AOAC \n  INTERNATIONAL. First Action 1985; Final Action 1987.\n\n3.3 Bland, P.D. (1985). Capillary Gas Chromatographic Determination of Cypermethrin in \n Formulations: Collaborative Study. Journal of Association of Official Analytical Chemists, 68(3), \n 592–595. \n     3.4 ISO/IEC. (2017). ISO/IEC 17025:2017 General requirements for the competence of testing and \n calibration laboratories. \n3.5 Food and Agriculture Organization of the United Nations and World Health Organization. (2025). \n Manual on the development and use of FAO and WHO specifications for chemical pesticides \n (3rd ed.). Geneva: World Health Organization. ISBN 978-92-4-011814-0. \n3.6 Food and Agriculture Organization of the United Nations. (1995). FAO specifications for plant \n protection products: Cypermethrin ( AGP: CP /316). FAO Specification 332/EC/S/F (1993): \n Cypermethrin emulsifiable concentrates. Rome: FAO. \n \n4.  เครื่องมือ วัสดุ และสารเคมี \n4.1 เครื่องมือและอุปกรณ์ส าหรับการทดสอบ \n4.1.1) Gas Chromatograph (GC) Agilent 8850 with FID detector \n4.1.2) เครื่องชั่งเชิงวิเคราะห์ทศนิยม 5 ต าแหน่ง Serial No. 28207966 \n4.1.3) Ultrasonic Bath \n4.1.4) Micropipette 0.5-10 µL Serial No. K80701K \n4.1.5) Micropipette 10-100 µL Serial No. L30523K \n4.1.6) Micropipette 100-1000 µL Serial No. M56544K \n4.1.7) Class A volumetric flask 25 mL \n4.1.8) Beaker ขนาด 50 และ 250 mL \n4.1.9) Vial 2 ml แบบมี cap & septa Vial สีชา ขนาด 2 mL \n4.2 วัสดุสิ้นเปลือง \n4.2.1) Column ชนิด HP – 5, length 30 (m), Diameter 0.32 (mm) Wide bore, Film 0.25 (µm) \n4.2.2) ขวดแก้วสีชาส าหรับ autosampler ขนาด 2 mL พร้อมฝาปิดชนิดมีรูและ septa ซิลิโคน \n4.2.3) Micropipette tips \n4.3 สารเคมี \n4.3.1) สารมาตรฐาน Cypermethrin CAS No.52315-07-8 (Lot No. G1633416) \n4.3.2) Acetone ชนิดไม่ต ่ากว่า AR grade CAS No. 67-64-1(Lot No. 2533819) \n4.3.3) สารออกฤทธิ์ Cypermethrin 25% EC\n\n5. สรุปวิธีวิเคราะห์ \n5.1 หลักการวิเคราะห์ \n วิเคราะห์ปริมาณสารออกฤทธิ์ Cypermethrin โดยเตรียมสารละลายมาตรฐานและสารละลายตัวอย่าง\nด้วย Acetone ชนิดไม่ต ่ากว่า AR grade แล้ววิเคราะห์ด้วยเครื่อง Gas Chromatograph with Flame Ionization \nDetector (GC-FID) โดยเปรียบเทียบสัญญาณตอบสนองของสารละลายตัวอย่างกับกราฟมาตรฐานของ \nCypermethrin \n Cypermethrin ประกอบด้วยหลาย isomers ซึ่งอาจให้พีคมากกว่าหนึ่งพีคภายใต้สภาวะโครมาโทกราฟี\nที่ใช้ ดังนั้นการค านวณปริมาณ Cypermethrin ให้ใช้ผลรวมของพื้นที่ใต้พีคของ Cypermethrin isomers ทุกพีคที่\nได้รับการยืนยันต าแหน่ง retention time แล้ว และต้องใช้หลักเกณฑ์การรวมพีคแบบเดียวกันส าหรับสารมาตรฐาน \nตัวอย่างเติมสาร ตัวอย่างทดสอบ และ QC \n5.2 สารละลาย \n• Solvent/Diluent: Acetone ชนิดไม่ต ่ากว่า AR grade \n• Standard solution: สารละลายมาตรฐาน Cypermethrin  \n• Sample solution: สารละลายตัวอย่าง Cypermethrin ที่เตรียม Acetone ให้มีความเข้มข้นของ \nCypermethrin อยู่ภายในช่วงการวิเคราะห์ที่ตรวจสอบแล้ว \n• Blank solution: Acetone หรือ Matrix Blank ตามวัตถุประสงค์ของการทดสอบ \n• QC solution: Standard Check Solution in Matrix Blank และ Matrix Spike Solution \n5.3 สภาวะโครมาโทกราฟี \n• เครื่องมือ: GC พร้อม FID detector \n• คอลัมน์: HP-5, length 30 m, diameter 0.32 mm, film 0.25 µm \n• Oven temperature: 280 °C \n• Injection temperature: 280 °C \n• Detector temperature: 280 °C \n• Split ratio: 50:1 \n• Inlet: Split mode \n• Oven hold time: 5.5 min \n• Run time: 5.5 min \n• Injection volume: 1.2 µL \n• Air flow rate: 400 mL/min \n• Hydrogen flow rate: 40 mL/min \n• Retention time ของ Cypermethrin: ประมาณ 4.5 นาที\n\n5.4 ความเหมาะสมของระบบ \n  ก่อนการวิเคราะห์ต้องฉีดสารละลายมาตรฐาน Cypermethrin เพื่อประเมินความเหมาะสมของระบบ \n โดยพิจารณาจาก retention time และพื้นที่ใต้พีคของ Cypermethrin isomers \n เกณฑ์การยอมรับ: \n• Blank ต้องไม่พบพีครบกวนที่ต าแหน่ง retention time ของ Cypermethrin หรือ response ต้องไม่เกินเกณฑ์\nที่ก าหนด \n• Retention time ของ Cypermethrin ต้องมีความสอดคล้องกันตามเกณฑ์ที่ก าหนด \n• %RSD ของผลรวมพื้นที่ใต้พีค Cypermethrin isomers จากการฉีดสารละลายมาตรฐานซ ้าต้องไม่เกิน 2.0% \n5.5 สารมาตรฐาน \n• Cypermethrin stock standard solution ≈ 2.000 mg/mL: ชั่งประมาณ 50–55 mg และค านวณความ\nเข้มข้นจริงจากน ้าหนักและ purity ลงในขวดวัดปริมาตรขนาด  25 mL เติม Acetone ประมาณครึ่งหนึ่ง\nของปริมาตรขวด ละลายหรือ sonicate จนละลายสมบูรณ์ ตั้งไว้ให้เย็นที่อุณหภูมิห้อง แล้วปรับปริมาตร\nด้วย Acetone จนครบ 25 mL ผสมให้เข้ากัน \n5.6 ตัวอย่างการค านวณผล \n ค านวณปริมาณสารออกฤทธิ์ Cypermethrin โดยเปรียบเทียบค่าเฉลี่ยพื้นที่ใต้พีคของสารละลาย\nตัวอย่างกับค่าเฉลี่ยพื้นที่ใต้พีคของสารละลายมาตรฐาน จากนั้นค านวณร่วมกับค่าความเข้มข้นของสารละลาย\nมาตรฐาน ค่าความเข้มข้นของสารละลายตัวอย่าง และค่าความบริสุทธิ์ของสารมาตรฐาน เพื่อรายงานผลเป็น\nร้อยละสารออกฤทธิ์โดยน ้าหนัก (%w/w) \n กรณีต้องรายงานผลเป็นร้อยละสารออกฤทธิ์โดยน ้าหนักต่อปริมาตร (%w/v) ให้ค านวณจากค่าร้อยละ\nสารออกฤทธิ์โดยน ้าหนัก (%w/w) คูณด้วยค่าความถ่วงจ าเพาะของตัวอย่าง \n \n6. วิธีการด าเนินการ \n6.1 การเตรียม Solvent \n6.1.1) ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น diluent ส าหรับเตรียมสารละลายมาตรฐาน สารละลาย\n  ตัวอย่าง และ blank ที่ใช้ในการตรวจสอบความถูกต้องของวิธีวิเคราะห์ \n6.2 การเตรียมสารละลาย stock ของ Reference Standard (RS) (Cypermethrin ≈ 2.000 mg/mL) \n     6.2.1) ชั่งสารมาตรฐาน Cypermethrin ชั่งประมาณ 50–55 mg และค านวณความเข้มข้นจริงจากน ้าหนักและ \n  purity ลงในขวดวัดปริมาตร 25 mL และบันทึกมวลจริง \n6.2.2) เติม Acetone ประมาณครึ่งหนึ่งของปริมาตรขวด จากนั้นน าไป sonicate ประมาณ 10 นาที เพื่อให้\n  สารละลายสมบูรณ์ ตั้งไว้ให้เย็นที่อุณหภูมิห้อง แล้วปรับปริมาตรให้ครบด้วย Acetone และเขย่าให้เข้า\n  กัน \n6.2.3) ติดฉลากระบุ “Cypermethrin Stock Solution ≈ 2.000 mg/mL” พร้อมข้อมูลอื่นที่จ าเป็น\n\n6.2.4) เก็บสารมาตรฐานอ้างอิงไว้ในภาชนะเดิมที่ปิดสนิท ตามสภาวะการเก็บรักษาที่ระบุใน Certificate of \n  Analysis (COA) หรือเอกสารก ากับของสารมาตรฐาน และป้องกันแสงและความชื้น \n6.3 การเตรียม Matrix Blank \n  Matrix Blank หมายถึง blank formulation ของผลิตภัณฑ์ Cypermethrin EC ที่มีองค์ประกอบของสูตร\nต ารับเหมือนหรือใกล้เคียงกับตัวอย่างผลิตภัณฑ์ แต่ไม่มีสารออกฤทธิ์ Cypermethrin โดยใช้ส าหรับประเมินการ\nรบกวนจากเมทริกซ์ที่อาจเกิดขึ้น ณ ต าแหน่ง retention time ของ Cypermethrin และใช้เตรียมสารละลายควบคุม\nคุณภาพส าหรับประเมินการคืนกลับของสารมาตรฐานในเมทริกซ์ \n  ก่อนน า Matrix Blank ไปใช้ ต้องผสมให้เป็นเนื้อเดียวกัน และตรวจสอบว่าไม่พบพีครบกวนที่ต าแหน่ง \nretention time ของ Cypermethrin ภายใต้สภาวะโครมาโทกราฟ ี ที่ก าหนด หรือมี response ไม่เกินเกณฑ์การ\nยอมรับที่ก าหนด \n  ในการเตรียมตัวอย่างเติมสารส าหรับการประเมิน accuracy, repeatability และ intermediate \nprecision ให้เติม Matrix Blank ในปริมาณที่ก าหนดลงในสารละลายสุดท้าย เพื่อจ าลองสัดส่วนเมทริกซ์ของ\nสารละลายตัวอย่างทดสอบ \n  ในการเตรียม Standard Check Solution in Matrix Blank ให้ใช้ Matrix Blank โดยตรงเป็นส่วนประกอบ\nของสารละลาย เพื่อประเมินผลของเมทริกซ์ต่อการตอบสนองของสารมาตรฐานและประเมิน % Recovery ของ \nCypermethrin ภายใต้สภาวะที่มี Matrix Blank   \n6.4 ระดับความเป็นเส้นตรง \n6.4.1) เตรียมสารละลายมาตรฐาน Cypermethrin ส าหรับประเมินความเป็นเส้นตรง จ านวน 5 ระดับความ\n   เข้มข้น จาก Cypermethrin stock standard solution ความเข้มข้น 2.000 mg/mL โดยใช้ Acetone  \n   ชนิดไม่ต ่ากว่า AR grade เป็น diluent \n- 0.10 mg/mL: ปิเปต Cypermethrin stock standard solution 50 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 950 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.25 mg/mL: ปิเปต Cypermethrin stock standard solution 125 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 875 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.50 mg/mL: ปิเปต Cypermethrin stock standard solution 250 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 750 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.75 mg/mL: ปิเปต Cypermethrin stock standard solution 375 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 625 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 1.00 mg/mL: ปิเปต Cypermethrin stock standard solution 500 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 500 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n6.5 การเตรียมตัวอย่างเติมสารส าหรับ Accuracy, Repeatability และ Intermediate Precision \n6.5.1) เตรียมตัวอย่างเติมสาร Cypermethrin ส าหรับประเมิน accuracy, repeatability และ intermediate \n precision โดยใช้ Matrix Blank เป็นเมทริกซ์ของตัวอย่าง และเติม Cypermethrin stock standard\n\nsolution ความเข้มข้น 2.000 mg/mL เพื่อให้ได้ความเข้มข้นเป้าหมาย 3 ระดับ ได้แก่ 0.10, 0.50 และ \n 1.00 mg/mL \n6.5.2) ก าหนดปริมาณ Matrix Blank โดยให้ Matrix Blank เป็นตัวแทนของตัวอย่าง Cypermethrin 25% EC \n  ที่ไม่มีสารออกฤทธิ์ Cypermethrin เพื่อจ าลองสัดส่วนของ matrix ให้สอดคล้องกับการเตรียมตัวอย่าง\n  จริงการเตรียมตัวอย่างที่ระดับความเข้มข้น 1.00 mg/mL อ้างอิงจากการชั่งตัวอย่าง Cypermethrin \n  25% EC ประมาณ 40 mg และปรับปริมาตรเป็น 10 mL ซึ่งเทียบเท่าความเข้มข้นของตัวอย่างใน\n  สารละลายเท่ากับ 4 mg/mL หรือ 0.4% w/v ดังนั้น ในการเตรียมสารละลายสุดท้ายปริมาตรรวม 1,000 \n  µL ให้เติม Matrix Blank จ านวน 4 µL ในทุกระดับความเข้มข้น เพื่อให้มีปริมาณ matrix เทียบเท่า\n ประมาณ 4 mg/mL หรือ 0.4% w/v โดยค านวณจากสมมติฐานว่า Matrix Blank มีความหนาแน่น\n  ใกล้เคียง 1 mg/µL จากนั้นเติม Cypermethrin stock standard solution และ Acetone ให้ได้ปริมาตร\n  รวมตามที่ก าหนดในแต่ละระดับความเข้มข้น  หมายเหตุ: หากทราบค่าความถ่วงจ าเพาะของ Matrix \n  Blank ให้ค านวณ ปริมาตร Matrix Blank จากน ้าหนักเทียบเท่า 4 mg แทนการใช้สมมติฐาน 1 mg/µL \n6.5.3) เตรียมตัวอย่างเติมสารแต่ละระดับความเข้มข้น โดยเติม Matrix Blank 4 µL ลงในขวด vial ขนาด 2 mL \n จากนั้นเติม Cypermethrin stock standard solution และ Acetone ชนิดไม่ต ่ากว่า AR grade ให้มี\n ปริมาตรสุดท้าย 1,000 µL ตามรายละเอียดดังนี้ \n- 0.10 mg/mL: เติม Matrix Blank 4 µL และ Cypermethrin stock standard solution 50 µL จากนั้น\nเติม Acetone 946 µL และผสมให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.50 mg/mL: เ ติ ม  Matrix Blank 4 µL และ Cypermethrin stock standard solution 250 µL \nจากนั้นเติม Acetone 746 µL และผสมให้เป็นเนื้อเดียวกันด้วย vortex \n- 1.00 mg/mL: เ ติ ม  Matrix Blank 4 µL และ Cypermethrin stock standard solution 500 µL \nจากนั้นเติม Acetone 496 µL และผสมให้เป็นเนื้อเดียวกันด้วย vortex \n6.5.4) ติดฉลากสารละลายแต่ละระดับความเข้มข้น โดยระบุระดับความเข้มข้น เลขล าดับตัวอย่าง และข้อมูล\n อื่นที่จ าเป็นให้ชัดเจน \n6.5.5) ส าหรับการประเมิน accuracy และ repeatability ให้เตรียมตัวอย่างเติมสารแยกกันจ านวน 10 ตัวอย่าง\n ต่อระดับความเข้มข้น \n6.6 การเตรียมตัวอย่างเติมสารส าหรับ Intermediate Precision - Assay (ใน Matrix Blank) \n6.6.1) เตรียมตัวอย่างเติมสาร Cypermethrin ส าหรับการประเมิน intermediate precision ที่ระดับความ\n เข้มข้น 3 ระดับ ได้แก่ 0.10, 0.50 และ 1.00 mg/mL โดยใช้ Matrix Blank เป็นเมทริกซ์ และเตรียมตาม\n วิธีการที่ระบุในหัวข้อ 6.5 \n6.6.2) การเตรียมตัวอย่างให้ด าเนินการในวันวิเคราะห์ต่างกันอย่างน้อย 6 วัน ภายใต้สภาวะการวิเคราะห์\n เดียวกัน โดยเตรียมและวิเคราะห์ตัวอย่างในแต่ละระดับความเข้มข้นตามจ านวนซ ้าที่ก าหนด \n6.6.3) ตัวอย่างเติมสารทุกระดับความเข้มข้นต้องมีปริมาณ Matrix Blank เท่ากัน คือ 4 µL ต่อปริมาตรสุดท้าย \n 1,000 µL เพื่อให้สอดคล้องกับสัดส่วนเมทริกซ์ของตัวอย่างจริง\n\n6.6.4) ผสมสารละลายแต่ละตัวอย่างให้เป็นเนื้อเดียวกันด้วย vortex จากนั้นถ่ายสารละลายลงในขวด vial \n ขนาด 2 mL และติดฉลากระบุระดับความเข้มข้น วันวิเคราะห์ ล าดับตัวอย่าง และข้อมูลอื่นที่จ าเป็น \n6.7 การเตรียมและการฉีดสารละลายตัวอย่างทดสอบ (Test Sample) \n6.7.1) การเตรียมสารละลายตัวอย่างทดสอบ \nชั่งตัวอย่าง Cypermethrin 25% EC ประมาณ 50 mg จ านวน 10 ตัวอย่าง ตัวอย่าง โดยชั่ง\nแต่ละตัวอย่างลงในขวดวัดปริมาตรขนาด 25 mL แยกกัน  เติม Acetone ชนิดไม่ต ่ากว่า AR grade \nปริมาณพอเหมาะ เขย่าหรือ sonicate จนตัวอย่างกระจายตัวหรือสกัดสารออกฤทธิ์ได้อย่างเหมาะสม \nจากนั้นตั้งไว้ให้เย็นที่อุณหภูมิห้อง ปรับปริมาตรด้วย Acetone ให้ครบ 25 mL และผสมให้เป็นเนื้อ\nเดียวกัน จะได้สารละลายตัวอย่างทดสอบที่มีความเข้มข้นของ Cypermethrin ประมาณ 0.500 mg/mL \n6.7.2) การเตรียมสารละลาย QC \nเตรียมสารละลาย QC ส าหรับใช้ควบคุมความถูกต้องและความสอดคล้องของผลการวิเคราะห์\nตัวอย่างทดสอบ โดยแบ่งเป็น 2 ประเภท ได้แก่ Standard Check Solution และ Matrix Spike \nSolution \n6.7.2.1) การเตรียม Standard Check Solution \n  เตรียม Standard Check Solution in Matrix Blank โดยปิเปต Cypermethrin standard stock \n solution ความเข้มข้นประมาณ 2.000 mg/mL จ านวน 250 µL ลงใน vial หรือภาชนะที่เหมาะสม จาก\n นั้นปิเปต Matrix Blank จ านวน 750 µL เติมลงใน vial เดียวกัน และผสมให้เป็นเนื้อเดียวกัน จะได้\n สารละลาย Standard Check Solution in Matrix Blank ที่มีความเข้มข้นของ Cypermethrin ประมาณ \n 0.500 mg/mL ในปริมาตรรวม 1,000 µL \n  ให้เตรียมแยกกันจ านวน 2 ชุด ได้แก่ Standard Check Solution in Matrix Blank-1 และ \n Standard Check Solution in Matrix Blank-2 โดยบันทึกน ้าหนักสารมาตรฐานจริง ค่าความบริสุทธิ์ของ\n สารมาตรฐาน และปริมาตรที่ใช้จริง เพื่อค านวณความเข้มข้นจริงของสารมาตรฐานที่เตรียมได้และใช้\n ประเมิน %Recovery \n  6.7.2.2) การเตรียม Matrix Spike Solution \n  เตรียม sample stock solution โดยชั่งตัวอย่าง Cypermethrin 25% EC อย่างถูกต้องประมาณ \n 75 mg ลงในขวดวัดปริมาตรขนาด 25 mL เติม Acetone ชนิดไม่ต ่ากว่า AR grade ปริมาณพอเหมาะ \n เขย่าหรือ sonicate จนตัวอย่างกระจายตัวหรือสกัดสารออกฤทธิ์ได้อย่างเหมาะสม จากนั้นตั้งไว้ให้เย็นที่\n อุณหภูมิห้อง ปรับปริมาตรด้วย Acetone ให้ครบ 25 mL และผสมให้เป็นเนื้อเดียวกัน \n  เ ต รีย ม  Matrix Spike Solution โด ย ปิ เ ปต sample stock solution จ า นว น 400 µL และ \n Cypermethrin standard stock solution ความเข้มข้นประมาณ 2.000 mg/mL จ านวน 100 µL ลงใน \n vial หรือภาชนะที่เหมาะสม จากนั้นเติม Acetone จ านวน 500 µL และผสมให้เป็นเนื้อเดียวกัน จะได้\n สารละลาย Matrix Spike Solution ที่มีความเข้มข้นรวมของ Cypermethrin ประมาณ 0.500 mg/mL\n\nให้เตรียมแยกกันจ านวน 2 ชุด ได้แก่ Matrix Spike Solution-1 และ Matrix Spike Solution-2 โดยบันทึก\n น ้าหนักตัวอย่างจริง น ้าหนักสารมาตรฐานจริง ค่าความบริสุทธิ์ของสารมาตรฐาน และปริมาตรที่ใช้จริง \n เพื่อใช้ค านวณ C sample, C spike และ Spike Recovery (%) \n \n7. การตรวจสอบความใช้ได้ของวิธีวิเคราะห์ \n7.1 ความจ าเพาะของวิธีวิเคราะห์ (Specificity/Identification) \n7.1.1) การเตรียม \n- Blank (diluent): ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น blank  \n- Cypermethrin standard solution (1.0 mg/mL): เตรียมสารละลายมาตรฐาน Cypermethrin \nความเข้มข้น 1.0 mg/mL โดยใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น diluent ผสมสารละลาย\nให้เป็นเนื้อเดียวกันด้วย vortex จากนั้นถ่ายสารละลายลงในขวด vial ขนาด 2 mL และปิดฝาให้\nเรียบร้อย \n7.1.2) ล าดับการฉีด \nด าเนินการฉีดสารละลายที่เตรียมไว้ด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- Blank (Acetone) จ านวน 3 injections \n- Cypermethrin standard solution ความเข้มข้น 1.0 mg/mL จ านวน 6 injections \n7.1.3) เกณฑ์การยอมรับ \n- Blank (Acetone) ต้องไม่ปรากฏพีครบกวนที่ต าแหน่ง retention time ของ Cypermethrin \n- Retention time ของพีค Cypermethrin จากสารละลายมาตรฐานต้องมีความสอดคล้องกัน โดยค่า \n%CV ของ retention time ต้องไม่เกิน 0.5% \n- ค่า %RSD ของพื้นที่ใต้พีค Cypermethrin จากการฉีดสารละลายมาตรฐานซ ้าต้องไม่เกิน 2.0% \n7.2 ความเป็นเส้นตรงและช่วงการวิเคราะห์ (Linearity & Range) \n7.2.1) การเตรียม \n- Blank (diluent): ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น blank  \n- System suitability standard solution: เตรียมสารละลายมาตรฐาน Cypermethrin ความเข้มข้น \n1.00 mg/mL ส าหรับประเมินความเหมาะสมของระบบ \n- Linearity standard solution: เตรียมสารละลายมาตรฐาน Cypermethrin ส าหรับประเมินความ\nเป็นเส้นตรง จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL ตาม\nวิธีการเตรียมที่ระบุในหัวข้อ 6.4.1 \n7.2.2) ล าดับการฉีด \n ด าเนินการฉีดสารละลายที่เตรียมไว้ด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 2 injections \n- Blank (Acetone) จ านวน 2 injections\n\n- Linearity standard solution ที่ระดับความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL\nจ านวน 3 injections ต่อระดับความเข้มข้น \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.2.3) เกณฑ์การยอมรับ \n- กราฟความสัมพันธ์ระหว่างความเข้มข้นของ Cypermethrin และพื้นที่ใต้พีคต้องมีค่า\nสัมประสิทธิ์การตัดสินใจ (R²) ไม่น้อยกว่า 0.995 \n- ค่า %RSD ของพื้นที่ใต้พีคจากการฉีดซ ้าในแต่ละระดับความเข้มข้นต้องไม่เกิน 5.0% \n- Blank (Acetone) ต้องไม่ปรากฏพีครบกวนที่ต าแหน่ง retention time ของ Cypermethrin \n7.3 ความถูกต้อง (Accuracy; Recovery in Matrix) \n7.3.1) การเตรียม \n- Blank (diluent): ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น blank \n- System suitability standard solution: เตรียมสารละลายมาตรฐาน Cypermethrin ความ\nเข้มข้น 1.00 mg/mL \n- Calibration standard solution: เตรียมสารละลายมาตรฐาน Cypermethrin จ านวน 5 ระดับ\nความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL \n- Spiked sample in matrix: เตรียมตัวอย่างเติมสาร Cypermethrin ใน Matrix Blank ที่ระดับ\nความเข้มข้น 0.10, 0.50 และ 1.00 mg/mL โดยเตรียมแยกกันจ านวน 10 ตัวอย่างต่อระดับ\nความเข้มข้น ตามวิธีการเตรียมที่ระบุในหัวข้อ 6.5.3 \n7.3.2) ล าดับการฉีด \nด าเนินการฉีดสารละลายที่เตรียมไว้ด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 2 injections \n- Blank (Acetone) จ านวน 1 injection \n- Calibration standard solution ที่ระดับความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 \nmg/mL จ านวน 1 injection ต่อระดับความเข้มข้น \n- Spiked sample in matrix ที่ระดับความเข้มข้น 0.10 mg/mL จ านวน 10 ตัวอย่าง โดยฉีด\nตัวอย่างละ 1 injection \n- Spiked sample in matrix ที่ระดับความเข้มข้น 0.50 mg/mL จ านวน 10 ตัวอย่าง โดยฉีด\nตัวอย่างละ 1 injection \n- Spiked sample in matrix ที่ระดับความเข้มข้น 1.00 mg/mL จ านวน 10 ตัวอย่าง โดยฉีด\nตัวอย่างละ 1 injection \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.3.3) เกณฑ์การยอมรับ \n- ค านวณ %Recovery = (Found / Fortified) × 100 ส าหรับแต่ละตัวอย่าง\n\n- รายงานค่าเฉลี่ย, SD และ %RSD ของแต่ละระดับความเข้มข้น \n- ระดับ 0.10 และ 0.50 mg/mL ต้องมี %Recovery อยู่ในช่วง 90.0%-107.0% \n- ระดับ 1.00 mg/mL ต้องมี %Recovery อยู่ในช่วง 95.0%-105.0% \n7.4 ความเที่ยงแบบท าซ ้า (Repeatability Precision) \n7.4.1) การเตรียม \n- ใช้ข้อมูลจากการทดสอบ accuracy โดยประเมินจาก Spiked sample in matrix ที่เตรียม\nแยกกันจ านวน 10 ตัวอย่างต่อระดับความเข้มข้น ได้แก่ 0.10, 0.50 และ 1.00 mg/mL ภายใต้\nสภาวะการวิเคราะห์เดียวกัน \n7.4.2) การประเมินผล \n- ค านวณค่าเฉลี่ย, SD และ %RSD ของผลการคืนกลับในแต่ละระดับความเข้มข้น เพื่อประเมิน\nความเที่ยง แบบท าซ ้าของวิธีวิเคราะห์ \n7.4.3) เกณฑ์การยอมรับ \n- ค่า %RSD ของแต่ละระดับความเข้มข้นต้องต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน \n- ค่า HorRat(r) ต้องน้อยกว่า 1.3 \n7.5 ความเที่ยงระหว่างวันวิเคราะห์ (Intermediate Precision) \n7.5.1) การเตรียม \n- เตรียม Spiked sample in matrix ส าหรับประเมิน intermediate precision ที่ระดับความเข้มข้น \n0.10, 0.50 และ 1.00 mg/mL ตามวิธีการที่ระบุในหัวข้อ 6.6 โดยด าเนินการทดสอบในวัน\nวิเคราะห์ต่างกันอย่างน้อย 6 วัน ภายใต้สภาวะการวิเคราะห์เดียวกัน \n7.5.2) ล าดับการฉีด \nในแต่ละวันวิเคราะห์ ให้ด าเนินการฉีดสารละลายตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 2 injections \n- Blank (Acetone) จ านวน 1 injection \n- Calibration standard solution ที่ระดับความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL \nจ านวน 1 injection ต่อระดับความเข้มข้น \n- Spiked sample in matrix ที่ระดับความเข้มข้น 0.10, 0.50 และ 1.00 mg/mL ตามจ านวนซ ้าที่\nก าหนด โดยฉีดตัวอย่างละ 1 injection \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.5.3) เกณฑ์การยอมรับ \n- รายงานค่าเฉลี่ย, SD และ %RSD ของผลการทดสอบในแต่ละระดับความเข้มข้น \n- ค่า %RSD ของแต่ละระดับความเข้มข้นต้องต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน \n- ค่า HorRat(R) ต้องน้อยกว่า 2.0\n\n7.6 การวิเคราะห์ตัวอย่างทดสอบและการประเมิน QC \n7.6.1 ล าดับการฉีด \nด าเนินการฉีดสารละลายด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 4 injections \n- Blank (Acetone) จ านวน 1 injection \n- Calibration standard solution ความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL จ านวน \n1 injection ต่อระดับความเข้มข้น \n- Standard Check Solution in Matrix Blank-1 จ านวน 1 injection \n- Standard Check Solution in Matrix Blank-2 จ านวน 1 injection \n- Matrix Spike Solution-1 จ านวน 1 injection \n- Matrix Spike Solution-2 จ านวน 1 injection \n- Test sample จ านวน 10 ตัวอย่าง จ านวน 1 injection ต่อตัวอย่าง \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.6.2 การประเมินผลและการค านวณผล \nประเมินผลการวิเคราะห์ตัวอย่างทดสอบจากค่า Amount (mg/mL) หรือ C found ที่ได้จากระบบ\nประมวลผลของเครื่อง GC โดยอ้างอิงจาก calibration curve ของ Cypermethrin จากนั้นค านวณ\nปริมาณ Cypermethrin ในตัวอย่างเป็นร้อยละโดยน ้าหนัก (%w/w) ตามสมการ \n Cypermethrin (%w/w) = \n(C found × V × DF × 100) \nW  \n โดยที่ \n  C found  = ความเข้มข้นของ Cypermethrin ที่ตรวจพบจากกราฟมาตรฐาน (mg/mL) \n  V  = ปริมาตรสุดท้ายของสารละลายตัวอย่าง (mL) \n  DF  = dilution factor หากมีการเจือจางเพิ่มเติม \n  W  = น ้าหนักตัวอย่างที่ชั่ง (mg) \n  ประเมินผล Standard Check Solution โดยค านวณ %Recovery จากค่า C found เทียบกับ\n ความเข้มข้นจริงของสารละลายมาตรฐานที่เตรียมได้ (C fortified actual) ตามสมการ \n  กรณีต้องรายงานผลเป็นร้อยละโดยน ้าหนักต่อปริมาตร (%w/v) หรือ g/L ให้ค านวณจากผล %w/w \n ร่วมกับค่าความหนาแน่นหรือ specific gravity ของตัวอย่างที่ 20°C ตามสมการ \n   Cypermethrin (%w/v at 20°C) = Cypermethrin (%w/w) × specific gravity at 20°C \nประเมินผล Standard Check Solution โดยค านวณ %Recovery จากค่า C found เทียบกับ ความเข้มข้นจริง\nของสารละลายมาตรฐานที่เตรียมได้ (C fortified actual) ตามสมการ \n \n  % Recovery =(\nFound concentration \nFortified actual concentration) × 100\n\nประเมินผล Matrix Spike Solution โดยค านวณ Spike Recovery (%) จากค่า C found หลังหัก\n ความเข้มข้นของ Cypermethrin ที่มาจากตัวอย่างจริง (C sample actual) แล้วเทียบกับความเข้มข้นจริงของ\n สารมาตรฐานที่เติม (C spike actual) ตามสมการ \n  Spike Recovery (%) = [(\nC found−C sample \nC spike ) × 100 \n  ประเมินความสอดคล้องของผล QC คู่ซ ้าประเมินจากค่า %Difference ตามสมการ \n  % Difference = (\n| Result 1 − Result 2 |\nMean of duplicate results) × 100   \n  ผลการวิเคราะห์ตัวอย่างทดสอบและผลการประเมิน QC ต้องอยู่ภายใต้เกณฑ์การยอมรับที่\n ก าหนด จึงถือว่าวิธีวิเคราะห์สามารถน าไปใช้กับตัวอย่างทดสอบได้อย่างเหมาะสม \n7.6.3 เกณฑ์การยอมรับส าหรับผลตัวอย่างทดสอบ \n ผลการวิเคราะห์ตัวอย่างทดสอบต้องเป็นไปตาม specification ของผลิตภัณฑ์ โดยอ้างอิงเกณฑ์ความ\nคลาดเคลื่อนของ FAO Specification 332/EC/S/F (1993)ส าหรับปริมาณสารออกฤทธิ์ในผลิตภัณฑ์สารก าจัด\nศัตรูพืช ดังนี้ \n- Cypermethrin 10% W/V EC หรือ 100 g/L: เกณฑ์ยอมรับ ±10% ของค่าที่ระบุ = 9.00–11.00% \nW/V หรือ 90–110 g/L \n- Cypermethrin 25% W/V EC หรือ 250 g/L: เกณฑ์ยอมรับ ±6% ของค่าที่ระบุ = 23.50–26.50% \nW/V หรือ 235–265 g/L \n- Cypermethrin 35% W/V EC หรือ 350 g/L: เกณฑ์ยอมรับ ±5% ของค่าที่ระบุ = 33.25–36.75% \nW/V หรือ 332.5–367.5 g/L \n7.6.4 เกณฑ์การยอมรับส าหรับ QC \n- Blank (Acetone) ต้องไม่ปรากฏพีครบกวนที่ต าแหน่ง retention time ของ Cypermethrin หรือ \nresponse ไม่เกิน 0.5% ของ response ของสารมาตรฐาน \n- System suitability standard solution ต้องมี %RSD ของพื้นที่ใต้พีค Cypermethrin ไม่เกิน 2.0% \n- Retention time ของ Cypermethrin ต้องมี %CV ไม่เกิน 0.5% \n- Calibration curve ต้องมีค่า coefficient of determination (R²) ไม่น้อยกว่า 0.995 \n- Standard Check Solution in Matrix Blank ต้องมี %Recovery อยู่ในช่วง 90.0–107.0% \n- Matrix Spike Solution ต้องมี Spike Recovery อยู่ในช่วง 90.0–107.0% \n- ผล QC คู่ซ ้าต้องมี %Difference ไม่เกิน 5.0% \n- Final system suitability standard solution ต้องให้ response สอดคล้องกับ initial system \nsuitability โดยมีความแตกต่างไม่เกิน 5.0%\n\n8. ผลการทดสอบ \n8.1 ความจ าเพาะของวิธีวิเคราะห์ (Specificity) \nการประเมินความจ าเพาะของวิธีวิเคราะห์ Cypermethrin ด าเนินการเพื่อยืนยันว่า diluent ที่ใช้ในการเตรียม\nสารละลายไม่ก่อให้เกิดพีครบกวน ณ ต าแหน่ง retention time ของ Cypermethrin ภายใต้สภาวะโครมาโทกราฟ ีที่ก าหนด \nการทดสอบด าเนินการโดยฉีด Blank (diluent) จ านวน 3 ครั้ง และฉีดสารละลายมาตรฐาน Cypermethrin ความเข้มข้น 1.0 \nmg/mL จ านวน 6 ครั้ง เพื่อประเมินต าแหน่งพีคของสารวิเคราะห์ ความคงที่ของ retention time และความสม ่าเสมอของพื้นที่\nพีค ผลการทดสอบสรุปไว้ในตารางที่ 1 \nจากผลการทดสอบดังแสดงในตารางที่ 1 ไม่พบพีครบกวนจาก Blank (diluent) ณ ต าแหน่ง retention time ของ \nCypermethrin สารละลายมาตรฐาน Cypermethrin ความเข้มข้น 1.0 mg/mL ให้พีคของสารวิเคราะห์ที่ retention time \nเฉลี่ย 4.437 นาที โดยมีค่า RT %CV เท่ากับ 0.000% ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ RT %CV ไม่เกิน 0.5% \nนอกจากนี้ พื้นที่พีคของสารละลายมาตรฐานมีค่าเฉลี่ยเท่ากับ 248.883 ค่า SD เท่ากับ 1.497 และค่า %RSD เท่ากับ 0.602% \nซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ Peak area %RSD ไม่เกิน 2.0% \nดังนั้น วิธีวิเคราะห์นี้มีความจ าเพาะส าหรับการวิเคราะห์ Cypermethrin ภายใต้สภาวะการทดสอบที่ก าหนด \nเนื่องจาก Blank (diluent) ไม่ก่อให้เกิดสัญญาณรบกวนที่ต าแหน่ง retention time ของสารวิเคราะห์ และสารละลาย\nมาตรฐานให้ค่า retention time และพื้นที่พีคที่มีความสม ่าเสมอ \n",
+      "template": "1. วัตถุประสงค์ \n      เพื่อตรวจสอบ และแสดงความใช้ ได้ของวิธีการวิเคราะห์สารออก ฤทธิ์ {{analyte}} 10 % W/V EC, \n{{analyte}} 25 % W/V EC และ {{analyte}} 35 % W/V EC ในสารก าจัดศัตรูพืชโดยดัดแปลงวิธีการของ  \nCIPAC 3807, Guidelines on  method validation to be performed in  support of analytical methods for \nagrochemical formulations (RF-18-003) โดยเทคนิค GC ที่บริษัท ไอซีพี  ลัดดา  จ ากัด จะน ามาใช้เป็นวิธี\nมาตรฐานการปฏิบัติงานเพื่อให้มีความเหมาะสมต่อการใช้งานและเป็นไปตามข้อก าหนดและเป็นไปตามมาตรฐาน \nISO/IEC 17025:2017 \n \n2. ขอบเขต           \n  วิธีปฏิบัตินี้ครอบคลุมการตรวจสอบความใช้ได้ของวิธีวิเคราะห์เพื่อหาปริมาณสารออกฤทธิ์ \n{{analyte}} ในผลิตภัณฑ์สารก าจัดศัตรูพืชชนิด emulsifiable concentrate (EC) ได้แก่ {{analyte}} 10% \nW/V EC, {{analyte}} 25% W/V EC และ {{analyte}} 35% W/V EC โดยเทคนิค Gas Chromatography \nwith Flame Ionization Detector (GC-FID) \n  การตรวจสอบความใช้ได้ของวิธีวิเคราะห์ครอบคลุมพารามิเตอร์ ได้แก่ ความจ าเพาะของวิธีวิเคราะห์ \n(Specificity/Identification), ความเป็นเส้นตรงและช่วงการวิเคราะห์ ( Linearity and Range), ความถูกต้อง \n(Accuracy/Trueness), ความเที่ยงแบบท าซ ้า ( Repeatability Precision) และความเที่ยงระหว่างวันวิเคราะห์ \n(Intermediate Precision) \n  ในการศึกษานี้ใช้ผลิตภัณฑ์ {{analyte}} 25% W/V EC เป็นตัวแทนของผลิตภัณฑ์ {{analyte}} EC \nเนื่องจากผลิตภัณฑ์ ทั้งสามระดับความเข้มข้นของผลิตภัณฑ์ มีสารออกฤทธิ์ชนิดเดียวกัน อยู่ในรูปแบบผลิตภัณฑ์\nเดียวกัน ใช้หลักการเตรียมตัวอย่าง ตัวท าละลาย และสภาวะโครมาโทกราฟีเดียวกัน อีกทั้งสารละลายตัวอย่างของ\nแต่ละสูตรผลิตภัณฑ์สามารถเตรียมให้มีความเข้มข้นของ {{analyte}} อยู่ภายในช่วงการวิเคราะห์ที่ตรวจสอบ\nแล้ว คือ 0.10-1.00 mg/mL \n  การใช้ {{analyte}} 25% W/V EC เป็นตัวแทนนี้ใช้ได้ภายใต้เงื่อนไขว่าผลิตภัณฑ์ {{analyte}} 10% \nW/V EC, 25% W/V EC และ 35% W/V EC มีองค์ประกอบของสูตรต ารับและลักษณะเมทริกซ์ที่ไม่แตกต่างกัน\nอย่างมีนัยส าคัญ และการวิเคราะห์ตัวอย่างต้องเตรียมให้ความเข้มข้นสุดท้ายอยู่ภายในช่วงการวิเคราะห์ที่ได้รับ\nการตรวจสอบแล้ว \n \n3. เอกสารอ้างอิง \n                   3.1 CIPAC. (2003). Guidelines on method validation to be performed in support of analytical \n  methods for agrochemical formulations. CIPAC Document No. 3807. \n      3.2 AOAC INTERNATIONAL. AOAC Official Method 985.03: {{analyte}} in Pesticide  \n  Formulations: Capillary Gas Chromatographic Method. In Official Methods of Analysis of AOAC \n  INTERNATIONAL. First Action 1985; Final Action 1987.\n\n3.3 Bland, P.D. (1985). Capillary Gas Chromatographic Determination of {{analyte}} in \n Formulations: Collaborative Study. Journal of Association of Official Analytical Chemists, 68(3), \n 592–595. \n     3.4 ISO/IEC. (2017). ISO/IEC 17025:2017 General requirements for the competence of testing and \n calibration laboratories. \n3.5 Food and Agriculture Organization of the United Nations and World Health Organization. (2025). \n Manual on the development and use of FAO and WHO specifications for chemical pesticides \n (3rd ed.). Geneva: World Health Organization. ISBN 978-92-4-011814-0. \n3.6 Food and Agriculture Organization of the United Nations. (1995). FAO specifications for plant \n protection products: {{analyte}} ( AGP: CP /316). FAO Specification 332/EC/S/F (1993): \n {{analyte}} emulsifiable concentrates. Rome: FAO. \n \n4.  เครื่องมือ วัสดุ และสารเคมี \n4.1 เครื่องมือและอุปกรณ์ส าหรับการทดสอบ \n4.1.1) Gas Chromatograph (GC) Agilent 8850 with FID detector \n4.1.2) เครื่องชั่งเชิงวิเคราะห์ทศนิยม 5 ต าแหน่ง Serial No. 28207966 \n4.1.3) Ultrasonic Bath \n4.1.4) Micropipette 0.5-10 µL Serial No. K80701K \n4.1.5) Micropipette 10-100 µL Serial No. L30523K \n4.1.6) Micropipette 100-1000 µL Serial No. M56544K \n4.1.7) Class A volumetric flask 25 mL \n4.1.8) Beaker ขนาด 50 และ 250 mL \n4.1.9) Vial 2 ml แบบมี cap & septa Vial สีชา ขนาด 2 mL \n4.2 วัสดุสิ้นเปลือง \n4.2.1) Column ชนิด HP – 5, length 30 (m), Diameter 0.32 (mm) Wide bore, Film 0.25 (µm) \n4.2.2) ขวดแก้วสีชาส าหรับ autosampler ขนาด 2 mL พร้อมฝาปิดชนิดมีรูและ septa ซิลิโคน \n4.2.3) Micropipette tips \n4.3 สารเคมี \n4.3.1) สารมาตรฐาน {{analyte}} CAS No.52315-07-8 (Lot No. G1633416) \n4.3.2) Acetone ชนิดไม่ต ่ากว่า AR grade CAS No. 67-64-1(Lot No. 2533819) \n4.3.3) สารออกฤทธิ์ {{analyte}} 25% EC\n\n5. สรุปวิธีวิเคราะห์ \n5.1 หลักการวิเคราะห์ \n วิเคราะห์ปริมาณสารออกฤทธิ์ {{analyte}} โดยเตรียมสารละลายมาตรฐานและสารละลายตัวอย่าง\nด้วย Acetone ชนิดไม่ต ่ากว่า AR grade แล้ววิเคราะห์ด้วยเครื่อง Gas Chromatograph with Flame Ionization \nDetector (GC-FID) โดยเปรียบเทียบสัญญาณตอบสนองของสารละลายตัวอย่างกับกราฟมาตรฐานของ \n{{analyte}} \n {{analyte}} ประกอบด้วยหลาย isomers ซึ่งอาจให้พีคมากกว่าหนึ่งพีคภายใต้สภาวะโครมาโทกราฟี\nที่ใช้ ดังนั้นการค านวณปริมาณ {{analyte}} ให้ใช้ผลรวมของพื้นที่ใต้พีคของ {{analyte}} isomers ทุกพีคที่\nได้รับการยืนยันต าแหน่ง retention time แล้ว และต้องใช้หลักเกณฑ์การรวมพีคแบบเดียวกันส าหรับสารมาตรฐาน \nตัวอย่างเติมสาร ตัวอย่างทดสอบ และ QC \n5.2 สารละลาย \n• Solvent/Diluent: Acetone ชนิดไม่ต ่ากว่า AR grade \n• Standard solution: สารละลายมาตรฐาน {{analyte}}  \n• Sample solution: สารละลายตัวอย่าง {{analyte}} ที่เตรียม Acetone ให้มีความเข้มข้นของ \n{{analyte}} อยู่ภายในช่วงการวิเคราะห์ที่ตรวจสอบแล้ว \n• Blank solution: Acetone หรือ Matrix Blank ตามวัตถุประสงค์ของการทดสอบ \n• QC solution: Standard Check Solution in Matrix Blank และ Matrix Spike Solution \n5.3 สภาวะโครมาโทกราฟี \n• เครื่องมือ: GC พร้อม FID detector \n• คอลัมน์: HP-5, length 30 m, diameter 0.32 mm, film 0.25 µm \n• Oven temperature: 280 °C \n• Injection temperature: 280 °C \n• Detector temperature: 280 °C \n• Split ratio: 50:1 \n• Inlet: Split mode \n• Oven hold time: 5.5 min \n• Run time: 5.5 min \n• Injection volume: 1.2 µL \n• Air flow rate: 400 mL/min \n• Hydrogen flow rate: 40 mL/min \n• Retention time ของ {{analyte}}: ประมาณ 4.5 นาที\n\n5.4 ความเหมาะสมของระบบ \n  ก่อนการวิเคราะห์ต้องฉีดสารละลายมาตรฐาน {{analyte}} เพื่อประเมินความเหมาะสมของระบบ \n โดยพิจารณาจาก retention time และพื้นที่ใต้พีคของ {{analyte}} isomers \n เกณฑ์การยอมรับ: \n• Blank ต้องไม่พบพีครบกวนที่ต าแหน่ง retention time ของ {{analyte}} หรือ response ต้องไม่เกินเกณฑ์\nที่ก าหนด \n• Retention time ของ {{analyte}} ต้องมีความสอดคล้องกันตามเกณฑ์ที่ก าหนด \n• %RSD ของผลรวมพื้นที่ใต้พีค {{analyte}} isomers จากการฉีดสารละลายมาตรฐานซ ้าต้องไม่เกิน 2.0% \n5.5 สารมาตรฐาน \n• {{analyte}} stock standard solution ≈ 2.000 mg/mL: ชั่งประมาณ 50–55 mg และค านวณความ\nเข้มข้นจริงจากน ้าหนักและ purity ลงในขวดวัดปริมาตรขนาด  25 mL เติม Acetone ประมาณครึ่งหนึ่ง\nของปริมาตรขวด ละลายหรือ sonicate จนละลายสมบูรณ์ ตั้งไว้ให้เย็นที่อุณหภูมิห้อง แล้วปรับปริมาตร\nด้วย Acetone จนครบ 25 mL ผสมให้เข้ากัน \n5.6 ตัวอย่างการค านวณผล \n ค านวณปริมาณสารออกฤทธิ์ {{analyte}} โดยเปรียบเทียบค่าเฉลี่ยพื้นที่ใต้พีคของสารละลาย\nตัวอย่างกับค่าเฉลี่ยพื้นที่ใต้พีคของสารละลายมาตรฐาน จากนั้นค านวณร่วมกับค่าความเข้มข้นของสารละลาย\nมาตรฐาน ค่าความเข้มข้นของสารละลายตัวอย่าง และค่าความบริสุทธิ์ของสารมาตรฐาน เพื่อรายงานผลเป็น\nร้อยละสารออกฤทธิ์โดยน ้าหนัก (%w/w) \n กรณีต้องรายงานผลเป็นร้อยละสารออกฤทธิ์โดยน ้าหนักต่อปริมาตร (%w/v) ให้ค านวณจากค่าร้อยละ\nสารออกฤทธิ์โดยน ้าหนัก (%w/w) คูณด้วยค่าความถ่วงจ าเพาะของตัวอย่าง \n \n6. วิธีการด าเนินการ \n6.1 การเตรียม Solvent \n6.1.1) ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น diluent ส าหรับเตรียมสารละลายมาตรฐาน สารละลาย\n  ตัวอย่าง และ blank ที่ใช้ในการตรวจสอบความถูกต้องของวิธีวิเคราะห์ \n6.2 การเตรียมสารละลาย stock ของ Reference Standard (RS) ({{analyte}} ≈ 2.000 mg/mL) \n     6.2.1) ชั่งสารมาตรฐาน {{analyte}} ชั่งประมาณ 50–55 mg และค านวณความเข้มข้นจริงจากน ้าหนักและ \n  purity ลงในขวดวัดปริมาตร 25 mL และบันทึกมวลจริง \n6.2.2) เติม Acetone ประมาณครึ่งหนึ่งของปริมาตรขวด จากนั้นน าไป sonicate ประมาณ 10 นาที เพื่อให้\n  สารละลายสมบูรณ์ ตั้งไว้ให้เย็นที่อุณหภูมิห้อง แล้วปรับปริมาตรให้ครบด้วย Acetone และเขย่าให้เข้า\n  กัน \n6.2.3) ติดฉลากระบุ “{{analyte}} Stock Solution ≈ 2.000 mg/mL” พร้อมข้อมูลอื่นที่จ าเป็น\n\n6.2.4) เก็บสารมาตรฐานอ้างอิงไว้ในภาชนะเดิมที่ปิดสนิท ตามสภาวะการเก็บรักษาที่ระบุใน Certificate of \n  Analysis (COA) หรือเอกสารก ากับของสารมาตรฐาน และป้องกันแสงและความชื้น \n6.3 การเตรียม Matrix Blank \n  Matrix Blank หมายถึง blank formulation ของผลิตภัณฑ์ {{analyte}} EC ที่มีองค์ประกอบของสูตร\nต ารับเหมือนหรือใกล้เคียงกับตัวอย่างผลิตภัณฑ์ แต่ไม่มีสารออกฤทธิ์ {{analyte}} โดยใช้ส าหรับประเมินการ\nรบกวนจากเมทริกซ์ที่อาจเกิดขึ้น ณ ต าแหน่ง retention time ของ {{analyte}} และใช้เตรียมสารละลายควบคุม\nคุณภาพส าหรับประเมินการคืนกลับของสารมาตรฐานในเมทริกซ์ \n  ก่อนน า Matrix Blank ไปใช้ ต้องผสมให้เป็นเนื้อเดียวกัน และตรวจสอบว่าไม่พบพีครบกวนที่ต าแหน่ง \nretention time ของ {{analyte}} ภายใต้สภาวะโครมาโทกราฟ ี ที่ก าหนด หรือมี response ไม่เกินเกณฑ์การ\nยอมรับที่ก าหนด \n  ในการเตรียมตัวอย่างเติมสารส าหรับการประเมิน accuracy, repeatability และ intermediate \nprecision ให้เติม Matrix Blank ในปริมาณที่ก าหนดลงในสารละลายสุดท้าย เพื่อจ าลองสัดส่วนเมทริกซ์ของ\nสารละลายตัวอย่างทดสอบ \n  ในการเตรียม Standard Check Solution in Matrix Blank ให้ใช้ Matrix Blank โดยตรงเป็นส่วนประกอบ\nของสารละลาย เพื่อประเมินผลของเมทริกซ์ต่อการตอบสนองของสารมาตรฐานและประเมิน % Recovery ของ \n{{analyte}} ภายใต้สภาวะที่มี Matrix Blank   \n6.4 ระดับความเป็นเส้นตรง \n6.4.1) เตรียมสารละลายมาตรฐาน {{analyte}} ส าหรับประเมินความเป็นเส้นตรง จ านวน 5 ระดับความ\n   เข้มข้น จาก {{analyte}} stock standard solution ความเข้มข้น 2.000 mg/mL โดยใช้ Acetone  \n   ชนิดไม่ต ่ากว่า AR grade เป็น diluent \n- 0.10 mg/mL: ปิเปต {{analyte}} stock standard solution 50 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 950 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.25 mg/mL: ปิเปต {{analyte}} stock standard solution 125 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 875 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.50 mg/mL: ปิเปต {{analyte}} stock standard solution 250 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 750 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.75 mg/mL: ปิเปต {{analyte}} stock standard solution 375 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 625 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n- 1.00 mg/mL: ปิเปต {{analyte}} stock standard solution 500 µL ลงในขวด vial ขนาด 2 mL \nเติม Acetone 500 µL และผสมสารละลายให้เป็นเนื้อเดียวกันด้วย vortex \n6.5 การเตรียมตัวอย่างเติมสารส าหรับ Accuracy, Repeatability และ Intermediate Precision \n6.5.1) เตรียมตัวอย่างเติมสาร {{analyte}} ส าหรับประเมิน accuracy, repeatability และ intermediate \n precision โดยใช้ Matrix Blank เป็นเมทริกซ์ของตัวอย่าง และเติม {{analyte}} stock standard\n\nsolution ความเข้มข้น 2.000 mg/mL เพื่อให้ได้ความเข้มข้นเป้าหมาย 3 ระดับ ได้แก่ 0.10, 0.50 และ \n 1.00 mg/mL \n6.5.2) ก าหนดปริมาณ Matrix Blank โดยให้ Matrix Blank เป็นตัวแทนของตัวอย่าง {{analyte}} 25% EC \n  ที่ไม่มีสารออกฤทธิ์ {{analyte}} เพื่อจ าลองสัดส่วนของ matrix ให้สอดคล้องกับการเตรียมตัวอย่าง\n  จริงการเตรียมตัวอย่างที่ระดับความเข้มข้น 1.00 mg/mL อ้างอิงจากการชั่งตัวอย่าง {{analyte}} \n  25% EC ประมาณ 40 mg และปรับปริมาตรเป็น 10 mL ซึ่งเทียบเท่าความเข้มข้นของตัวอย่างใน\n  สารละลายเท่ากับ 4 mg/mL หรือ 0.4% w/v ดังนั้น ในการเตรียมสารละลายสุดท้ายปริมาตรรวม 1,000 \n  µL ให้เติม Matrix Blank จ านวน 4 µL ในทุกระดับความเข้มข้น เพื่อให้มีปริมาณ matrix เทียบเท่า\n ประมาณ 4 mg/mL หรือ 0.4% w/v โดยค านวณจากสมมติฐานว่า Matrix Blank มีความหนาแน่น\n  ใกล้เคียง 1 mg/µL จากนั้นเติม {{analyte}} stock standard solution และ Acetone ให้ได้ปริมาตร\n  รวมตามที่ก าหนดในแต่ละระดับความเข้มข้น  หมายเหตุ: หากทราบค่าความถ่วงจ าเพาะของ Matrix \n  Blank ให้ค านวณ ปริมาตร Matrix Blank จากน ้าหนักเทียบเท่า 4 mg แทนการใช้สมมติฐาน 1 mg/µL \n6.5.3) เตรียมตัวอย่างเติมสารแต่ละระดับความเข้มข้น โดยเติม Matrix Blank 4 µL ลงในขวด vial ขนาด 2 mL \n จากนั้นเติม {{analyte}} stock standard solution และ Acetone ชนิดไม่ต ่ากว่า AR grade ให้มี\n ปริมาตรสุดท้าย 1,000 µL ตามรายละเอียดดังนี้ \n- 0.10 mg/mL: เติม Matrix Blank 4 µL และ {{analyte}} stock standard solution 50 µL จากนั้น\nเติม Acetone 946 µL และผสมให้เป็นเนื้อเดียวกันด้วย vortex \n- 0.50 mg/mL: เ ติ ม  Matrix Blank 4 µL และ {{analyte}} stock standard solution 250 µL \nจากนั้นเติม Acetone 746 µL และผสมให้เป็นเนื้อเดียวกันด้วย vortex \n- 1.00 mg/mL: เ ติ ม  Matrix Blank 4 µL และ {{analyte}} stock standard solution 500 µL \nจากนั้นเติม Acetone 496 µL และผสมให้เป็นเนื้อเดียวกันด้วย vortex \n6.5.4) ติดฉลากสารละลายแต่ละระดับความเข้มข้น โดยระบุระดับความเข้มข้น เลขล าดับตัวอย่าง และข้อมูล\n อื่นที่จ าเป็นให้ชัดเจน \n6.5.5) ส าหรับการประเมิน accuracy และ repeatability ให้เตรียมตัวอย่างเติมสารแยกกันจ านวน 10 ตัวอย่าง\n ต่อระดับความเข้มข้น \n6.6 การเตรียมตัวอย่างเติมสารส าหรับ Intermediate Precision - Assay (ใน Matrix Blank) \n6.6.1) เตรียมตัวอย่างเติมสาร {{analyte}} ส าหรับการประเมิน intermediate precision ที่ระดับความ\n เข้มข้น 3 ระดับ ได้แก่ 0.10, 0.50 และ 1.00 mg/mL โดยใช้ Matrix Blank เป็นเมทริกซ์ และเตรียมตาม\n วิธีการที่ระบุในหัวข้อ 6.5 \n6.6.2) การเตรียมตัวอย่างให้ด าเนินการในวันวิเคราะห์ต่างกันอย่างน้อย 6 วัน ภายใต้สภาวะการวิเคราะห์\n เดียวกัน โดยเตรียมและวิเคราะห์ตัวอย่างในแต่ละระดับความเข้มข้นตามจ านวนซ ้าที่ก าหนด \n6.6.3) ตัวอย่างเติมสารทุกระดับความเข้มข้นต้องมีปริมาณ Matrix Blank เท่ากัน คือ 4 µL ต่อปริมาตรสุดท้าย \n 1,000 µL เพื่อให้สอดคล้องกับสัดส่วนเมทริกซ์ของตัวอย่างจริง\n\n6.6.4) ผสมสารละลายแต่ละตัวอย่างให้เป็นเนื้อเดียวกันด้วย vortex จากนั้นถ่ายสารละลายลงในขวด vial \n ขนาด 2 mL และติดฉลากระบุระดับความเข้มข้น วันวิเคราะห์ ล าดับตัวอย่าง และข้อมูลอื่นที่จ าเป็น \n6.7 การเตรียมและการฉีดสารละลายตัวอย่างทดสอบ (Test Sample) \n6.7.1) การเตรียมสารละลายตัวอย่างทดสอบ \nชั่งตัวอย่าง {{analyte}} 25% EC ประมาณ 50 mg จ านวน 10 ตัวอย่าง ตัวอย่าง โดยชั่ง\nแต่ละตัวอย่างลงในขวดวัดปริมาตรขนาด 25 mL แยกกัน  เติม Acetone ชนิดไม่ต ่ากว่า AR grade \nปริมาณพอเหมาะ เขย่าหรือ sonicate จนตัวอย่างกระจายตัวหรือสกัดสารออกฤทธิ์ได้อย่างเหมาะสม \nจากนั้นตั้งไว้ให้เย็นที่อุณหภูมิห้อง ปรับปริมาตรด้วย Acetone ให้ครบ 25 mL และผสมให้เป็นเนื้อ\nเดียวกัน จะได้สารละลายตัวอย่างทดสอบที่มีความเข้มข้นของ {{analyte}} ประมาณ 0.500 mg/mL \n6.7.2) การเตรียมสารละลาย QC \nเตรียมสารละลาย QC ส าหรับใช้ควบคุมความถูกต้องและความสอดคล้องของผลการวิเคราะห์\nตัวอย่างทดสอบ โดยแบ่งเป็น 2 ประเภท ได้แก่ Standard Check Solution และ Matrix Spike \nSolution \n6.7.2.1) การเตรียม Standard Check Solution \n  เตรียม Standard Check Solution in Matrix Blank โดยปิเปต {{analyte}} standard stock \n solution ความเข้มข้นประมาณ 2.000 mg/mL จ านวน 250 µL ลงใน vial หรือภาชนะที่เหมาะสม จาก\n นั้นปิเปต Matrix Blank จ านวน 750 µL เติมลงใน vial เดียวกัน และผสมให้เป็นเนื้อเดียวกัน จะได้\n สารละลาย Standard Check Solution in Matrix Blank ที่มีความเข้มข้นของ {{analyte}} ประมาณ \n 0.500 mg/mL ในปริมาตรรวม 1,000 µL \n  ให้เตรียมแยกกันจ านวน 2 ชุด ได้แก่ Standard Check Solution in Matrix Blank-1 และ \n Standard Check Solution in Matrix Blank-2 โดยบันทึกน ้าหนักสารมาตรฐานจริง ค่าความบริสุทธิ์ของ\n สารมาตรฐาน และปริมาตรที่ใช้จริง เพื่อค านวณความเข้มข้นจริงของสารมาตรฐานที่เตรียมได้และใช้\n ประเมิน %Recovery \n  6.7.2.2) การเตรียม Matrix Spike Solution \n  เตรียม sample stock solution โดยชั่งตัวอย่าง {{analyte}} 25% EC อย่างถูกต้องประมาณ \n 75 mg ลงในขวดวัดปริมาตรขนาด 25 mL เติม Acetone ชนิดไม่ต ่ากว่า AR grade ปริมาณพอเหมาะ \n เขย่าหรือ sonicate จนตัวอย่างกระจายตัวหรือสกัดสารออกฤทธิ์ได้อย่างเหมาะสม จากนั้นตั้งไว้ให้เย็นที่\n อุณหภูมิห้อง ปรับปริมาตรด้วย Acetone ให้ครบ 25 mL และผสมให้เป็นเนื้อเดียวกัน \n  เ ต รีย ม  Matrix Spike Solution โด ย ปิ เ ปต sample stock solution จ า นว น 400 µL และ \n {{analyte}} standard stock solution ความเข้มข้นประมาณ 2.000 mg/mL จ านวน 100 µL ลงใน \n vial หรือภาชนะที่เหมาะสม จากนั้นเติม Acetone จ านวน 500 µL และผสมให้เป็นเนื้อเดียวกัน จะได้\n สารละลาย Matrix Spike Solution ที่มีความเข้มข้นรวมของ {{analyte}} ประมาณ 0.500 mg/mL\n\nให้เตรียมแยกกันจ านวน 2 ชุด ได้แก่ Matrix Spike Solution-1 และ Matrix Spike Solution-2 โดยบันทึก\n น ้าหนักตัวอย่างจริง น ้าหนักสารมาตรฐานจริง ค่าความบริสุทธิ์ของสารมาตรฐาน และปริมาตรที่ใช้จริง \n เพื่อใช้ค านวณ C sample, C spike และ Spike Recovery (%) \n \n7. การตรวจสอบความใช้ได้ของวิธีวิเคราะห์ \n7.1 ความจ าเพาะของวิธีวิเคราะห์ (Specificity/Identification) \n7.1.1) การเตรียม \n- Blank (diluent): ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น blank  \n- {{analyte}} standard solution (1.0 mg/mL): เตรียมสารละลายมาตรฐาน {{analyte}} \nความเข้มข้น 1.0 mg/mL โดยใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น diluent ผสมสารละลาย\nให้เป็นเนื้อเดียวกันด้วย vortex จากนั้นถ่ายสารละลายลงในขวด vial ขนาด 2 mL และปิดฝาให้\nเรียบร้อย \n7.1.2) ล าดับการฉีด \nด าเนินการฉีดสารละลายที่เตรียมไว้ด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- Blank (Acetone) จ านวน 3 injections \n- {{analyte}} standard solution ความเข้มข้น 1.0 mg/mL จ านวน 6 injections \n7.1.3) เกณฑ์การยอมรับ \n- Blank (Acetone) ต้องไม่ปรากฏพีครบกวนที่ต าแหน่ง retention time ของ {{analyte}} \n- Retention time ของพีค {{analyte}} จากสารละลายมาตรฐานต้องมีความสอดคล้องกัน โดยค่า \n%CV ของ retention time ต้องไม่เกิน 0.5% \n- ค่า %RSD ของพื้นที่ใต้พีค {{analyte}} จากการฉีดสารละลายมาตรฐานซ ้าต้องไม่เกิน 2.0% \n7.2 ความเป็นเส้นตรงและช่วงการวิเคราะห์ (Linearity & Range) \n7.2.1) การเตรียม \n- Blank (diluent): ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น blank  \n- System suitability standard solution: เตรียมสารละลายมาตรฐาน {{analyte}} ความเข้มข้น \n1.00 mg/mL ส าหรับประเมินความเหมาะสมของระบบ \n- Linearity standard solution: เตรียมสารละลายมาตรฐาน {{analyte}} ส าหรับประเมินความ\nเป็นเส้นตรง จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL ตาม\nวิธีการเตรียมที่ระบุในหัวข้อ 6.4.1 \n7.2.2) ล าดับการฉีด \n ด าเนินการฉีดสารละลายที่เตรียมไว้ด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 2 injections \n- Blank (Acetone) จ านวน 2 injections\n\n- Linearity standard solution ที่ระดับความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL\nจ านวน 3 injections ต่อระดับความเข้มข้น \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.2.3) เกณฑ์การยอมรับ \n- กราฟความสัมพันธ์ระหว่างความเข้มข้นของ {{analyte}} และพื้นที่ใต้พีคต้องมีค่า\nสัมประสิทธิ์การตัดสินใจ (R²) ไม่น้อยกว่า 0.995 \n- ค่า %RSD ของพื้นที่ใต้พีคจากการฉีดซ ้าในแต่ละระดับความเข้มข้นต้องไม่เกิน 5.0% \n- Blank (Acetone) ต้องไม่ปรากฏพีครบกวนที่ต าแหน่ง retention time ของ {{analyte}} \n7.3 ความถูกต้อง (Accuracy; Recovery in Matrix) \n7.3.1) การเตรียม \n- Blank (diluent): ใช้ Acetone ชนิดไม่ต ่ากว่า AR grade เป็น blank \n- System suitability standard solution: เตรียมสารละลายมาตรฐาน {{analyte}} ความ\nเข้มข้น 1.00 mg/mL \n- Calibration standard solution: เตรียมสารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับ\nความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL \n- Spiked sample in matrix: เตรียมตัวอย่างเติมสาร {{analyte}} ใน Matrix Blank ที่ระดับ\nความเข้มข้น 0.10, 0.50 และ 1.00 mg/mL โดยเตรียมแยกกันจ านวน 10 ตัวอย่างต่อระดับ\nความเข้มข้น ตามวิธีการเตรียมที่ระบุในหัวข้อ 6.5.3 \n7.3.2) ล าดับการฉีด \nด าเนินการฉีดสารละลายที่เตรียมไว้ด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 2 injections \n- Blank (Acetone) จ านวน 1 injection \n- Calibration standard solution ที่ระดับความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 \nmg/mL จ านวน 1 injection ต่อระดับความเข้มข้น \n- Spiked sample in matrix ที่ระดับความเข้มข้น 0.10 mg/mL จ านวน 10 ตัวอย่าง โดยฉีด\nตัวอย่างละ 1 injection \n- Spiked sample in matrix ที่ระดับความเข้มข้น 0.50 mg/mL จ านวน 10 ตัวอย่าง โดยฉีด\nตัวอย่างละ 1 injection \n- Spiked sample in matrix ที่ระดับความเข้มข้น 1.00 mg/mL จ านวน 10 ตัวอย่าง โดยฉีด\nตัวอย่างละ 1 injection \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.3.3) เกณฑ์การยอมรับ \n- ค านวณ %Recovery = (Found / Fortified) × 100 ส าหรับแต่ละตัวอย่าง\n\n- รายงานค่าเฉลี่ย, SD และ %RSD ของแต่ละระดับความเข้มข้น \n- ระดับ 0.10 และ 0.50 mg/mL ต้องมี %Recovery อยู่ในช่วง 90.0%-107.0% \n- ระดับ 1.00 mg/mL ต้องมี %Recovery อยู่ในช่วง 95.0%-105.0% \n7.4 ความเที่ยงแบบท าซ ้า (Repeatability Precision) \n7.4.1) การเตรียม \n- ใช้ข้อมูลจากการทดสอบ accuracy โดยประเมินจาก Spiked sample in matrix ที่เตรียม\nแยกกันจ านวน 10 ตัวอย่างต่อระดับความเข้มข้น ได้แก่ 0.10, 0.50 และ 1.00 mg/mL ภายใต้\nสภาวะการวิเคราะห์เดียวกัน \n7.4.2) การประเมินผล \n- ค านวณค่าเฉลี่ย, SD และ %RSD ของผลการคืนกลับในแต่ละระดับความเข้มข้น เพื่อประเมิน\nความเที่ยง แบบท าซ ้าของวิธีวิเคราะห์ \n7.4.3) เกณฑ์การยอมรับ \n- ค่า %RSD ของแต่ละระดับความเข้มข้นต้องต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน \n- ค่า HorRat(r) ต้องน้อยกว่า 1.3 \n7.5 ความเที่ยงระหว่างวันวิเคราะห์ (Intermediate Precision) \n7.5.1) การเตรียม \n- เตรียม Spiked sample in matrix ส าหรับประเมิน intermediate precision ที่ระดับความเข้มข้น \n0.10, 0.50 และ 1.00 mg/mL ตามวิธีการที่ระบุในหัวข้อ 6.6 โดยด าเนินการทดสอบในวัน\nวิเคราะห์ต่างกันอย่างน้อย 6 วัน ภายใต้สภาวะการวิเคราะห์เดียวกัน \n7.5.2) ล าดับการฉีด \nในแต่ละวันวิเคราะห์ ให้ด าเนินการฉีดสารละลายตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 2 injections \n- Blank (Acetone) จ านวน 1 injection \n- Calibration standard solution ที่ระดับความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL \nจ านวน 1 injection ต่อระดับความเข้มข้น \n- Spiked sample in matrix ที่ระดับความเข้มข้น 0.10, 0.50 และ 1.00 mg/mL ตามจ านวนซ ้าที่\nก าหนด โดยฉีดตัวอย่างละ 1 injection \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.5.3) เกณฑ์การยอมรับ \n- รายงานค่าเฉลี่ย, SD และ %RSD ของผลการทดสอบในแต่ละระดับความเข้มข้น \n- ค่า %RSD ของแต่ละระดับความเข้มข้นต้องต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน \n- ค่า HorRat(R) ต้องน้อยกว่า 2.0\n\n7.6 การวิเคราะห์ตัวอย่างทดสอบและการประเมิน QC \n7.6.1 ล าดับการฉีด \nด าเนินการฉีดสารละลายด้วยเครื่อง GC ภายใต้สภาวะการวิเคราะห์ที่ก าหนด ตามล าดับดังนี้ \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 4 injections \n- Blank (Acetone) จ านวน 1 injection \n- Calibration standard solution ความเข้มข้น 0.10, 0.25, 0.50, 0.75 และ 1.00 mg/mL จ านวน \n1 injection ต่อระดับความเข้มข้น \n- Standard Check Solution in Matrix Blank-1 จ านวน 1 injection \n- Standard Check Solution in Matrix Blank-2 จ านวน 1 injection \n- Matrix Spike Solution-1 จ านวน 1 injection \n- Matrix Spike Solution-2 จ านวน 1 injection \n- Test sample จ านวน 10 ตัวอย่าง จ านวน 1 injection ต่อตัวอย่าง \n- System suitability standard solution ความเข้มข้น 1.00 mg/mL จ านวน 1 injection \n7.6.2 การประเมินผลและการค านวณผล \nประเมินผลการวิเคราะห์ตัวอย่างทดสอบจากค่า Amount (mg/mL) หรือ C found ที่ได้จากระบบ\nประมวลผลของเครื่อง GC โดยอ้างอิงจาก calibration curve ของ {{analyte}} จากนั้นค านวณ\nปริมาณ {{analyte}} ในตัวอย่างเป็นร้อยละโดยน ้าหนัก (%w/w) ตามสมการ \n {{analyte}} (%w/w) = \n(C found × V × DF × 100) \nW  \n โดยที่ \n  C found  = ความเข้มข้นของ {{analyte}} ที่ตรวจพบจากกราฟมาตรฐาน (mg/mL) \n  V  = ปริมาตรสุดท้ายของสารละลายตัวอย่าง (mL) \n  DF  = dilution factor หากมีการเจือจางเพิ่มเติม \n  W  = น ้าหนักตัวอย่างที่ชั่ง (mg) \n  ประเมินผล Standard Check Solution โดยค านวณ %Recovery จากค่า C found เทียบกับ\n ความเข้มข้นจริงของสารละลายมาตรฐานที่เตรียมได้ (C fortified actual) ตามสมการ \n  กรณีต้องรายงานผลเป็นร้อยละโดยน ้าหนักต่อปริมาตร (%w/v) หรือ g/L ให้ค านวณจากผล %w/w \n ร่วมกับค่าความหนาแน่นหรือ specific gravity ของตัวอย่างที่ 20°C ตามสมการ \n   {{analyte}} (%w/v at 20°C) = {{analyte}} (%w/w) × specific gravity at 20°C \nประเมินผล Standard Check Solution โดยค านวณ %Recovery จากค่า C found เทียบกับ ความเข้มข้นจริง\nของสารละลายมาตรฐานที่เตรียมได้ (C fortified actual) ตามสมการ \n \n  % Recovery =(\nFound concentration \nFortified actual concentration) × 100\n\nประเมินผล Matrix Spike Solution โดยค านวณ Spike Recovery (%) จากค่า C found หลังหัก\n ความเข้มข้นของ {{analyte}} ที่มาจากตัวอย่างจริง (C sample actual) แล้วเทียบกับความเข้มข้นจริงของ\n สารมาตรฐานที่เติม (C spike actual) ตามสมการ \n  Spike Recovery (%) = [(\nC found−C sample \nC spike ) × 100 \n  ประเมินความสอดคล้องของผล QC คู่ซ ้าประเมินจากค่า %Difference ตามสมการ \n  % Difference = (\n| Result 1 − Result 2 |\nMean of duplicate results) × 100   \n  ผลการวิเคราะห์ตัวอย่างทดสอบและผลการประเมิน QC ต้องอยู่ภายใต้เกณฑ์การยอมรับที่\n ก าหนด จึงถือว่าวิธีวิเคราะห์สามารถน าไปใช้กับตัวอย่างทดสอบได้อย่างเหมาะสม \n7.6.3 เกณฑ์การยอมรับส าหรับผลตัวอย่างทดสอบ \n ผลการวิเคราะห์ตัวอย่างทดสอบต้องเป็นไปตาม specification ของผลิตภัณฑ์ โดยอ้างอิงเกณฑ์ความ\nคลาดเคลื่อนของ FAO Specification 332/EC/S/F (1993)ส าหรับปริมาณสารออกฤทธิ์ในผลิตภัณฑ์สารก าจัด\nศัตรูพืช ดังนี้ \n- {{analyte}} 10% W/V EC หรือ 100 g/L: เกณฑ์ยอมรับ ±10% ของค่าที่ระบุ = 9.00–11.00% \nW/V หรือ 90–110 g/L \n- {{analyte}} 25% W/V EC หรือ 250 g/L: เกณฑ์ยอมรับ ±6% ของค่าที่ระบุ = 23.50–26.50% \nW/V หรือ 235–265 g/L \n- {{analyte}} 35% W/V EC หรือ 350 g/L: เกณฑ์ยอมรับ ±5% ของค่าที่ระบุ = 33.25–36.75% \nW/V หรือ 332.5–367.5 g/L \n7.6.4 เกณฑ์การยอมรับส าหรับ QC \n- Blank (Acetone) ต้องไม่ปรากฏพีครบกวนที่ต าแหน่ง retention time ของ {{analyte}} หรือ \nresponse ไม่เกิน 0.5% ของ response ของสารมาตรฐาน \n- System suitability standard solution ต้องมี %RSD ของพื้นที่ใต้พีค {{analyte}} ไม่เกิน 2.0% \n- Retention time ของ {{analyte}} ต้องมี %CV ไม่เกิน 0.5% \n- Calibration curve ต้องมีค่า coefficient of determination (R²) ไม่น้อยกว่า 0.995 \n- Standard Check Solution in Matrix Blank ต้องมี %Recovery อยู่ในช่วง 90.0–107.0% \n- Matrix Spike Solution ต้องมี Spike Recovery อยู่ในช่วง 90.0–107.0% \n- ผล QC คู่ซ ้าต้องมี %Difference ไม่เกิน 5.0% \n- Final system suitability standard solution ต้องให้ response สอดคล้องกับ initial system \nsuitability โดยมีความแตกต่างไม่เกิน 5.0%\n\n8. ผลการทดสอบ \n8.1 ความจ าเพาะของวิธีวิเคราะห์ (Specificity) \nการประเมินความจ าเพาะของวิธีวิเคราะห์ {{analyte}} ด าเนินการเพื่อยืนยันว่า diluent ที่ใช้ในการเตรียม\nสารละลายไม่ก่อให้เกิดพีครบกวน ณ ต าแหน่ง retention time ของ {{analyte}} ภายใต้สภาวะโครมาโทกราฟ ีที่ก าหนด \nการทดสอบด าเนินการโดยฉีด Blank (diluent) จ านวน 3 ครั้ง และฉีดสารละลายมาตรฐาน {{analyte}} ความเข้มข้น {{value_001}} \nmg/mL จ านวน 6 ครั้ง เพื่อประเมินต าแหน่งพีคของสารวิเคราะห์ ความคงที่ของ retention time และความสม ่าเสมอของพื้นที่\nพีค ผลการทดสอบสรุปไว้ในตารางที่ 1 \nจากผลการทดสอบดังแสดงในตารางที่ 1 ไม่พบพีครบกวนจาก Blank (diluent) ณ ต าแหน่ง retention time ของ \n{{analyte}} สารละลายมาตรฐาน {{analyte}} ความเข้มข้น {{value_002}} mg/mL ให้พีคของสารวิเคราะห์ที่ retention time \nเฉลี่ย {{value_003}} นาที โดยมีค่า RT %CV เท่ากับ {{value_004}}% ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ RT %CV ไม่เกิน {{value_005}}% \nนอกจากนี้ พื้นที่พีคของสารละลายมาตรฐานมีค่าเฉลี่ยเท่ากับ {{value_006}} ค่า SD เท่ากับ {{value_007}} และค่า %RSD เท่ากับ {{value_008}}% \nซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ Peak area %RSD ไม่เกิน {{value_009}}% \nดังนั้น วิธีวิเคราะห์นี้มีความจ าเพาะส าหรับการวิเคราะห์ {{analyte}} ภายใต้สภาวะการทดสอบที่ก าหนด \nเนื่องจาก Blank (diluent) ไม่ก่อให้เกิดสัญญาณรบกวนที่ต าแหน่ง retention time ของสารวิเคราะห์ และสารละลาย\nมาตรฐานให้ค่า retention time และพื้นที่พีคที่มีความสม ่าเสมอ \n"
+    },
+    {
+      "type": "table",
+      "number": 1,
+      "caption": "ตารางที่ 1 ผลการประเมินความจ าเพาะของวิธีวิเคราะห์",
+      "source": "ตารางที่ 1 ผลการประเมินความจ าเพาะของวิธีวิเคราะห์ \nล าดับ ตัวอย่าง RT  Area \nMin %CV Mean SD %CV \n1 Blank (diluent) ไม่พบพีค \n2 Cypermethrin (1.0 mg/ml) 4.437 0.000 248.883 1.497 0.602 \n"
+    },
+    {
+      "type": "text",
+      "source": "8.2 ความเป็นเส้นตรงและช่วงการวิเคราะห์ (Linearity & Range) \n การประเมินความเป็นเส้นตรงของวิธีวิเคราะห์ Cypermethrin ด าเนินการเพื่อยืนยันว่าการตอบสนองของ\nเครื่องตรวจวัดมีความสัมพันธ์เชิงเส้นกับความเข้มข้นของ Cypermethrin ภายในช่วงความเข้มข้นที่ก าหนด  การทดสอบ\nด าเนินการโดยใช้สารละลายมาตรฐาน Cypermethrin จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00 \nmg/mL จากนั้นน าค่าพื้นที่พีคที่ได้จากการวิเคราะห์ไปสร้างกราฟสอบเทียบระหว่างความเข้มข้นของ Cypermethrin กับ\nพื้นที่พีค และประเมินความเป็นเส้นตรงโดยใช้การวิเคราะห์สมการ Linear Regression ผลการทดสอบสรุปในตารางที่ 2 \n จากผลการทดสอบ พบว่าวิธีวิเคราะห์ให้ค่าสัมประสิทธิ์การตัดสินใจ (Coefficient of Determination, R²) เท่ากับ \n0.99997 ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนดไว้ คือ R² ≥ 0.995 นอกจากนี้ ค่า % RSD ของพื้นที่พีคในแต่ละระดับความ\nเข้มข้นอยู่ในช่วง 0.12%-1.05% ซึ่งไม่เกินเกณฑ์การยอมรับที่ก าหนดไว้ คือ %RSD ≤ 5.0% ดังแสดงในตารางที่ 2 \n ผลดังกล่าวแสดงให้เห็นว่าการตอบสนองของวิธีวิเคราะห์มีความสัมพันธ์เชิงเส้นกับความเข้มข้นของ \nCypermethrin ในช่วง 0.10-1.00 mg/mL ดังนั้น วิธีวิเคราะห์ดังกล่าวมีความเป็นเส้นตรงเหมาะสมส าหรับการวิเคราะห์ \nCypermethrin ภายใต้ช่วงความเข้มข้นที่ตรวจสอบ\n\n",
+      "template": "8.2 ความเป็นเส้นตรงและช่วงการวิเคราะห์ (Linearity & Range) \n การประเมินความเป็นเส้นตรงของวิธีวิเคราะห์ {{analyte}} ด าเนินการเพื่อยืนยันว่าการตอบสนองของ\nเครื่องตรวจวัดมีความสัมพันธ์เชิงเส้นกับความเข้มข้นของ {{analyte}} ภายในช่วงความเข้มข้นที่ก าหนด  การทดสอบ\nด าเนินการโดยใช้สารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับความเข้มข้น ได้แก่ {{value_010}}, {{value_011}}, {{value_012}}, {{value_013}} และ {{value_014}} \nmg/mL จากนั้นน าค่าพื้นที่พีคที่ได้จากการวิเคราะห์ไปสร้างกราฟสอบเทียบระหว่างความเข้มข้นของ {{analyte}} กับ\nพื้นที่พีค และประเมินความเป็นเส้นตรงโดยใช้การวิเคราะห์สมการ Linear Regression ผลการทดสอบสรุปในตารางที่ 2 \n จากผลการทดสอบ พบว่าวิธีวิเคราะห์ให้ค่าสัมประสิทธิ์การตัดสินใจ (Coefficient of Determination, R²) เท่ากับ \n{{value_015}} ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนดไว้ คือ R² ≥ {{value_016}} นอกจากนี้ ค่า % RSD ของพื้นที่พีคในแต่ละระดับความ\nเข้มข้นอยู่ในช่วง {{value_017}}%-{{value_018}}% ซึ่งไม่เกินเกณฑ์การยอมรับที่ก าหนดไว้ คือ %RSD ≤ {{value_019}}% ดังแสดงในตารางที่ 2 \n ผลดังกล่าวแสดงให้เห็นว่าการตอบสนองของวิธีวิเคราะห์มีความสัมพันธ์เชิงเส้นกับความเข้มข้นของ \n{{analyte}} ในช่วง {{value_020}}-{{value_021}} mg/mL ดังนั้น วิธีวิเคราะห์ดังกล่าวมีความเป็นเส้นตรงเหมาะสมส าหรับการวิเคราะห์ \n{{analyte}} ภายใต้ช่วงความเข้มข้นที่ตรวจสอบ\n\n"
+    },
+    {
+      "type": "table",
+      "number": 2,
+      "caption": "ตารางที่ 2 ผลการประเมินความเป็นเส้นตรงของวิธีวิเคราะห์ {{analyte}}",
+      "source": "ตารางที่ 2 ผลการประเมินความเป็นเส้นตรงของวิธีวิเคราะห์ Cypermethrin \nLevel  Actual Conc. \n(mg/mL) \nAverage Response \nArea SD %RSD \n \n1 0.104 25.18 0.19 0.76%  \n2 0.261 61.50 0.65 1.05%  \n3 0.522 125.23 0.15 0.12%  \n4 0.783 187.07 0.40 0.21%  \n5 1.044 250.17 0.75 0.30%  \n \n                 \n \n             \n     "
+    },
+    {
+      "type": "text",
+      "source": "รูปที่1 การแสดง calibration curve (1) และ residual plot (2) ของ Cypermethrin \n8.3 ความถูกต้อง (Accuracy; Recovery in Matrix) \n การประเมินความถูกต้องของวิธีวิเคราะห์ Cypermethrin ด าเนินการโดยการศึกษาค่าร้อยละการคืนกลับ (%\nRecovery) ที่ระดับความเข้มข้น 3 ระดับ ได้แก่ ระดับ LOQ (0.10 mg/mL), ระดับกลาง (0.50 mg/mL) และระดับสูง (1.00 \nmg/mL) โดยเตรียมและวิเคราะห์ตัวอย่างจ านวน 10 ซ ้าในแต่ละระดับความเข้มข้น ผลการทดสอบสรุปไว้ในตารางที่ 3 \n จากผลการทดสอบ พบว่าค่าเฉลี่ยร้อยละการคืนกลับของ Cypermethrin ที่ระดับ 0.10, 0.50 และ 1.00 mg/mL \nเท่ากับ 100.22%, 99.69% และ 100.34% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ 90.0–107.0%\nส าหรับระดับ LOQและระดับกลาง  และ 95.0%-105.0% ส าหรับระดับสูง นอกจากนี้ ค่า % RSD ของแต่ละระดับเท่ากับ \n1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ 0.24, 0.10 และ \n0.06 ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < 1.3 ดังแสดงในตารางที่ 3 \n ผลดังกล่าวแสดงให้เห็นว่าวิธีวิเคราะห์ให้ค่าการคืนกลับที่ถูกต้องและสม ่าเสมอในทุกระดับความเข้มข้นที่ประเมิน \nดังนั้น วิธีวิเคราะห์นี้มีความถูกต้องเหมาะสมส าหรับการวิเคราะห์ปริมาณ Cypermethrin ภายใต้ช่วงความเข้มข้นที่\nตรวจสอบ \n",
+      "template": "รูปที่1 การแสดง calibration curve (1) และ residual plot (2) ของ {{analyte}} \n8.3 ความถูกต้อง (Accuracy; Recovery in Matrix) \n การประเมินความถูกต้องของวิธีวิเคราะห์ {{analyte}} ด าเนินการโดยการศึกษาค่าร้อยละการคืนกลับ (%\nRecovery) ที่ระดับความเข้มข้น 3 ระดับ ได้แก่ ระดับ LOQ ({{value_022}} mg/mL), ระดับกลาง ({{value_023}} mg/mL) และระดับสูง ({{value_024}} \nmg/mL) โดยเตรียมและวิเคราะห์ตัวอย่างจ านวน 10 ซ ้าในแต่ละระดับความเข้มข้น ผลการทดสอบสรุปไว้ในตารางที่ 3 \n จากผลการทดสอบ พบว่าค่าเฉลี่ยร้อยละการคืนกลับของ {{analyte}} ที่ระดับ {{value_025}}, {{value_026}} และ {{value_027}} mg/mL \nเท่ากับ {{value_028}}%, {{value_029}}% และ {{value_030}}% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ {{value_031}}–{{value_032}}%\nส าหรับระดับ LOQและระดับกลาง  และ {{value_033}}%-{{value_034}}% ส าหรับระดับสูง นอกจากนี้ ค่า % RSD ของแต่ละระดับเท่ากับ \n{{value_035}}%, {{value_036}}% และ {{value_037}}% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ {{value_038}}, {{value_039}} และ \n{{value_040}} ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < {{value_041}} ดังแสดงในตารางที่ 3 \n ผลดังกล่าวแสดงให้เห็นว่าวิธีวิเคราะห์ให้ค่าการคืนกลับที่ถูกต้องและสม ่าเสมอในทุกระดับความเข้มข้นที่ประเมิน \nดังนั้น วิธีวิเคราะห์นี้มีความถูกต้องเหมาะสมส าหรับการวิเคราะห์ปริมาณ {{analyte}} ภายใต้ช่วงความเข้มข้นที่\nตรวจสอบ \n"
+    },
+    {
+      "type": "table",
+      "number": 3,
+      "caption": "ตารางที่ 3 ผลการประเมินความถูกต้องและความเที่ยงแบบท าซ ้าของวิธีวิเคราะห์ {{analyte}}",
+      "source": "ตารางที่ 3 ผลการประเมินความถูกต้องและความเที่ยงแบบท าซ ้าของวิธีวิเคราะห์ Cypermethrin \nNo. \nCypermethrin concentration \n \nLOQ-Point (0.10 mg/mL, \n100 μg/mL) \nMid-Point (0.50 mg/mL, \n500 μg/mL) \nHigh-Point (1.0 mg/mL, \n1000 μg/mL) \n \n \nFound Fortified %Recovery Found Fortified %Recovery Found Fortified %Recovery  \n1 102.10 100.00 102.10% 495.10 500.00 99.02% 1002.30 1000.00 100.23%  \n2 98.80 100.00 98.80% 499.20 500.00 99.84% 1008.20 1000.00 100.82%  \n3 99.10 100.00 99.10% 501.30 500.00 100.26% 1001.80 1000.00 100.18%  \n4 101.70 100.00 101.70% 500.30 500.00 100.06% 1002.90 1000.00 100.29%  \n5 95.80 100.00 95.80% 494.70 500.00 98.94% 999.90 1000.00 99.99%  \n6 101.30 100.00 101.30% 495.70 500.00 99.14% 1006.10 1000.00 100.61%  \n7 100.80 100.00 100.80% 501.50 500.00 100.30% 1007.30 1000.00 100.73%  \n8 100.10 100.00 100.10% 503.90 500.00 100.78% 1001.50 1000.00 100.15%  \n9 101.20 100.00 101.20% 495.90 500.00 99.18% 997.50 1000.00 99.75%  \n10 101.30 100.00 101.30% 496.70 500.00 99.34% 1006.60 1000.00 100.66%  \nMean 100.22   100.22% 498.43   99.69% 1003.41 1000.00 100.34%  \nSD 1.89 Acceptance \nCriteria% Recovery \n(90-107%); %RSD < \nHorwitz; HorRat < 1.3 \n3.22 Acceptance \nCriteria% Recovery \n(90-107%); %RSD < \nHorwitz; HorRat < 1.3 \n3.50 Acceptance \nCriteria% Recovery \n(95-105%); %RSD < \nHorwitz; HorRat < 1.3 \n \n%RSD 1.89 0.65 0.35  \nHorwitz 8 6.28 5.66  \nHorRat 0.24 0.10 0.06  \n \n"
+    },
+    {
+      "type": "text",
+      "source": "8.4 ความเที่ยงของวิธีวิเคราะห์ (Precision: Repeatability and Intermediate Precision) \n ความเที่ยงแบบท าซ ้า (Repeatability precision) ประเมินจากข้อมูลการคืนกลับที่ได้จากการศึกษาการประเมิน\nความถูกต้อง  (Accuracy) โดยแสดงผลเป็นร้อยละส่วนเบี่ยงเบนมาตรฐานสัมพัทธ์ (% RSD) ของผลการทดสอบซ ้าภายใต้\nสภาวะเดียวกัน ค่า %RSD ที่ได้ในทุกระดับความเข้มข้นอยู่ในเกณฑ์ยอมรับและเป็นไปตามเกณฑ์การยอมรับที่ก าหนด โดย\nค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า\nค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.24, 0.10 และ 0.06 ตามล าดับ ซึ่งเป็นไปตามเกณฑ์การ\n\nยอมรับที่ก าหนดไว้ คือ HorRat < 1.3 ดังแสดงในตารางที่ 4 ดังนั้น วิธีวิเคราะห์จึงมีความเที่ยงแบบท าซ ้าที่ยอมรับได้ตลอด\nช่วงความเข้มข้นที่ตรวจสอบ \n ความเที่ยงระหว่างวันวิเคราะห์ ( Intermediate precision) ของวิธีวิเคราะห์ Cypermethrin ประเมินจากผลการ\nทดสอบในวันวิเคราะห์ต่างกันจ านวน 6 วัน โดยในแต่ละวันเตรียมและวิเคราะห์ตัวอย่างเติมสารที่ระดับความเข้มข้น  0.10, \n0.50 และ 1.00 mg/mL จ านวน 10 ซ ้าต่อระดับความเข้มข้น ความเข้มข้นที่ตรวจพบในแต่ละระดับถูกน ามาเปรียบเทียบกับ\nความเข้มข้นที่เติม และแสดงผลเป็นร้อยละการคืนกลับ ค่าเฉลี่ยร้อยละการคืนกลับที่ระดับ LOQ, ระดับกลาง และระดับสูง \nเท่ากับ 101.23%, 100.31% และ 101.20% ตามล าดับ โดยค่าที่ได้เป็นไปตามเกณฑ์การยอมรับที่ก า หนด แสดงถึง \ntrueness ของวิธีที่ยอมรับได้ตลอดช่วงความเข้มข้นที่ตรวจสอบความถูกต้อง \n ผลการประเมิน intermediate precision ให้ค่า % RSD เท่ากับ 0.70%, 0.87% และ 0.72% ส าหรับระดับ LOQ, \nระดับกลาง และระดับสูง ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.09, 0.14 \nและ 0.13 ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < 2.0 ผลการทดสอบสรุปไว้ในตารางที่ 4 ความ\nเที่ยงแบบท าซ ้าได้รับการประเมินจากการศึกษา accuracy และแสดงผลอยู่ในเกณฑ์ยอมรับ  \n ส่วนการศึกษา intermediate precision เพิ่มเติมยืนยันว่าวิธีวิเคราะห์สามารถให้ผลที่สม ่าเสมอในหลายวัน\nวิเคราะห์ \n ดังนั้น วิธีวิเคราะห์ Cypermethrin แสดงความถูกต้อง ความเที่ยงแบบท าซ ้า และความเที่ยงระหว่างวันวิเคราะห์ที่\nยอมรับได้ ส าหรับการก าหนดปริมาณ Cypermethrin ในช่วงความเข้มข้นที่ตรวจสอบความถูกต้อง 0.10-1.00 mg/mL \n",
+      "template": "8.4 ความเที่ยงของวิธีวิเคราะห์ (Precision: Repeatability and Intermediate Precision) \n ความเที่ยงแบบท าซ ้า (Repeatability precision) ประเมินจากข้อมูลการคืนกลับที่ได้จากการศึกษาการประเมิน\nความถูกต้อง  (Accuracy) โดยแสดงผลเป็นร้อยละส่วนเบี่ยงเบนมาตรฐานสัมพัทธ์ (% RSD) ของผลการทดสอบซ ้าภายใต้\nสภาวะเดียวกัน ค่า %RSD ที่ได้ในทุกระดับความเข้มข้นอยู่ในเกณฑ์ยอมรับและเป็นไปตามเกณฑ์การยอมรับที่ก าหนด โดย\nค่า %RSD ที่ระดับ {{value_042}} mg/mL, {{value_043}} mg/mL และ {{value_044}} mg/mL เท่ากับ {{value_045}}%, {{value_046}}% และ {{value_047}}% ตามล าดับ ซึ่งต ่ากว่า\nค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ {{value_048}}, {{value_049}} และ {{value_050}} ตามล าดับ ซึ่งเป็นไปตามเกณฑ์การ\n\nยอมรับที่ก าหนดไว้ คือ HorRat < {{value_051}} ดังแสดงในตารางที่ 4 ดังนั้น วิธีวิเคราะห์จึงมีความเที่ยงแบบท าซ ้าที่ยอมรับได้ตลอด\nช่วงความเข้มข้นที่ตรวจสอบ \n ความเที่ยงระหว่างวันวิเคราะห์ ( Intermediate precision) ของวิธีวิเคราะห์ {{analyte}} ประเมินจากผลการ\nทดสอบในวันวิเคราะห์ต่างกันจ านวน 6 วัน โดยในแต่ละวันเตรียมและวิเคราะห์ตัวอย่างเติมสารที่ระดับความเข้มข้น  {{value_052}}, \n{{value_053}} และ {{value_054}} mg/mL จ านวน 10 ซ ้าต่อระดับความเข้มข้น ความเข้มข้นที่ตรวจพบในแต่ละระดับถูกน ามาเปรียบเทียบกับ\nความเข้มข้นที่เติม และแสดงผลเป็นร้อยละการคืนกลับ ค่าเฉลี่ยร้อยละการคืนกลับที่ระดับ LOQ, ระดับกลาง และระดับสูง \nเท่ากับ {{value_055}}%, {{value_056}}% และ {{value_057}}% ตามล าดับ โดยค่าที่ได้เป็นไปตามเกณฑ์การยอมรับที่ก า หนด แสดงถึง \ntrueness ของวิธีที่ยอมรับได้ตลอดช่วงความเข้มข้นที่ตรวจสอบความถูกต้อง \n ผลการประเมิน intermediate precision ให้ค่า % RSD เท่ากับ {{value_058}}%, {{value_059}}% และ {{value_060}}% ส าหรับระดับ LOQ, \nระดับกลาง และระดับสูง ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ {{value_061}}, {{value_062}} \nและ {{value_063}} ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < {{value_064}} ผลการทดสอบสรุปไว้ในตารางที่ 4 ความ\nเที่ยงแบบท าซ ้าได้รับการประเมินจากการศึกษา accuracy และแสดงผลอยู่ในเกณฑ์ยอมรับ  \n ส่วนการศึกษา intermediate precision เพิ่มเติมยืนยันว่าวิธีวิเคราะห์สามารถให้ผลที่สม ่าเสมอในหลายวัน\nวิเคราะห์ \n ดังนั้น วิธีวิเคราะห์ {{analyte}} แสดงความถูกต้อง ความเที่ยงแบบท าซ ้า และความเที่ยงระหว่างวันวิเคราะห์ที่\nยอมรับได้ ส าหรับการก าหนดปริมาณ {{analyte}} ในช่วงความเข้มข้นที่ตรวจสอบความถูกต้อง {{value_065}}-{{value_066}} mg/mL \n"
+    },
+    {
+      "type": "table",
+      "number": 4,
+      "caption": "ตารางที่ 4 ผลการประเมินความเที่ยงระหว่างวันวิเคราะห์",
+      "source": "ตารางที่ 4 ผลการประเมินความเที่ยงระหว่างวันวิเคราะห์ \nDay \n(No. of \nreplicates)   \nCypermethrin concentration \n \nLOQ-Point (0.10 mg/mL,100 \nμg/mL) \nMid-Point (0.50 mg/mL,500 \nμg/mL) \nHigh-Point (1.0 mg/mL,1000 \nμg/mL) \n \n \nMean \nFound Fortified %Recovery Mean \nFound Fortified %Recovery Mean \nFound Fortified %Recovery  \nDay 1  \n(10 reps) 100.22 100.00 100.22% 498.43 500.00 99.69% 1003.41 1000.00 100.34%  \nDay 2  \n(10 reps) 102.09 100.00 102.09% 499.27 500.00 99.85% 1019.04 1000.00 101.90%  \nDay 3  \n(10 reps) 101.27 100.00 101.27% 496.68 500.00 99.34% 1004.36 1000.00 100.44%  \nDay 4  \n(10 reps) 100.93 100.00 100.93% 501.38 500.00 100.28% 1015.67 1000.00 101.57%  \nDay 5  \n(10 reps) 101.98 100.00 101.98% 507.55 500.00 101.51% 1020.20 1000.00 102.02%\n\nDay 6  \n(10 reps) 100.89 100.00 100.89% 506.02 500.00 101.20% 1009.55 1000.00 100.96%  \nMean 101.23   101.23% 501.56   100.31% 1012.04 1000.00 101.20%  \nSD 0.71 Acceptance \nCriteria% Recovery \n(90-107%); %RSD < \nHorwitz; HorRat < 2.0 \n4.35 Acceptance \nCriteria% Recovery \n(90-107%); %RSD < \nHorwitz; HorRat < 2.0 \n7.33 Acceptance \nCriteria% Recovery \n(95-105%); %RSD < \nHorwitz; HorRat < 2.0 \n \n%RSD 0.70 0.87 0.72  \nHorwitz 8 6.28 5.66  \nHorRat 0.09 0.14 0.13  \n \n"
+    },
+    {
+      "type": "text",
+      "source": "9. สรุปผลการตรวจสอบความถูกต้องและสถานะ \n ผลการตรวจสอบความถูกต้องของวิธีวิเคราะห์ Cypermethrin สรุปไว้ในตารางที่ 5 Level (%) โดยครอบคลุม\nพารามิเตอร์การประเมิน ได้แก่ ความจ าเพาะ ความเป็นเส้นตรง ความถูกต้อง ความเที่ยงแบบท าซ ้า และความเที่ยงระหว่าง\nวันวิเคราะห์ ผลการประเมินแสดงให้เห็นว่าวิธีวิเคราะห์นี้เป็นไปตามข้อก าหนดของโพรโทคอลและเกณฑ์การยอมรับที่\nก าหนดไว้ \n",
+      "template": "9. สรุปผลการตรวจสอบความถูกต้องและสถานะ \n ผลการตรวจสอบความถูกต้องของวิธีวิเคราะห์ {{analyte}} สรุปไว้ในตารางที่ 5 Level (%) โดยครอบคลุม\nพารามิเตอร์การประเมิน ได้แก่ ความจ าเพาะ ความเป็นเส้นตรง ความถูกต้อง ความเที่ยงแบบท าซ ้า และความเที่ยงระหว่าง\nวันวิเคราะห์ ผลการประเมินแสดงให้เห็นว่าวิธีวิเคราะห์นี้เป็นไปตามข้อก าหนดของโพรโทคอลและเกณฑ์การยอมรับที่\nก าหนดไว้ \n"
+    },
+    {
+      "type": "table",
+      "number": 5,
+      "caption": "ตารางที่ 5 สรุปผลการตรวจสอบความใช้ได้ของวิธีวิเคราะห์ {{analyte}} และสถานะการยอมรับ",
+      "source": "ตารางที่ 5 สรุปผลการตรวจสอบความใช้ได้ของวิธีวิเคราะห์ Cypermethrin และสถานะการยอมรับ \nValidation \nParameter \nTarget Concentration \n/Level Acceptance Criteria Experimental Results Status  \nSpecificity \nBlank \ninterference  \nBlank (Acetone)  No interfering peak at \nCypermethrin RT \n(≤ 0.5% of standard \nresponse) \nNo interference from Blank (Acetone) \nat Cypermethrin RT \nPassed \n \n \n \nSpecificity \nStandard \ninjection \nprecision  \n1.00 mg/mL Retention time precision: \nRT %CV ≤ 0.5% \nPeak area precision: Peak \narea %RSD ≤ 2.0%  \nRetention Time (RT) matched at \n4.437 min (RT %CV = 0.000%, %CV \nPeak area %RSD = 0.602%  \n \n \n \n \nLinearity 0.10 – 1.0 mg/mL Coefficient of \nDetermination (R2) ≥ \n0.995 \nR2 = 0.99997 \nPassed \n \n \n \nPeak area %RSD \n≤ 5.0% \n%RSD =0.12%-1.05%  \n \nTrueness \n(Accuracy) \n0.10 mg/mL (LOQ) 90.0%-107.0% Recovery Mean Recovery = 100.22% \nPassed \n \n \n0.50 mg/mL (Middle) 90.0%-107.0% Recovery Mean Recovery = 99.69%   \n1.00 mg/mL (High) 95.0%-105.0% Recovery Mean Recovery = 100.34%\n\nRepeatability \nPrecision \n0.10 mg/mL (LOQ) RSDr < Horwitz RSD                      \nHorRat(r) < 1.3 \n%RSD = 1.89% \nHorRat = 0.24 \nPassed \n \n \n0.50 mg/mL (Middle) %RSD = 0.65% \nHorRat = 0.10 \n \n \n1.00 mg/mL (High) %RSD = 0.35% \nHorRat = 0.06 \n \n \nIntermediate \nPrecision \n0.10 mg/mL (LOQ) RSDintra < Horwitzintra                 \nHorRat(R) < 2.0 \n%RSD = 0.70% \nHorRat = 0.09 \nPassed \n \n \n0.50 mg/mL (Middle) %RSD = 0.87% \nHorRat = 0.14 \n \n \n1.00 mg/mL (High) %RSD = 0.72% \nHorRat = 0.13 \n \n \n \n"
+    },
+    {
+      "type": "text",
+      "source": "10. บทสรุป \n วิธีวิเคราะห์ส าหรับการก าหนดปริมาณ Cypermethrin ได้รับการตรวจสอบความถูกต้องส าเร็จในช่วงความเข้มข้น \n0.10-1.00 mg/mL วิธีดังกล่าวแสดงความจ าเพาะที่ยอมรับได้โดยไม่พบการรบกวนจาก Blank ที่ต าแหน่ง retention time \nของ Cypermethrin มีความเป็นเส้นตรงที่ดี ( R² = 0.99997) มีความถูกต้องที่ยอมรับได้ (% Recovery = 99.69-100.34%) \nและมีความเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์ที่ยอมรับได้ (% RSD = 0.35-1.89% และ 0.70-0.87% \nตามล าดับ) ค่า HorRat ทั้งหมดเป็นไปตามเกณฑ์การยอมรับที่ก าหนดไว้ ดังนั้น วิธีวิเคราะห์นี้จึงถือว่ามีความเหมาะสม \nน่าเชื่อถือ และเหมาะส าหรับวัตถุประสงค์การใช้งานในการวิเคราะห์เชิงปริมาณของ Cypermethrin เป็นประจ า \n \n วิธีวิเคราะห์ส าหรับการก าหนดปริมาณ Cypermethrin โดยเทคนิค GC-FID ได้รับการตรวจสอบความใช้ได้ภายใต้\nสภาวะการวิเคราะห์ที่ก าหนด โดยครอบคลุมช่วงความเข้มข้น 0.10-1.00 mg/mL และใช้ผลิตภัณฑ์ Cypermethrin 25% \nW/V EC เป็นตัวแทนของผลิตภัณฑ์ Cypermethrin EC ส าหรับการประเมินความถูกต้องและความเที่ยงของวิธีวิเคราะห์ \n ผลการตรวจสอบพบว่าวิธีวิเคราะห์มีความจ าเพาะ โดยไม่พบพีครบกวนจาก Blank ที่ต าแหน่ง retention time ของ \nCypermethrin มีความเป็นเส้นตรงที่ดีในช่วงความเข้มข้นที่ตรวจสอบ มีความถูกต้องอยู่ในเกณฑ์การยอมรับ และมีความ\nเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์อยู่ในเกณฑ์การยอมรับ ค่า HorRat ที่ประเมินได้เป็นไปตามเกณฑ์ที่\nก าหนด \n ดังนั้น วิธีวิเคราะห์นี้ถือว่ามีความเหมาะสมส าหรับการวิเคราะห์เชิงปริมาณของ Cypermethrin ภายใต้สภาวะการ\nวิเคราะห์ เครื่องมือ เมทริกซ์  รูปแบบผลิตภัณฑ์ และช่วงความเข้มข้นที่ได้รับการตรวจสอบแล้ว การน าวิธีวิเคราะห์ไปใช้กับ\nผลิตภัณฑ์ Cypermethrin EC ระดับความเข้มข้นอื่น ต้องเตรียมสารละลายตัวอย่างให้มีความเข้มข้นของ Cypermethrin อยู่\n\nภายในช่วงการวิเคราะห์ที่ตรวจสอบแล้ว และต้องยืนยันว่าเมทริกซ์ของผลิตภัณฑ์ไม่แตกต่างจากเมทริกซ์ที่ใช้ในการ\nตรวจสอบอย่างมีนัยส าคัญ \n \n11. ผลการวิเคราะห์ตัวอย่างทดสอบและการประเมิน QC \n11.1 ผลการวิเคราะห์ตัวอย่างทดสอบ \n แสดงผลการวิเคราะห์ตัวอย่าง Cypermethrin 25% EC จ านวน 10 ตัวอย่าง โดยรายงานค่าน ้าหนักตัวอย่างที่ชั่ง \nพื้นที่ใต้พีค ค่า C found และปริมาณ Cypermethrin ที่ค านวณได้เป็น %w/w ดังแสดงในตารางที่ 6 \n",
+      "template": "10. บทสรุป \n วิธีวิเคราะห์ส าหรับการก าหนดปริมาณ {{analyte}} ได้รับการตรวจสอบความถูกต้องส าเร็จในช่วงความเข้มข้น \n{{value_067}}-{{value_068}} mg/mL วิธีดังกล่าวแสดงความจ าเพาะที่ยอมรับได้โดยไม่พบการรบกวนจาก Blank ที่ต าแหน่ง retention time \nของ {{analyte}} มีความเป็นเส้นตรงที่ดี ( R² = {{value_069}}) มีความถูกต้องที่ยอมรับได้ (% Recovery = {{value_070}}-{{value_071}}%) \nและมีความเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์ที่ยอมรับได้ (% RSD = {{value_072}}-{{value_073}}% และ {{value_074}}-{{value_075}}% \nตามล าดับ) ค่า HorRat ทั้งหมดเป็นไปตามเกณฑ์การยอมรับที่ก าหนดไว้ ดังนั้น วิธีวิเคราะห์นี้จึงถือว่ามีความเหมาะสม \nน่าเชื่อถือ และเหมาะส าหรับวัตถุประสงค์การใช้งานในการวิเคราะห์เชิงปริมาณของ {{analyte}} เป็นประจ า \n \n วิธีวิเคราะห์ส าหรับการก าหนดปริมาณ {{analyte}} โดยเทคนิค GC-FID ได้รับการตรวจสอบความใช้ได้ภายใต้\nสภาวะการวิเคราะห์ที่ก าหนด โดยครอบคลุมช่วงความเข้มข้น {{value_076}}-{{value_077}} mg/mL และใช้ผลิตภัณฑ์ {{analyte}} 25% \nW/V EC เป็นตัวแทนของผลิตภัณฑ์ {{analyte}} EC ส าหรับการประเมินความถูกต้องและความเที่ยงของวิธีวิเคราะห์ \n ผลการตรวจสอบพบว่าวิธีวิเคราะห์มีความจ าเพาะ โดยไม่พบพีครบกวนจาก Blank ที่ต าแหน่ง retention time ของ \n{{analyte}} มีความเป็นเส้นตรงที่ดีในช่วงความเข้มข้นที่ตรวจสอบ มีความถูกต้องอยู่ในเกณฑ์การยอมรับ และมีความ\nเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์อยู่ในเกณฑ์การยอมรับ ค่า HorRat ที่ประเมินได้เป็นไปตามเกณฑ์ที่\nก าหนด \n ดังนั้น วิธีวิเคราะห์นี้ถือว่ามีความเหมาะสมส าหรับการวิเคราะห์เชิงปริมาณของ {{analyte}} ภายใต้สภาวะการ\nวิเคราะห์ เครื่องมือ เมทริกซ์  รูปแบบผลิตภัณฑ์ และช่วงความเข้มข้นที่ได้รับการตรวจสอบแล้ว การน าวิธีวิเคราะห์ไปใช้กับ\nผลิตภัณฑ์ {{analyte}} EC ระดับความเข้มข้นอื่น ต้องเตรียมสารละลายตัวอย่างให้มีความเข้มข้นของ {{analyte}} อยู่\n\nภายในช่วงการวิเคราะห์ที่ตรวจสอบแล้ว และต้องยืนยันว่าเมทริกซ์ของผลิตภัณฑ์ไม่แตกต่างจากเมทริกซ์ที่ใช้ในการ\nตรวจสอบอย่างมีนัยส าคัญ \n \n11. ผลการวิเคราะห์ตัวอย่างทดสอบและการประเมิน QC \n11.1 ผลการวิเคราะห์ตัวอย่างทดสอบ \n แสดงผลการวิเคราะห์ตัวอย่าง {{analyte}} 25% EC จ านวน 10 ตัวอย่าง โดยรายงานค่าน ้าหนักตัวอย่างที่ชั่ง \nพื้นที่ใต้พีค ค่า C found และปริมาณ {{analyte}} ที่ค านวณได้เป็น %w/w ดังแสดงในตารางที่ 6 \n"
+    },
+    {
+      "type": "table",
+      "number": 6,
+      "caption": "ตารางที่ 6 ผลการวิเคราะห์ตัวอย่างทดสอบ {{analyte}} 25% EC",
+      "source": "ตารางที่ 6 ผลการวิเคราะห์ตัวอย่างทดสอบ Cypermethrin 25% EC \nSample Weight (mg) Area C found (mg/mL) Cypermethrin \n(%w/w) \nSample 1 50.58 134.770 0.5034 24.88 \nSample 2 50.8 132.483 0.4947 24.35 \nSample 3 49.58 130.168 0.4859 24.50 \nSample 4 49.37 127.919 0.4774 24.17 \nSample 5 50.37 131.711 0.4918 24.41 \nSample 6 52.06 136.780 0.5111 24.54 \nSample 7 49.99 129.987 0.4852 24.27 \nSample 8 49.71 128.264 0.4787 24.07 \nSample 9 49.97 131.978 0.4928 24.66 \nSample 10 51.86 135.938 0.5079 24.48 \nMean 24.43 \nSD 0.24 \n%RSD 0.97% \n \n"
+    },
+    {
+      "type": "text",
+      "source": "11.2 การค านวณผลการวิเคราะห์ตัวอย่างทดสอบ \n การค านวณผลตัวอย่างด าเนินการโดยใช้ค่า Amount (mg/mL) ที่ได้จากระบบประมวลผลของเครื่อง GC \nซึ่งค านวณจาก calibration curve ของสารมาตรฐาน จากนั้นน าค่า Amount ดังกล่าวมาค านวณปริมาณ ค านวณ\nปริมาณ Cypermethrin ในตัวอย่างเป็น %w/w ดังนี้ \n  Cypermethrin (%w/w) = \n(C found × V × DF × 100) \nW  \n โดยที่ C found คือ ความเข้มข้นของ Cypermethrin ที่ตรวจพบจากกราฟมาตรฐาน (mg/mL), V คือ \nปริมาตรสุดท้ายของสารละลายตัวอย่าง (mL), DF คือ dilution factor และ W คือ น ้าหนักตัวอย่างที่ชั่ง (mg) \n \n11.3 ผลการประเมิน QC\n\nการประเมินผล QC ด าเนินการเพื่อยืนยันความถูกต้องและความสอดคล้องของผลการวิเคราะห์ตัวอย่าง \nโดยแบ่งการประเมินเป็น 2 ประเภท ได้แก่ Standard Check Solution และ Matrix Spike Solution ผลการประเมิน \nStandard Check Solution แสดงในตารางที่ 7 และผลการประเมิน Matrix Spike Solution แสดงในตารางที่ 8 \n 11.3.1 ผลการประเมิน Standard Check Solution \n Standard Check Solution-1 และ Standard Check Solution-2 ใช้ส าหรับประเมินความถูกต้องของผล\nการวิเคราะห์โดยเปรียบเทียบค่า C found หรือ Amount (mg/mL) ที่ได้จากระบบประมวลผลของเครื่อง GC กับความ\nเข้มข้นจริงของสารมาตรฐานที่เตรียมได้ \n ค านวณความเข้มข้นจริงของ standard stock solution จากน ้าหนักสารมาตรฐาน 54.25 mg และความ\nบริสุทธิ์ 92.70% โดยปรับปริมาตรเป็น 25 mL ดังนี้ \n  C standard stock =(\n54.25×0.9270 \n25 ) = 2.0116 mg/mL \nเมื่อน า standard stock solution ดังกล่าวมาปิเปต 250 µL และปรับปริมาตรรวมเป็น 1,000 µL จะได้ความเข้มข้น\nจริงของ Standard Check Solution ดังนี้ \n  C fortified       = 2.0116 ×  (\n250 \n1000) = 0.5029 mg/mL \nค านวณ %Recovery ดังสมการ \n  % Recovery =(\nFound concentration \nFortified actual concentration) × 100  \n \nผลการประเมิน Standard Check Solution แสดงในตารางที่ 7 \n",
+      "template": "11.2 การค านวณผลการวิเคราะห์ตัวอย่างทดสอบ \n การค านวณผลตัวอย่างด าเนินการโดยใช้ค่า Amount (mg/mL) ที่ได้จากระบบประมวลผลของเครื่อง GC \nซึ่งค านวณจาก calibration curve ของสารมาตรฐาน จากนั้นน าค่า Amount ดังกล่าวมาค านวณปริมาณ ค านวณ\nปริมาณ {{analyte}} ในตัวอย่างเป็น %w/w ดังนี้ \n  {{analyte}} (%w/w) = \n(C found × V × DF × 100) \nW  \n โดยที่ C found คือ ความเข้มข้นของ {{analyte}} ที่ตรวจพบจากกราฟมาตรฐาน (mg/mL), V คือ \nปริมาตรสุดท้ายของสารละลายตัวอย่าง (mL), DF คือ dilution factor และ W คือ น ้าหนักตัวอย่างที่ชั่ง (mg) \n \n11.3 ผลการประเมิน QC\n\nการประเมินผล QC ด าเนินการเพื่อยืนยันความถูกต้องและความสอดคล้องของผลการวิเคราะห์ตัวอย่าง \nโดยแบ่งการประเมินเป็น 2 ประเภท ได้แก่ Standard Check Solution และ Matrix Spike Solution ผลการประเมิน \nStandard Check Solution แสดงในตารางที่ 7 และผลการประเมิน Matrix Spike Solution แสดงในตารางที่ 8 \n 11.3.1 ผลการประเมิน Standard Check Solution \n Standard Check Solution-1 และ Standard Check Solution-2 ใช้ส าหรับประเมินความถูกต้องของผล\nการวิเคราะห์โดยเปรียบเทียบค่า C found หรือ Amount (mg/mL) ที่ได้จากระบบประมวลผลของเครื่อง GC กับความ\nเข้มข้นจริงของสารมาตรฐานที่เตรียมได้ \n ค านวณความเข้มข้นจริงของ standard stock solution จากน ้าหนักสารมาตรฐาน {{value_078}} mg และความ\nบริสุทธิ์ {{value_079}}% โดยปรับปริมาตรเป็น 25 mL ดังนี้ \n  C standard stock =(\n{{value_080}}×{{value_081}} \n25 ) = {{value_082}} mg/mL \nเมื่อน า standard stock solution ดังกล่าวมาปิเปต 250 µL และปรับปริมาตรรวมเป็น 1,000 µL จะได้ความเข้มข้น\nจริงของ Standard Check Solution ดังนี้ \n  C fortified       = {{value_083}} ×  (\n250 \n1000) = {{value_084}} mg/mL \nค านวณ %Recovery ดังสมการ \n  % Recovery =(\nFound concentration \nFortified actual concentration) × 100  \n \nผลการประเมิน Standard Check Solution แสดงในตารางที่ 7 \n"
+    },
+    {
+      "type": "table",
+      "number": 7,
+      "caption": "ตารางที่ 7 ผลการประเมิน QC ของการวิเคราะห์ตัวอย่าง {{analyte}}",
+      "source": "ตารางที่ 7 ผลการประเมิน QC ของการวิเคราะห์ตัวอย่าง Cypermethrin \nQC Type C found  \n(mg/mL) \nC fortified actual \n(mg/mL)  Recovery (%) \nStandard Check Solution-1 Standard Check in Matrix Blank 0.505 0.503 100.48 \nStandard Check Solution-2 Standard Check in Matrix Blank 0.503 0.503 100.06 \nMean 100.27 \n%Difference 0.42 \n \n "
+    },
+    {
+      "type": "text",
+      "source": "11.3.2 ผลการประเมิน Matrix Spike Solution \n Matrix Spike Solution-1 และ Matrix Spike Solution-2 ใช้ส าหรับประเมินการคืนกลับของสารมาตรฐาน\nที่เติมลงในตัวอย่าง โดยค านวณจากค่า C found หรือ Amount (mg/mL) ที่ได้จากเครื่อง GC หลังจากหักความ\nเข้มข้นของ Cypermethrin ที่มาจากตัวอย่างจริงออกแล้ว และน าไปเปรียบเทียบกับความเข้มข้นจริงของสาร\nมาตรฐานที่เติม \n ค านวณความเข้มข้นของ Cypermethrin ที่มาจากตัวอย่าง โดยใช้ตัวอย่าง Cypermethrin 25% EC ที่ชั่ง\nจริง 75.49 mg ปรับปริมาตรเป็น 25 mL และปิเปต sample stock solution 400 µL ลงในปริมาตรรวม 1,000 µL \nดังนี้ \n  C sample =(\n75.49×0.25\n25 ) × (\n400\n1000) = 0.3020 mg/mL\n\nค านวณความเข้มข้นของ Cypermethrin standard ที่เติม โดยใช้ standard stock solution ความเข้มข้นจริง \n2.0116 mg/mL และปิเปต 100 µL ลงในปริมาตรรวม 1,000 µL ดังนี้ \n  C spike= 2.0116 × (\n100\n1000\n) = 0.2012 mg/mL \nค านวณ Spike Recovery ดังสมการ \n  Spike Recovery (%) = [(\nC found−C sample \nC spike ) × 100 \nผลการประเมิน Matrix Spike Solution แสดงในตารางที่ 8 \n",
+      "template": "11.3.2 ผลการประเมิน Matrix Spike Solution \n Matrix Spike Solution-1 และ Matrix Spike Solution-2 ใช้ส าหรับประเมินการคืนกลับของสารมาตรฐาน\nที่เติมลงในตัวอย่าง โดยค านวณจากค่า C found หรือ Amount (mg/mL) ที่ได้จากเครื่อง GC หลังจากหักความ\nเข้มข้นของ {{analyte}} ที่มาจากตัวอย่างจริงออกแล้ว และน าไปเปรียบเทียบกับความเข้มข้นจริงของสาร\nมาตรฐานที่เติม \n ค านวณความเข้มข้นของ {{analyte}} ที่มาจากตัวอย่าง โดยใช้ตัวอย่าง {{analyte}} 25% EC ที่ชั่ง\nจริง {{value_085}} mg ปรับปริมาตรเป็น 25 mL และปิเปต sample stock solution 400 µL ลงในปริมาตรรวม 1,000 µL \nดังนี้ \n  C sample =(\n{{value_086}}×{{value_087}}\n25 ) × (\n400\n1000) = {{value_088}} mg/mL\n\nค านวณความเข้มข้นของ {{analyte}} standard ที่เติม โดยใช้ standard stock solution ความเข้มข้นจริง \n{{value_089}} mg/mL และปิเปต 100 µL ลงในปริมาตรรวม 1,000 µL ดังนี้ \n  C spike= {{value_090}} × (\n100\n1000\n) = {{value_091}} mg/mL \nค านวณ Spike Recovery ดังสมการ \n  Spike Recovery (%) = [(\nC found−C sample \nC spike ) × 100 \nผลการประเมิน Matrix Spike Solution แสดงในตารางที่ 8 \n"
+    },
+    {
+      "type": "table",
+      "number": 8,
+      "caption": "ตารางที่ 8 ผลการประเมิน Matrix Spike Solution ของ {{analyte}}",
+      "source": "ตารางที่ 8 ผลการประเมิน Matrix Spike Solution ของ Cypermethrin \nQC Type C found (mg/mL) C sample actual \n(mg/mL) \nC spike actual \n(mg/mL) Spike Recovery (%) \nMatrix Spike Solution-1 Sample spike 0.515 0.302 0.201 105.86 \nMatrix Spike Solution-2 Sample spike 0.511 0.302 0.201 103.78 \nMean 104.82 \n%Difference 1.99 \n"
+    },
+    {
+      "type": "text",
+      "source": "11.3.3 การประเมินความสอดคล้องของผล QC \nความสอดคล้องของผล QC คู่ซ ้าประเมินจากค่า %Difference ดังสมการ \n % Difference = (\n| Result 1 − Result 2 |\nMean of duplicate results) × 100  \n จากผลการประเมิน พบว่า Standard Check Solution ให้ค่า recovery อยู่ในช่วง 100.06–100.48% โดยมีค่า \n%Difference เท่ากับ 0.42% ส่วน Matrix Spike Solution ให้ค่า spike recovery อยู่ในช่วง 103.78–105.86% โดยมีค่า \n%Difference เท่ากับ 1.99% ผลดังกล่าวอยู่ในเกณฑ์การยอมรับที่ก าหนด และสนับสนุนว่าผลการวิเคราะห์ตัวอย่างมีความ\nถูกต้องและสอดคล้องภายใต้สภาวะการทดสอบ \n \n11.4 สรุปผลการวิเคราะห์ตัวอย่างทดสอบและ QC \n  ผลการวิเคราะห์ตัวอย่าง Cypermethrin 25% EC จ านวน 10 ตัวอย่าง พบปริมาณ Cypermethrin อยู่ในช่วง \n24.07-24.88% w/w โดยมีค่าเฉลี่ยเท่ากับ 24.43% w/w, SD เท่ากับ 0.24 และ %RSD เท่ากับ 0.97% แสดงให้เห็นว่าผลการ\nวิเคราะห์ตัวอย่างมีความสม ่าเสมอภายใต้สภาวะการวิเคราะห์ที่ก าหนด \n  ผลการประเมิน Standard Check Solution in Matrix Blank-1 และ Standard Check Solution in Matrix Blank-\n2 ให้ค่า recovery เท่ากับ 100.48% และ 100.06% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 100.27% และ % Difference เท่ากับ \n0.42% ซึ่งอยู่ในเกณฑ์การยอมรับที่ก าหนด คือ %Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดง\nให้เห็นว่าการวิเคราะห์สารมาตรฐานใน Matrix Blank ให้ผลถูกต้องและสอดคล้องกัน \n  ผลการประเมิน Matrix Spike Solution-1 และ Matrix Spike Solution-2 ให้ค่า spike recovery เท่ากับ 105.86% \nและ 103.78% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 104.82% และ % Difference เท่ากับ 1.99% ซึ่งอยู่ในเกณฑ์การยอมรับที่\nก าหนด คือ Spike Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดงให้เห็นว่าวิธีวิเคราะห์สามารถ\nให้ผลการคืนกลับของ Cypermethrin ได้อย่างเหมาะสมภายใต้สภาวะที่มีเมทริกซ์\n\nดังนั้น ผลการวิเคราะห์ตัวอย่างทดสอบและผลการประเมิน QC อยู่ในเกณฑ์การยอมรับที่ก าหนด จึงสนับสนุนว่า\nผลการวิเคราะห์มีความถูกต้อง สอดคล้อง และน่าเชื่อถือภายใต้สภาวะการวิเคราะห์ที่ก าหนด",
+      "template": "11.3.3 การประเมินความสอดคล้องของผล QC \nความสอดคล้องของผล QC คู่ซ ้าประเมินจากค่า %Difference ดังสมการ \n % Difference = (\n| Result 1 − Result 2 |\nMean of duplicate results) × 100  \n จากผลการประเมิน พบว่า Standard Check Solution ให้ค่า recovery อยู่ในช่วง {{value_092}}–{{value_093}}% โดยมีค่า \n%Difference เท่ากับ {{value_094}}% ส่วน Matrix Spike Solution ให้ค่า spike recovery อยู่ในช่วง {{value_095}}–{{value_096}}% โดยมีค่า \n%Difference เท่ากับ {{value_097}}% ผลดังกล่าวอยู่ในเกณฑ์การยอมรับที่ก าหนด และสนับสนุนว่าผลการวิเคราะห์ตัวอย่างมีความ\nถูกต้องและสอดคล้องภายใต้สภาวะการทดสอบ \n \n11.4 สรุปผลการวิเคราะห์ตัวอย่างทดสอบและ QC \n  ผลการวิเคราะห์ตัวอย่าง {{analyte}} 25% EC จ านวน 10 ตัวอย่าง พบปริมาณ {{analyte}} อยู่ในช่วง \n{{value_098}}-{{value_099}}% w/w โดยมีค่าเฉลี่ยเท่ากับ {{value_100}}% w/w, SD เท่ากับ {{value_101}} และ %RSD เท่ากับ {{value_102}}% แสดงให้เห็นว่าผลการ\nวิเคราะห์ตัวอย่างมีความสม ่าเสมอภายใต้สภาวะการวิเคราะห์ที่ก าหนด \n  ผลการประเมิน Standard Check Solution in Matrix Blank-1 และ Standard Check Solution in Matrix Blank-\n2 ให้ค่า recovery เท่ากับ {{value_103}}% และ {{value_104}}% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ {{value_105}}% และ % Difference เท่ากับ \n{{value_106}}% ซึ่งอยู่ในเกณฑ์การยอมรับที่ก าหนด คือ %Recovery อยู่ในช่วง {{value_107}}-{{value_108}}% และ %Difference ไม่เกิน {{value_109}}% แสดง\nให้เห็นว่าการวิเคราะห์สารมาตรฐานใน Matrix Blank ให้ผลถูกต้องและสอดคล้องกัน \n  ผลการประเมิน Matrix Spike Solution-1 และ Matrix Spike Solution-2 ให้ค่า spike recovery เท่ากับ {{value_110}}% \nและ {{value_111}}% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ {{value_112}}% และ % Difference เท่ากับ {{value_113}}% ซึ่งอยู่ในเกณฑ์การยอมรับที่\nก าหนด คือ Spike Recovery อยู่ในช่วง {{value_114}}-{{value_115}}% และ %Difference ไม่เกิน {{value_116}}% แสดงให้เห็นว่าวิธีวิเคราะห์สามารถ\nให้ผลการคืนกลับของ {{analyte}} ได้อย่างเหมาะสมภายใต้สภาวะที่มีเมทริกซ์\n\nดังนั้น ผลการวิเคราะห์ตัวอย่างทดสอบและผลการประเมิน QC อยู่ในเกณฑ์การยอมรับที่ก าหนด จึงสนับสนุนว่า\nผลการวิเคราะห์มีความถูกต้อง สอดคล้อง และน่าเชื่อถือภายใต้สภาวะการวิเคราะห์ที่ก าหนด"
+    }
+  ],
+  "variables": {
+    "value_001": {
+      "original": "1.0",
+      "section": "8.1",
+      "context": "การทดสอบด าเนินการโดยฉีด Blank (diluent) จ านวน 3 ครั้ง และฉีดสารละลายมาตรฐาน {{analyte}} ความเข้มข้น 1.0"
+    },
+    "value_002": {
+      "original": "1.0",
+      "section": "8.1",
+      "context": "{{analyte}} สารละลายมาตรฐาน {{analyte}} ความเข้มข้น 1.0 mg/mL ให้พีคของสารวิเคราะห์ที่ retention time"
+    },
+    "value_003": {
+      "original": "4.437",
+      "section": "8.1",
+      "context": "เฉลี่ย 4.437 นาที โดยมีค่า RT %CV เท่ากับ 0.000% ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ RT %CV ไม่เกิน 0.5%"
+    },
+    "value_004": {
+      "original": "0.000",
+      "section": "8.1",
+      "context": "เฉลี่ย 4.437 นาที โดยมีค่า RT %CV เท่ากับ 0.000% ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ RT %CV ไม่เกิน 0.5%"
+    },
+    "value_005": {
+      "original": "0.5",
+      "section": "8.1",
+      "context": "เฉลี่ย 4.437 นาที โดยมีค่า RT %CV เท่ากับ 0.000% ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ RT %CV ไม่เกิน 0.5%"
+    },
+    "value_006": {
+      "original": "248.883",
+      "section": "8.1",
+      "context": "นอกจากนี้ พื้นที่พีคของสารละลายมาตรฐานมีค่าเฉลี่ยเท่ากับ 248.883 ค่า SD เท่ากับ 1.497 และค่า %RSD เท่ากับ 0.602%"
+    },
+    "value_007": {
+      "original": "1.497",
+      "section": "8.1",
+      "context": "นอกจากนี้ พื้นที่พีคของสารละลายมาตรฐานมีค่าเฉลี่ยเท่ากับ 248.883 ค่า SD เท่ากับ 1.497 และค่า %RSD เท่ากับ 0.602%"
+    },
+    "value_008": {
+      "original": "0.602",
+      "section": "8.1",
+      "context": "นอกจากนี้ พื้นที่พีคของสารละลายมาตรฐานมีค่าเฉลี่ยเท่ากับ 248.883 ค่า SD เท่ากับ 1.497 และค่า %RSD เท่ากับ 0.602%"
+    },
+    "value_009": {
+      "original": "2.0",
+      "section": "8.1",
+      "context": "ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนด คือ Peak area %RSD ไม่เกิน 2.0%"
+    },
+    "value_010": {
+      "original": "0.10",
+      "section": "8.2",
+      "context": "ด าเนินการโดยใช้สารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00"
+    },
+    "value_011": {
+      "original": "0.25",
+      "section": "8.2",
+      "context": "ด าเนินการโดยใช้สารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00"
+    },
+    "value_012": {
+      "original": "0.50",
+      "section": "8.2",
+      "context": "ด าเนินการโดยใช้สารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00"
+    },
+    "value_013": {
+      "original": "0.75",
+      "section": "8.2",
+      "context": "ด าเนินการโดยใช้สารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00"
+    },
+    "value_014": {
+      "original": "1.00",
+      "section": "8.2",
+      "context": "ด าเนินการโดยใช้สารละลายมาตรฐาน {{analyte}} จ านวน 5 ระดับความเข้มข้น ได้แก่ 0.10, 0.25, 0.50, 0.75 และ 1.00"
+    },
+    "value_015": {
+      "original": "0.99997",
+      "section": "8.2",
+      "context": "0.99997 ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนดไว้ คือ R² ≥ 0.995 นอกจากนี้ ค่า % RSD ของพื้นที่พีคในแต่ละระดับความ"
+    },
+    "value_016": {
+      "original": "0.995",
+      "section": "8.2",
+      "context": "0.99997 ซึ่งผ่านเกณฑ์การยอมรับที่ก าหนดไว้ คือ R² ≥ 0.995 นอกจากนี้ ค่า % RSD ของพื้นที่พีคในแต่ละระดับความ"
+    },
+    "value_017": {
+      "original": "0.12",
+      "section": "8.2",
+      "context": "เข้มข้นอยู่ในช่วง 0.12%-1.05% ซึ่งไม่เกินเกณฑ์การยอมรับที่ก าหนดไว้ คือ %RSD ≤ 5.0% ดังแสดงในตารางที่ 2"
+    },
+    "value_018": {
+      "original": "1.05",
+      "section": "8.2",
+      "context": "เข้มข้นอยู่ในช่วง 0.12%-1.05% ซึ่งไม่เกินเกณฑ์การยอมรับที่ก าหนดไว้ คือ %RSD ≤ 5.0% ดังแสดงในตารางที่ 2"
+    },
+    "value_019": {
+      "original": "5.0",
+      "section": "8.2",
+      "context": "เข้มข้นอยู่ในช่วง 0.12%-1.05% ซึ่งไม่เกินเกณฑ์การยอมรับที่ก าหนดไว้ คือ %RSD ≤ 5.0% ดังแสดงในตารางที่ 2"
+    },
+    "value_020": {
+      "original": "0.10",
+      "section": "8.2",
+      "context": "{{analyte}} ในช่วง 0.10-1.00 mg/mL ดังนั้น วิธีวิเคราะห์ดังกล่าวมีความเป็นเส้นตรงเหมาะสมส าหรับการวิเคราะห์"
+    },
+    "value_021": {
+      "original": "1.00",
+      "section": "8.2",
+      "context": "{{analyte}} ในช่วง 0.10-1.00 mg/mL ดังนั้น วิธีวิเคราะห์ดังกล่าวมีความเป็นเส้นตรงเหมาะสมส าหรับการวิเคราะห์"
+    },
+    "value_022": {
+      "original": "0.10",
+      "section": "8.3",
+      "context": "Recovery) ที่ระดับความเข้มข้น 3 ระดับ ได้แก่ ระดับ LOQ (0.10 mg/mL), ระดับกลาง (0.50 mg/mL) และระดับสูง (1.00"
+    },
+    "value_023": {
+      "original": "0.50",
+      "section": "8.3",
+      "context": "Recovery) ที่ระดับความเข้มข้น 3 ระดับ ได้แก่ ระดับ LOQ (0.10 mg/mL), ระดับกลาง (0.50 mg/mL) และระดับสูง (1.00"
+    },
+    "value_024": {
+      "original": "1.00",
+      "section": "8.3",
+      "context": "Recovery) ที่ระดับความเข้มข้น 3 ระดับ ได้แก่ ระดับ LOQ (0.10 mg/mL), ระดับกลาง (0.50 mg/mL) และระดับสูง (1.00"
+    },
+    "value_025": {
+      "original": "0.10",
+      "section": "8.3",
+      "context": "จากผลการทดสอบ พบว่าค่าเฉลี่ยร้อยละการคืนกลับของ {{analyte}} ที่ระดับ 0.10, 0.50 และ 1.00 mg/mL"
+    },
+    "value_026": {
+      "original": "0.50",
+      "section": "8.3",
+      "context": "จากผลการทดสอบ พบว่าค่าเฉลี่ยร้อยละการคืนกลับของ {{analyte}} ที่ระดับ 0.10, 0.50 และ 1.00 mg/mL"
+    },
+    "value_027": {
+      "original": "1.00",
+      "section": "8.3",
+      "context": "จากผลการทดสอบ พบว่าค่าเฉลี่ยร้อยละการคืนกลับของ {{analyte}} ที่ระดับ 0.10, 0.50 และ 1.00 mg/mL"
+    },
+    "value_028": {
+      "original": "100.22",
+      "section": "8.3",
+      "context": "เท่ากับ 100.22%, 99.69% และ 100.34% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ 90.0–107.0%"
+    },
+    "value_029": {
+      "original": "99.69",
+      "section": "8.3",
+      "context": "เท่ากับ 100.22%, 99.69% และ 100.34% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ 90.0–107.0%"
+    },
+    "value_030": {
+      "original": "100.34",
+      "section": "8.3",
+      "context": "เท่ากับ 100.22%, 99.69% และ 100.34% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ 90.0–107.0%"
+    },
+    "value_031": {
+      "original": "90.0",
+      "section": "8.3",
+      "context": "เท่ากับ 100.22%, 99.69% และ 100.34% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ 90.0–107.0%"
+    },
+    "value_032": {
+      "original": "107.0",
+      "section": "8.3",
+      "context": "เท่ากับ 100.22%, 99.69% และ 100.34% ตามล าดับ โดยค่าที่ได้อยู่ภายในเกณฑ์การยอมรับที่ก าหนด คือ 90.0–107.0%"
+    },
+    "value_033": {
+      "original": "95.0",
+      "section": "8.3",
+      "context": "ส าหรับระดับ LOQและระดับกลาง  และ 95.0%-105.0% ส าหรับระดับสูง นอกจากนี้ ค่า % RSD ของแต่ละระดับเท่ากับ"
+    },
+    "value_034": {
+      "original": "105.0",
+      "section": "8.3",
+      "context": "ส าหรับระดับ LOQและระดับกลาง  และ 95.0%-105.0% ส าหรับระดับสูง นอกจากนี้ ค่า % RSD ของแต่ละระดับเท่ากับ"
+    },
+    "value_035": {
+      "original": "1.89",
+      "section": "8.3",
+      "context": "1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ 0.24, 0.10 และ"
+    },
+    "value_036": {
+      "original": "0.65",
+      "section": "8.3",
+      "context": "1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ 0.24, 0.10 และ"
+    },
+    "value_037": {
+      "original": "0.35",
+      "section": "8.3",
+      "context": "1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ 0.24, 0.10 และ"
+    },
+    "value_038": {
+      "original": "0.24",
+      "section": "8.3",
+      "context": "1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ 0.24, 0.10 และ"
+    },
+    "value_039": {
+      "original": "0.10",
+      "section": "8.3",
+      "context": "1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน และค่า HorRat เท่ากับ 0.24, 0.10 และ"
+    },
+    "value_040": {
+      "original": "0.06",
+      "section": "8.3",
+      "context": "0.06 ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < 1.3 ดังแสดงในตารางที่ 3"
+    },
+    "value_041": {
+      "original": "1.3",
+      "section": "8.3",
+      "context": "0.06 ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < 1.3 ดังแสดงในตารางที่ 3"
+    },
+    "value_042": {
+      "original": "0.10",
+      "section": "8.4",
+      "context": "ค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า"
+    },
+    "value_043": {
+      "original": "0.50",
+      "section": "8.4",
+      "context": "ค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า"
+    },
+    "value_044": {
+      "original": "1.00",
+      "section": "8.4",
+      "context": "ค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า"
+    },
+    "value_045": {
+      "original": "1.89",
+      "section": "8.4",
+      "context": "ค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า"
+    },
+    "value_046": {
+      "original": "0.65",
+      "section": "8.4",
+      "context": "ค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า"
+    },
+    "value_047": {
+      "original": "0.35",
+      "section": "8.4",
+      "context": "ค่า %RSD ที่ระดับ 0.10 mg/mL, 0.50 mg/mL และ 1.00 mg/mL เท่ากับ 1.89%, 0.65% และ 0.35% ตามล าดับ ซึ่งต ่ากว่า"
+    },
+    "value_048": {
+      "original": "0.24",
+      "section": "8.4",
+      "context": "ค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.24, 0.10 และ 0.06 ตามล าดับ ซึ่งเป็นไปตามเกณฑ์การ"
+    },
+    "value_049": {
+      "original": "0.10",
+      "section": "8.4",
+      "context": "ค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.24, 0.10 และ 0.06 ตามล าดับ ซึ่งเป็นไปตามเกณฑ์การ"
+    },
+    "value_050": {
+      "original": "0.06",
+      "section": "8.4",
+      "context": "ค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.24, 0.10 และ 0.06 ตามล าดับ ซึ่งเป็นไปตามเกณฑ์การ"
+    },
+    "value_051": {
+      "original": "1.3",
+      "section": "8.4",
+      "context": "ยอมรับที่ก าหนดไว้ คือ HorRat < 1.3 ดังแสดงในตารางที่ 4 ดังนั้น วิธีวิเคราะห์จึงมีความเที่ยงแบบท าซ ้าที่ยอมรับได้ตลอด"
+    },
+    "value_052": {
+      "original": "0.10",
+      "section": "8.4",
+      "context": "ทดสอบในวันวิเคราะห์ต่างกันจ านวน 6 วัน โดยในแต่ละวันเตรียมและวิเคราะห์ตัวอย่างเติมสารที่ระดับความเข้มข้น  0.10,"
+    },
+    "value_053": {
+      "original": "0.50",
+      "section": "8.4",
+      "context": "0.50 และ 1.00 mg/mL จ านวน 10 ซ ้าต่อระดับความเข้มข้น ความเข้มข้นที่ตรวจพบในแต่ละระดับถูกน ามาเปรียบเทียบกับ"
+    },
+    "value_054": {
+      "original": "1.00",
+      "section": "8.4",
+      "context": "0.50 และ 1.00 mg/mL จ านวน 10 ซ ้าต่อระดับความเข้มข้น ความเข้มข้นที่ตรวจพบในแต่ละระดับถูกน ามาเปรียบเทียบกับ"
+    },
+    "value_055": {
+      "original": "101.23",
+      "section": "8.4",
+      "context": "เท่ากับ 101.23%, 100.31% และ 101.20% ตามล าดับ โดยค่าที่ได้เป็นไปตามเกณฑ์การยอมรับที่ก า หนด แสดงถึง"
+    },
+    "value_056": {
+      "original": "100.31",
+      "section": "8.4",
+      "context": "เท่ากับ 101.23%, 100.31% และ 101.20% ตามล าดับ โดยค่าที่ได้เป็นไปตามเกณฑ์การยอมรับที่ก า หนด แสดงถึง"
+    },
+    "value_057": {
+      "original": "101.20",
+      "section": "8.4",
+      "context": "เท่ากับ 101.23%, 100.31% และ 101.20% ตามล าดับ โดยค่าที่ได้เป็นไปตามเกณฑ์การยอมรับที่ก า หนด แสดงถึง"
+    },
+    "value_058": {
+      "original": "0.70",
+      "section": "8.4",
+      "context": "ผลการประเมิน intermediate precision ให้ค่า % RSD เท่ากับ 0.70%, 0.87% และ 0.72% ส าหรับระดับ LOQ,"
+    },
+    "value_059": {
+      "original": "0.87",
+      "section": "8.4",
+      "context": "ผลการประเมิน intermediate precision ให้ค่า % RSD เท่ากับ 0.70%, 0.87% และ 0.72% ส าหรับระดับ LOQ,"
+    },
+    "value_060": {
+      "original": "0.72",
+      "section": "8.4",
+      "context": "ผลการประเมิน intermediate precision ให้ค่า % RSD เท่ากับ 0.70%, 0.87% และ 0.72% ส าหรับระดับ LOQ,"
+    },
+    "value_061": {
+      "original": "0.09",
+      "section": "8.4",
+      "context": "ระดับกลาง และระดับสูง ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.09, 0.14"
+    },
+    "value_062": {
+      "original": "0.14",
+      "section": "8.4",
+      "context": "ระดับกลาง และระดับสูง ตามล าดับ ซึ่งต ่ากว่าค่า Horwitz RSD ที่สอดคล้องกัน นอกจากนี้ ค่า HorRat เท่ากับ 0.09, 0.14"
+    },
+    "value_063": {
+      "original": "0.13",
+      "section": "8.4",
+      "context": "และ 0.13 ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < 2.0 ผลการทดสอบสรุปไว้ในตารางที่ 4 ความ"
+    },
+    "value_064": {
+      "original": "2.0",
+      "section": "8.4",
+      "context": "และ 0.13 ตามล าดับ ซึ่งต ่ากว่าเกณฑ์การยอมรับที่ก าหนดไว้ คือ HorRat < 2.0 ผลการทดสอบสรุปไว้ในตารางที่ 4 ความ"
+    },
+    "value_065": {
+      "original": "0.10",
+      "section": "8.4",
+      "context": "ยอมรับได้ ส าหรับการก าหนดปริมาณ {{analyte}} ในช่วงความเข้มข้นที่ตรวจสอบความถูกต้อง 0.10-1.00 mg/mL"
+    },
+    "value_066": {
+      "original": "1.00",
+      "section": "8.4",
+      "context": "ยอมรับได้ ส าหรับการก าหนดปริมาณ {{analyte}} ในช่วงความเข้มข้นที่ตรวจสอบความถูกต้อง 0.10-1.00 mg/mL"
+    },
+    "value_067": {
+      "original": "0.10",
+      "section": "10",
+      "context": "0.10-1.00 mg/mL วิธีดังกล่าวแสดงความจ าเพาะที่ยอมรับได้โดยไม่พบการรบกวนจาก Blank ที่ต าแหน่ง retention time"
+    },
+    "value_068": {
+      "original": "1.00",
+      "section": "10",
+      "context": "0.10-1.00 mg/mL วิธีดังกล่าวแสดงความจ าเพาะที่ยอมรับได้โดยไม่พบการรบกวนจาก Blank ที่ต าแหน่ง retention time"
+    },
+    "value_069": {
+      "original": "0.99997",
+      "section": "10",
+      "context": "ของ {{analyte}} มีความเป็นเส้นตรงที่ดี ( R² = 0.99997) มีความถูกต้องที่ยอมรับได้ (% Recovery = 99.69-100.34%)"
+    },
+    "value_070": {
+      "original": "99.69",
+      "section": "10",
+      "context": "ของ {{analyte}} มีความเป็นเส้นตรงที่ดี ( R² = 0.99997) มีความถูกต้องที่ยอมรับได้ (% Recovery = 99.69-100.34%)"
+    },
+    "value_071": {
+      "original": "100.34",
+      "section": "10",
+      "context": "ของ {{analyte}} มีความเป็นเส้นตรงที่ดี ( R² = 0.99997) มีความถูกต้องที่ยอมรับได้ (% Recovery = 99.69-100.34%)"
+    },
+    "value_072": {
+      "original": "0.35",
+      "section": "10",
+      "context": "และมีความเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์ที่ยอมรับได้ (% RSD = 0.35-1.89% และ 0.70-0.87%"
+    },
+    "value_073": {
+      "original": "1.89",
+      "section": "10",
+      "context": "และมีความเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์ที่ยอมรับได้ (% RSD = 0.35-1.89% และ 0.70-0.87%"
+    },
+    "value_074": {
+      "original": "0.70",
+      "section": "10",
+      "context": "และมีความเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์ที่ยอมรับได้ (% RSD = 0.35-1.89% และ 0.70-0.87%"
+    },
+    "value_075": {
+      "original": "0.87",
+      "section": "10",
+      "context": "และมีความเที่ยงแบบท าซ ้าและความเที่ยงระหว่างวันวิเคราะห์ที่ยอมรับได้ (% RSD = 0.35-1.89% และ 0.70-0.87%"
+    },
+    "value_076": {
+      "original": "0.10",
+      "section": "10",
+      "context": "สภาวะการวิเคราะห์ที่ก าหนด โดยครอบคลุมช่วงความเข้มข้น 0.10-1.00 mg/mL และใช้ผลิตภัณฑ์ {{analyte}} 25%"
+    },
+    "value_077": {
+      "original": "1.00",
+      "section": "10",
+      "context": "สภาวะการวิเคราะห์ที่ก าหนด โดยครอบคลุมช่วงความเข้มข้น 0.10-1.00 mg/mL และใช้ผลิตภัณฑ์ {{analyte}} 25%"
+    },
+    "value_078": {
+      "original": "54.25",
+      "section": "11.3.1",
+      "context": "ค านวณความเข้มข้นจริงของ standard stock solution จากน ้าหนักสารมาตรฐาน 54.25 mg และความ"
+    },
+    "value_079": {
+      "original": "92.70",
+      "section": "11.3.1",
+      "context": "บริสุทธิ์ 92.70% โดยปรับปริมาตรเป็น 25 mL ดังนี้"
+    },
+    "value_080": {
+      "original": "54.25",
+      "section": "11.3.1",
+      "context": "54.25×0.9270"
+    },
+    "value_081": {
+      "original": "0.9270",
+      "section": "11.3.1",
+      "context": "54.25×0.9270"
+    },
+    "value_082": {
+      "original": "2.0116",
+      "section": "11.3.1",
+      "context": "25 ) = 2.0116 mg/mL"
+    },
+    "value_083": {
+      "original": "2.0116",
+      "section": "11.3.1",
+      "context": "C fortified       = 2.0116 ×  ("
+    },
+    "value_084": {
+      "original": "0.5029",
+      "section": "11.3.1",
+      "context": "1000) = 0.5029 mg/mL"
+    },
+    "value_085": {
+      "original": "75.49",
+      "section": "11.3.2",
+      "context": "จริง 75.49 mg ปรับปริมาตรเป็น 25 mL และปิเปต sample stock solution 400 µL ลงในปริมาตรรวม 1,000 µL"
+    },
+    "value_086": {
+      "original": "75.49",
+      "section": "11.3.2",
+      "context": "75.49×0.25"
+    },
+    "value_087": {
+      "original": "0.25",
+      "section": "11.3.2",
+      "context": "75.49×0.25"
+    },
+    "value_088": {
+      "original": "0.3020",
+      "section": "11.3.2",
+      "context": "1000) = 0.3020 mg/mL"
+    },
+    "value_089": {
+      "original": "2.0116",
+      "section": "11.3.2",
+      "context": "2.0116 mg/mL และปิเปต 100 µL ลงในปริมาตรรวม 1,000 µL ดังนี้"
+    },
+    "value_090": {
+      "original": "2.0116",
+      "section": "11.3.2",
+      "context": "C spike= 2.0116 × ("
+    },
+    "value_091": {
+      "original": "0.2012",
+      "section": "11.3.2",
+      "context": ") = 0.2012 mg/mL"
+    },
+    "value_092": {
+      "original": "100.06",
+      "section": "11.3.3",
+      "context": "จากผลการประเมิน พบว่า Standard Check Solution ให้ค่า recovery อยู่ในช่วง 100.06–100.48% โดยมีค่า"
+    },
+    "value_093": {
+      "original": "100.48",
+      "section": "11.3.3",
+      "context": "จากผลการประเมิน พบว่า Standard Check Solution ให้ค่า recovery อยู่ในช่วง 100.06–100.48% โดยมีค่า"
+    },
+    "value_094": {
+      "original": "0.42",
+      "section": "11.3.3",
+      "context": "%Difference เท่ากับ 0.42% ส่วน Matrix Spike Solution ให้ค่า spike recovery อยู่ในช่วง 103.78–105.86% โดยมีค่า"
+    },
+    "value_095": {
+      "original": "103.78",
+      "section": "11.3.3",
+      "context": "%Difference เท่ากับ 0.42% ส่วน Matrix Spike Solution ให้ค่า spike recovery อยู่ในช่วง 103.78–105.86% โดยมีค่า"
+    },
+    "value_096": {
+      "original": "105.86",
+      "section": "11.3.3",
+      "context": "%Difference เท่ากับ 0.42% ส่วน Matrix Spike Solution ให้ค่า spike recovery อยู่ในช่วง 103.78–105.86% โดยมีค่า"
+    },
+    "value_097": {
+      "original": "1.99",
+      "section": "11.3.3",
+      "context": "%Difference เท่ากับ 1.99% ผลดังกล่าวอยู่ในเกณฑ์การยอมรับที่ก าหนด และสนับสนุนว่าผลการวิเคราะห์ตัวอย่างมีความ"
+    },
+    "value_098": {
+      "original": "24.07",
+      "section": "11.4",
+      "context": "24.07-24.88% w/w โดยมีค่าเฉลี่ยเท่ากับ 24.43% w/w, SD เท่ากับ 0.24 และ %RSD เท่ากับ 0.97% แสดงให้เห็นว่าผลการ"
+    },
+    "value_099": {
+      "original": "24.88",
+      "section": "11.4",
+      "context": "24.07-24.88% w/w โดยมีค่าเฉลี่ยเท่ากับ 24.43% w/w, SD เท่ากับ 0.24 และ %RSD เท่ากับ 0.97% แสดงให้เห็นว่าผลการ"
+    },
+    "value_100": {
+      "original": "24.43",
+      "section": "11.4",
+      "context": "24.07-24.88% w/w โดยมีค่าเฉลี่ยเท่ากับ 24.43% w/w, SD เท่ากับ 0.24 และ %RSD เท่ากับ 0.97% แสดงให้เห็นว่าผลการ"
+    },
+    "value_101": {
+      "original": "0.24",
+      "section": "11.4",
+      "context": "24.07-24.88% w/w โดยมีค่าเฉลี่ยเท่ากับ 24.43% w/w, SD เท่ากับ 0.24 และ %RSD เท่ากับ 0.97% แสดงให้เห็นว่าผลการ"
+    },
+    "value_102": {
+      "original": "0.97",
+      "section": "11.4",
+      "context": "24.07-24.88% w/w โดยมีค่าเฉลี่ยเท่ากับ 24.43% w/w, SD เท่ากับ 0.24 และ %RSD เท่ากับ 0.97% แสดงให้เห็นว่าผลการ"
+    },
+    "value_103": {
+      "original": "100.48",
+      "section": "11.4",
+      "context": "2 ให้ค่า recovery เท่ากับ 100.48% และ 100.06% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 100.27% และ % Difference เท่ากับ"
+    },
+    "value_104": {
+      "original": "100.06",
+      "section": "11.4",
+      "context": "2 ให้ค่า recovery เท่ากับ 100.48% และ 100.06% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 100.27% และ % Difference เท่ากับ"
+    },
+    "value_105": {
+      "original": "100.27",
+      "section": "11.4",
+      "context": "2 ให้ค่า recovery เท่ากับ 100.48% และ 100.06% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 100.27% และ % Difference เท่ากับ"
+    },
+    "value_106": {
+      "original": "0.42",
+      "section": "11.4",
+      "context": "0.42% ซึ่งอยู่ในเกณฑ์การยอมรับที่ก าหนด คือ %Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดง"
+    },
+    "value_107": {
+      "original": "90.0",
+      "section": "11.4",
+      "context": "0.42% ซึ่งอยู่ในเกณฑ์การยอมรับที่ก าหนด คือ %Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดง"
+    },
+    "value_108": {
+      "original": "107.0",
+      "section": "11.4",
+      "context": "0.42% ซึ่งอยู่ในเกณฑ์การยอมรับที่ก าหนด คือ %Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดง"
+    },
+    "value_109": {
+      "original": "5.0",
+      "section": "11.4",
+      "context": "0.42% ซึ่งอยู่ในเกณฑ์การยอมรับที่ก าหนด คือ %Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดง"
+    },
+    "value_110": {
+      "original": "105.86",
+      "section": "11.4",
+      "context": "ผลการประเมิน Matrix Spike Solution-1 และ Matrix Spike Solution-2 ให้ค่า spike recovery เท่ากับ 105.86%"
+    },
+    "value_111": {
+      "original": "103.78",
+      "section": "11.4",
+      "context": "และ 103.78% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 104.82% และ % Difference เท่ากับ 1.99% ซึ่งอยู่ในเกณฑ์การยอมรับที่"
+    },
+    "value_112": {
+      "original": "104.82",
+      "section": "11.4",
+      "context": "และ 103.78% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 104.82% และ % Difference เท่ากับ 1.99% ซึ่งอยู่ในเกณฑ์การยอมรับที่"
+    },
+    "value_113": {
+      "original": "1.99",
+      "section": "11.4",
+      "context": "และ 103.78% ตามล าดับ โดยมีค่าเฉลี่ยเท่ากับ 104.82% และ % Difference เท่ากับ 1.99% ซึ่งอยู่ในเกณฑ์การยอมรับที่"
+    },
+    "value_114": {
+      "original": "90.0",
+      "section": "11.4",
+      "context": "ก าหนด คือ Spike Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดงให้เห็นว่าวิธีวิเคราะห์สามารถ"
+    },
+    "value_115": {
+      "original": "107.0",
+      "section": "11.4",
+      "context": "ก าหนด คือ Spike Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดงให้เห็นว่าวิธีวิเคราะห์สามารถ"
+    },
+    "value_116": {
+      "original": "5.0",
+      "section": "11.4",
+      "context": "ก าหนด คือ Spike Recovery อยู่ในช่วง 90.0-107.0% และ %Difference ไม่เกิน 5.0% แสดงให้เห็นว่าวิธีวิเคราะห์สามารถ"
+    }
+  }
+}

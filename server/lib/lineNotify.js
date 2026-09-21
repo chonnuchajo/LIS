@@ -6,10 +6,20 @@
 // (never throws — callers in routes/petitions.js don't await it).
 const LineGroup = require('../models/LineGroup');
 const line = require('./line');
-const { hasLabTrack, isLabBatch } = require('./petitionStatusLog');
+const { hasLabTrack, shouldSendItemToLab } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
+const { requesterAudience } = require('./additionalSamples');
 
 const DEPT_LABELS = { production: 'แผนกผลิต', rm: 'แผนก RM', fg: 'แผนก FG' };
+const ADDITIONAL_SAMPLE_TITLES = {
+  additionalSampleRequested: 'ขอตัวอย่างเพิ่ม',
+  additionalSampleSent: 'ส่งตัวอย่างเพิ่มแล้ว',
+  additionalSampleReceived: 'รับตัวอย่างเพิ่มแล้ว',
+};
+
+function isAdditionalSampleEvent(payload) {
+  return payload?.event === 'updated' && Object.hasOwn(ADDITIONAL_SAMPLE_TITLES, payload?.metadata?.type);
+}
 
 // Which side a single assignee belongs to (mirrors assigneeSideOf in
 // petitionStatusLog.js): Lab if dept/position mentions lab/วิเคราะห์, else QC.
@@ -21,7 +31,7 @@ function assigneeSide(assignee) {
 }
 
 function hasLabItem(petition) {
-  return (petition?.items || []).some((it) => isLabBatch(it.batchNo || ''));
+  return (petition?.items || []).some((it) => shouldSendItemToLab(it));
 }
 
 // Short "N รายการ · <first sample>" summary line for a petition's items.
@@ -48,6 +58,7 @@ function petitionStatusText(petition) {
   if (petition?.labCompletedAt) return 'รอออกผล';
   if (s === 'inProgress') return 'กำลังตรวจ';
   if (s === 'pendingReview') return 'รับตัวอย่างแล้ว';
+  if (s === 'deliveringQC' && (petition?.qcReceivedAt || petition?.labReceivedAt || petition?.receivedAt)) return 'รับตัวอย่างแล้ว';
   if (s === 'sampleSent') return 'ส่งตัวอย่างแล้ว — รอรับ';
   if (s === 'deliveringQC') return 'กำลังส่งตัวอย่าง';
   return String(s || '-');
@@ -56,9 +67,22 @@ function petitionStatusText(petition) {
 // Audiences (LineGroup.audience keys) that should hear about an audit event.
 // Empty array = do not notify.
 function audiencesForEvent(petition, payload) {
+  if (isAdditionalSampleEvent(payload)) {
+    const { side, additionalSampleId, type } = payload.metadata;
+    if (!['qc', 'lab'].includes(side) || typeof additionalSampleId !== 'string' || !additionalSampleId.trim()) return [];
+    return type === 'additionalSampleSent' ? [side] : [requesterAudience(petition)].filter(Boolean);
+  }
   const qcTrack = requiresQcTrack(petition);
   const labTrack = hasLabTrack(petition);
   const bothSides = [qcTrack ? 'qc' : null, labTrack ? 'lab' : null].filter(Boolean);
+  const sampleSentAudiences = () => {
+    if (!qcTrack) return ['lab'];
+    const sentToLab =
+      petition?.sentToLab === true ||
+      petition?.sendToLab === true ||
+      ((petition ?? {}).items ?? []).some((item) => item?.sentToLab === true || item?.sendToLab === true);
+    return ['qc', sentToLab ? 'lab' : null].filter(Boolean);
+  };
   switch (payload?.event) {
     case 'created':
       return qcTrack ? ['qc'] : ['lab'];
@@ -68,7 +92,7 @@ function audiencesForEvent(petition, payload) {
     }
     case 'statusChanged':
       switch (payload?.toStatus) {
-        case 'sampleSent': return bothSides;
+        case 'sampleSent': return sampleSentAudiences();
         // ผลออก/ปิดงาน → แจ้งฝ่ายตรวจ + แจ้งกลับแผนกผู้ยื่นคำขอ (petition.dept ตรงกับ audience key)
         case 'success':    return [...bothSides, petition?.dept].filter(Boolean);
         case 'approved':   return [qcTrack ? 'qc' : null, petition?.dept].filter(Boolean);
@@ -88,6 +112,22 @@ function audiencesForEvent(petition, payload) {
 // Build { audiences, text } for an event, or null to skip. Pure.
 function describeEvent(petition, payload) {
   const audiences = audiencesForEvent(petition, payload);
+  if (isAdditionalSampleEvent(payload)) {
+    const { type, side, additionalSampleId, reason, items } = payload.metadata;
+    if (!['qc', 'lab'].includes(side) || typeof additionalSampleId !== 'string' || !additionalSampleId.trim()) return null;
+    if (!Array.isArray(items) || !items.length || items.some((item) =>
+      !Number.isInteger(item?.itemSeq) || !Number.isInteger(item?.quantity) || item.quantity < 1
+    )) return null;
+    const quantity = items.reduce((total, item) => total + item.quantity, 0);
+    const details = items.map((item) => `รายการ ${item.itemSeq}: ${item.quantity}`).join(' · ');
+    const no = petition?.petitionNo || payload?.petitionNo || '(ไม่ทราบเลข)';
+    const requesterEmployeeId = String(petition?.submittedBy?.employeeId || '').trim();
+    return {
+      audiences,
+      recipientEmployeeIds: type === 'additionalSampleSent' || !requesterEmployeeId ? [] : [requesterEmployeeId],
+      text: `${ADDITIONAL_SAMPLE_TITLES[type]} ${no}\nฝ่ายที่ขอ: ${side.toUpperCase()}\nเหตุผล: ${reason || '-'}\nจำนวน: รวม ${quantity} (${details})\nรอบ: ${additionalSampleId}${payload.actor ? `\nผู้ดำเนินการ: ${payload.actor}` : ''}`,
+    };
+  }
   if (!audiences.length) return null;
 
   const no = petition?.petitionNo || '(ไม่ทราบเลข)';
@@ -152,6 +192,7 @@ async function notifyPetitionEvent(petition, payload) {
 }
 
 module.exports = {
+  isAdditionalSampleEvent,
   assigneeSide,
   hasLabItem,
   itemsSummary,

@@ -8,7 +8,22 @@ const router = express.Router();
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'qc-photos');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_MIME = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+]);
+const MIME_EXT = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+};
 
 const PARAM_FILES_DIR = path.join(__dirname, '..', 'uploads', 'param-files');
 fs.mkdirSync(PARAM_FILES_DIR, { recursive: true });
@@ -54,7 +69,6 @@ const uploadParamFileMiddleware = multer({
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const MIME_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
     const ext = MIME_EXT[file.mimetype] || '.jpg';
     cb(null, `${randomUUID()}${ext}`);
   },
@@ -62,12 +76,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME.has(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('ประเภทไฟล์ไม่รองรับ: รับเฉพาะ JPEG, PNG, WEBP'));
+      cb(new Error('ประเภทไฟล์ไม่รองรับ: รองรับเฉพาะ JPEG, PNG, WEBP, MP4, WEBM, MOV'));
     }
   },
 });
@@ -77,7 +91,7 @@ const upload = multer({
 // Returns: { url: "/LIS/uploads/qc-photos/<filename>" }
 router.post('/qc-photo', upload.single('photo'), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'ไม่พบไฟล์ภาพ' });
+    return res.status(400).json({ error: 'ไม่พบไฟล์ภาพหรือวิดีโอ' });
   }
   const url = `/LIS/uploads/qc-photos/${req.file.filename}`;
   res.json({ url });

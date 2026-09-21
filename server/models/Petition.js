@@ -13,10 +13,13 @@ const PetitionItemSchema = new mongoose.Schema(
     packageUnit: String,
     testUnit: String,
     testItems: String,
+    sendToLab: Boolean,
     note: String,
+    sampleQuantity: { type: Number, default: 1 },
     labelManufacturer: String,
     labelSeller: String,
     labelQuantity: String,
+    labelQuantities: [String],
     labelSampledBy: String,
     labelSampledDate: String,
     labelRemark: String,
@@ -171,6 +174,27 @@ const PetitionSchema = new mongoose.Schema(
     assignedMachines: { type: [PetitionAssignedMachineSchema], default: [] },
     prodOrderNos: { type: [String], default: [], index: true },
     productionWorkflow: ProductionWorkflowSchema,
+    additionalSampleRequests: {
+      type: [new mongoose.Schema({
+        qrCode: { type: String, required: true },
+        side: { type: String, enum: ['qc', 'lab'], required: true },
+        reason: { type: String, required: true, maxlength: 2000 },
+        items: { type: [new mongoose.Schema({ itemSeq: { type: Number, required: true }, quantity: { type: Number, required: true, min: 1, max: 1000 } }, { _id: false })], required: true },
+        requestedAt: { type: Date, required: true },
+        requestedBy: { name: String, email: String, employeeId: String },
+        status: { type: String, enum: ['requested', 'sent', 'received'], default: 'requested' },
+        sentAt: Date,
+        sentBy: { name: String, email: String, employeeId: String },
+        receivedAt: Date,
+        receivedBy: { name: String, email: String, employeeId: String },
+        previousResults: { type: [mongoose.Schema.Types.Mixed], default: [] },
+        currentPhase: { type: Number, enum: [1, 2], default: 1 },
+        phase2DueAt: { type: Date, default: null },
+        phase2UnlockedAt: { type: Date, default: null },
+        phase2TriggeredBy: { type: mongoose.Schema.Types.Mixed, default: null },
+      })],
+      default: [],
+    },
 
     // 2-phase testing — used when at least one parameter on this petition has hasPhases=true
     currentPhase: { type: Number, enum: [1, 2], default: 1, index: true },
@@ -198,10 +222,11 @@ const PetitionSchema = new mongoose.Schema(
     approvedAt: { type: Date, default: null },
     rejectedAt: { type: Date, default: null },
   },
-  { timestamps: true },
+  { timestamps: true, optimisticConcurrency: true },
 );
 
 PetitionSchema.index({ petitionNo: 1, deletedAt: 1 }, { unique: true });
+PetitionSchema.index({ 'additionalSampleRequests.qrCode': 1 }, { sparse: true });
 
 PetitionSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Petition', PetitionSchema);

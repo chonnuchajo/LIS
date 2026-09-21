@@ -2,17 +2,31 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { AppPreferencesProvider } from "@/context/AppPreferencesContext";
 import UserProfileMenu from "../UserProfileMenu";
+
+const { toastError } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+}));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    error: toastError,
+    success: vi.fn(),
+  },
+}));
+
 function renderMenu() {
   return render(
-    <MemoryRouter initialEntries={["/home"]}>
-      <UserProfileMenu />
-    </MemoryRouter>,
+    <AppPreferencesProvider>
+      <MemoryRouter initialEntries={["/home"]}>
+        <UserProfileMenu />
+      </MemoryRouter>
+    </AppPreferencesProvider>,
   );
 }
 
@@ -81,5 +95,124 @@ describe("UserProfileMenu PWA accounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "User profile" }));
 
     expect(screen.queryByText("Switch account")).not.toBeInTheDocument();
+  });
+});
+
+describe("UserProfileMenu signature entry", () => {
+  const logout = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockReturnValue({ matches: false }),
+    });
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      configurable: true,
+      value: 0,
+    });
+    vi.mocked(useAuth).mockReturnValue({
+      user: {
+        email: "head@example.com",
+        name: "Head User",
+        roles: ["lab-head"],
+        department: "Lab",
+        position: "Head",
+        status: "active",
+      },
+      logout,
+      isPwa: false,
+      activeAccountId: "",
+      accounts: [],
+      switchAccount: vi.fn(),
+      addAccount: vi.fn(),
+    } as never);
+  });
+
+  it.each(["admin", "lab-head", "qc-head"])("shows signature action for %s", (role) => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: {
+        email: `${role}@example.com`,
+        name: "Approver",
+        roles: [role],
+        department: "Lab",
+        position: "Head",
+        status: "active",
+      },
+      logout,
+      isPwa: false,
+      activeAccountId: "",
+      accounts: [],
+      switchAccount: vi.fn(),
+      addAccount: vi.fn(),
+    } as never);
+
+    renderMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    expect(screen.queryByRole("button", { name: "เพิ่มลายเซ็น" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
+
+    expect(screen.getByRole("button", { name: "เพิ่มลายเซ็น" })).toBeInTheDocument();
+  });
+
+  it("hides signature action for roles outside admin and heads", () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: {
+        email: "viewer@example.com",
+        name: "Viewer User",
+        roles: ["viewer"],
+        department: "Lab",
+        position: "Staff",
+        status: "active",
+      },
+      logout,
+      isPwa: false,
+      activeAccountId: "",
+      accounts: [],
+      switchAccount: vi.fn(),
+      addAccount: vi.fn(),
+    } as never);
+
+    renderMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
+
+    expect(screen.queryByRole("button", { name: "เพิ่มลายเซ็น" })).not.toBeInTheDocument();
+  });
+
+  it("warns desktop users that signature capture needs tablet or phone", () => {
+    renderMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มลายเซ็น" }));
+
+    expect(toastError).toHaveBeenCalledWith("โปรดเข้าใน Tablet, iPad หรือโทรศัพท์ของคุณ อุปกรณ์นี้ไม่รองรับ");
+  });
+
+  it("opens profile settings with display and notification sound controls", () => {
+    renderMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
+
+    expect(screen.getByRole("dialog", { name: "ตั้งค่าโปรไฟล์" })).toBeInTheDocument();
+    expect(screen.getByTestId("profile-settings-blur-backdrop")).toHaveClass(
+      "bg-background/60",
+      "backdrop-blur-sm",
+    );
+    expect(screen.getByLabelText("โหมดการแสดงผล")).toBeInTheDocument();
+    expect(screen.getByLabelText("ภาษาเว็บ")).toBeInTheDocument();
+    expect(screen.getByLabelText("ฟ้อนต์")).toBeInTheDocument();
+    expect(screen.getByLabelText("ขนาดฟ้อนต์")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "14 px" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "16 px" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "24 px" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ขนาดฟ้อนต์").querySelectorAll("option")).toHaveLength(11);
+    expect(screen.getByRole("switch", { name: "เสียงแจ้งเตือนทั้งหมด" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "ตัวอย่างใหม่เข้าระบบ" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "งาน Lab ใหม่" })).toBeChecked();
   });
 });

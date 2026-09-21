@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { defaultFilter } from "cmdk";
 import { Check, ChevronsUpDown, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
 import StockQrScanner from "@/components/lis/StockQrScanner";
-import PendingDeductionResolutionFields from "@/components/lis/stock/PendingDeductionResolutionFields";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -26,16 +26,16 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { todayStr, validateRequisitionQty } from "@/lib/chemicalRequisition";
-import { isDeductionResolutionReady } from "@/lib/deductionResolution";
 import { cn } from "@/lib/utils";
-import type { DeductionResolutionReason } from "@/types/stock";
 
 interface Props {
   roomSlug: string;
   instruments: { id: string; name: string }[];
   presetInstrumentId?: string;
   initialSolventId?: string | null;
+  initialSolventUnitQrId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -45,17 +45,18 @@ export default function ChemicalRequisitionDialog({
   instruments,
   presetInstrumentId,
   initialSolventId,
+  initialSolventUnitQrId,
   onClose,
   onSaved,
 }: Props) {
   const { user } = useAuth();
   const [instrumentId, setInstrumentId] = useState(presetInstrumentId ?? "");
   const [solventId, setSolventId] = useState(initialSolventId ?? "");
+  const [solventUnitQrId, setSolventUnitQrId] = useState(initialSolventUnitQrId ?? "");
   const [qty, setQty] = useState("1");
   const [note, setNote] = useState("");
-  const [pendingReason, setPendingReason] = useState<DeductionResolutionReason | "">("");
-  const [pendingNote, setPendingNote] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
+  const [solventSearch, setSolventSearch] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
 
   const { data: solvents = [] } = useQuery({
@@ -67,56 +68,62 @@ export default function ChemicalRequisitionDialog({
     () => solvents.find((row) => row._id === solventId) ?? null,
     [solvents, solventId],
   );
+  const visibleSolvents = useMemo(
+    () => rankSearchResults(
+      solvents.filter((row) => !solventSearch || defaultFilter(row.name.trim(), solventSearch) > 0),
+      solventSearch,
+      (row) => ({ primary: [row.name] }),
+    ),
+    [solvents, solventSearch],
+  );
   const qtyNum = Number(qty);
   const qtyError = solvent ? validateRequisitionQty(qtyNum, solvent.qty) : "";
-  const { data: pendingDeductions = [] } = useQuery({
-    queryKey: ["stock", "pending-deductions", "solvent", solventId, instrumentId],
-    enabled: Boolean(instrumentId && solventId),
-    queryFn: () =>
-      api.getPendingStockDeductions({
-        itemType: "solvent",
-        itemId: solventId,
-        instrumentId,
-      }),
-  });
-  const pendingDeduction = pendingDeductions[0] ?? null;
-  const pendingReady = !pendingDeduction || isDeductionResolutionReady(pendingReason, pendingNote);
-  const canSave = Boolean(instrumentId && solventId && !qtyError && user?.name && pendingReady);
-
-  useEffect(() => {
-    setPendingReason("");
-    setPendingNote("");
-  }, [pendingDeduction?._id]);
+  const canSave = Boolean(instrumentId && solventId && !qtyError && user?.name);
 
   useEffect(() => {
     if (initialSolventId) setSolventId(initialSolventId);
-  }, [initialSolventId]);
+    if (initialSolventUnitQrId) {
+      setSolventUnitQrId(initialSolventUnitQrId);
+      setQty("1");
+    }
+  }, [initialSolventId, initialSolventUnitQrId]);
 
-  const onScanned = (id: string) => {
+  const onScanned = async (id: string) => {
     setScanOpen(false);
+    try {
+      const unit = await api.getStockUnit(id);
+      if (unit.itemType === "solvent" && unit.itemId) {
+        const found = solvents.find((row) => row._id === unit.itemId);
+        if (!found) {
+          toast.error("ไม่พบสารเคมีจาก QR นี้");
+          return;
+        }
+        setSolventId(found._id);
+        setSolventUnitQrId(unit.qrId);
+        setQty("1");
+        return;
+      }
+    } catch {
+      /* fallback to legacy solvent QR */
+    }
     const found = solvents.find((row) => row._id === id);
     if (!found) {
       toast.error("ไม่พบสารเคมีจาก QR นี้");
       return;
     }
     setSolventId(found._id);
+    setSolventUnitQrId("");
   };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (pendingDeduction && pendingReason) {
-        await api.resolveStockDeduction(pendingDeduction._id, {
-          reason: pendingReason,
-          note: pendingNote.trim() || undefined,
-          _user: { email: user?.email ?? "", name: user?.name ?? "" },
-        });
-      }
       return api.createChemicalRequisition({
         roomSlug,
         date: todayStr(),
         instrumentId,
         instrumentName: instruments.find((row) => row.id === instrumentId)?.name ?? "",
         solventId,
+        solventUnitQrId: solventUnitQrId || undefined,
         qty: qtyNum,
         note: note || undefined,
         requestedBy: { email: user?.email ?? "", name: user?.name ?? "" },
@@ -163,7 +170,7 @@ export default function ChemicalRequisitionDialog({
             <div>
               <Label className="mb-1.5 block">สารเคมี (solvent)</Label>
               <div className="flex gap-2">
-                <Popover open={pickOpen} onOpenChange={setPickOpen}>
+                <Popover open={pickOpen} onOpenChange={(open) => { setPickOpen(open); if (!open) setSolventSearch(""); }}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
@@ -178,17 +185,19 @@ export default function ChemicalRequisitionDialog({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-72 p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="ค้นหาชื่อสารเคมี" />
+                    <Command shouldFilter={false}>
+                      <CommandInput placeholder="ค้นหาชื่อสารเคมี" value={solventSearch} onValueChange={setSolventSearch} />
                       <CommandList>
                         <CommandEmpty>ไม่พบรายการ</CommandEmpty>
-                        {solvents.map((row) => (
+                        {visibleSolvents.map((row) => (
                           <CommandItem
                             key={row._id}
                             value={row.name}
                             onSelect={() => {
                               setSolventId(row._id);
+                              setSolventUnitQrId("");
                               setPickOpen(false);
+                              setSolventSearch("");
                             }}
                           >
                             <Check
@@ -222,19 +231,10 @@ export default function ChemicalRequisitionDialog({
 
             <div>
               <Label className="mb-1.5 block">จำนวน (ขวด)</Label>
-              <Input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+              <Input type="number" min="1" value={qty} disabled={Boolean(solventUnitQrId)} onChange={(e) => setQty(e.target.value)} />
+              {solventUnitQrId && <p className="mt-1 text-xs text-muted-foreground">สแกน QR รายขวดแล้ว ระบบจะเบิกขวดนี้ 1 ขวด</p>}
               {qtyError && <p className="mt-1 text-sm text-destructive">{qtyError}</p>}
             </div>
-
-            {pendingDeduction && (
-              <PendingDeductionResolutionFields
-                transaction={pendingDeduction}
-                reason={pendingReason}
-                note={pendingNote}
-                onReasonChange={setPendingReason}
-                onNoteChange={setPendingNote}
-              />
-            )}
 
             <div>
               <Label className="mb-1.5 block">หมายเหตุ</Label>

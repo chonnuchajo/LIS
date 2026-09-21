@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 import AppSidebar from "../AppSidebar";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+const devConfig = vi.hoisted(() => ({ DEV_MODE: false }));
+vi.mock("@/config/dev", () => devConfig);
 
 const ADMIN_USER = {
   email: "admin@example.com",
@@ -39,14 +41,14 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-function renderSidebar() {
+function renderSidebar(props?: React.ComponentProps<typeof AppSidebar>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/home"]}>
-        <AppSidebar />
+        <AppSidebar {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -60,6 +62,7 @@ function getSidebarNav(container: HTMLElement) {
 
 describe("AppSidebar", () => {
   beforeEach(() => {
+    devConfig.DEV_MODE = false;
     sessionStorage.clear();
     localStorage.clear();
     getUserFavorites.mockResolvedValue({ email: "admin@example.com", paths: [] });
@@ -69,6 +72,49 @@ describe("AppSidebar", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("แสดง Validation ในกลุ่มเมนูใน drawer โหมดพัฒนาแม้ไม่มีผู้ใช้", async () => {
+    devConfig.DEV_MODE = true;
+    vi.mocked(useAuth).mockReturnValue({ user: null } as ReturnType<typeof useAuth>);
+    const { container } = renderSidebar({ variant: "drawer" });
+    const search = screen.getByPlaceholderText("ค้นหาเมนู...");
+    const link = screen.getByRole("link", { name: "Validation" });
+    expect(search.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(getSidebarNav(container).querySelector("a")).toBe(link);
+    expect(link.closest("nav > div")).toBe(screen.getByRole("button", { name: "เมนู" }).parentElement);
+    fireEvent.change(search, { target: { value: "Validation" } });
+    expect(screen.queryByText(/ไม่พบเมนู/)).not.toBeInTheDocument();
+  });
+
+  it.each(["desktop", "drawer"] as const)("จัด Validation ตามกลุ่มและลำดับที่ตั้งไว้ใน %s", async (variant) => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: {
+      roles: [{ id: "admin", name: "Admin" }],
+      groups: [{ id: "lab", name: "LAB", paths: ["/home", "/validation", "/petition"] }],
+      permissions: {},
+    } } });
+    const { container } = renderSidebar({ variant });
+    const group = await screen.findByRole("button", { name: "LAB" });
+    const link = screen.getByRole("link", { name: "Validation" });
+
+    expect(link.closest("nav > div")).toBe(group.parentElement);
+    expect(Array.from(getSidebarNav(container).querySelectorAll("a"), (item) => item.getAttribute("href")))
+      .toEqual(["/home", "/validation", "/petition"]);
+    fireEvent.click(group);
+    expect(group).toHaveAttribute("aria-expanded", "false");
+    expect(link.closest(".hidden")).not.toBeNull();
+    fireEvent.click(group);
+    expect(group).toHaveAttribute("aria-expanded", "true");
+    expect(link.closest(".hidden")).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("ค้นหาเมนู..."), { target: { value: "Validation" } });
+    expect(link).toBeVisible();
+    expect(screen.queryByText(/ไม่พบเมนู/)).not.toBeInTheDocument();
+  });
+
+  it("ไม่เปิดเมนู Validation ให้ผู้ไม่มีสิทธิ์ในระบบจริง", () => {
+    vi.mocked(useAuth).mockReturnValue({ user: null } as ReturnType<typeof useAuth>);
+    renderSidebar({ variant: "drawer" });
+    expect(screen.queryByRole("link", { name: "Validation" })).not.toBeInTheDocument();
   });
 
   it("restores the desktop nav scroll position after remounting during route changes", () => {
@@ -110,6 +156,23 @@ describe("AppSidebar", () => {
     expect(toggle).toHaveClass("z-40", "w-8", "h-8", "-right-4", "ring-4", "ring-background", "shadow-md");
   });
 
+  it("does not clip the desktop collapse toggle where it overhangs the rail", () => {
+    const { container } = renderSidebar();
+    const aside = container.querySelector("aside");
+    if (!aside) throw new Error("Sidebar aside not found");
+
+    expect(aside).toHaveClass("overflow-visible");
+    expect(aside).not.toHaveClass("overflow-hidden");
+  });
+
+  it("keeps the drawer sidebar clipped so mobile content cannot spill out", () => {
+    const { container } = renderSidebar({ variant: "drawer" });
+    const aside = container.querySelector("aside");
+    if (!aside) throw new Error("Sidebar aside not found");
+
+    expect(aside).toHaveClass("overflow-hidden");
+  });
+
   it("ไม่แสดงกลุ่มรายการโปรดเมื่อยังไม่มีรายการโปรด", async () => {
     renderSidebar();
 
@@ -134,6 +197,7 @@ describe("AppSidebar", () => {
 
     const links = Array.from(nav.querySelectorAll("a")).map((el) => el.getAttribute("href"));
     expect(links.slice(0, 2)).toEqual(["/stock", "/petition"]);
+    expect(links.filter(path => path === "/validation")).toHaveLength(1);
   });
 
   it("ไม่แสดงรายการโปรดที่ชี้ path ซึ่งไม่มีใน NAV_ITEMS", async () => {
@@ -145,6 +209,62 @@ describe("AppSidebar", () => {
 
     await screen.findByPlaceholderText("ค้นหาเมนู...");
     expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
+  });
+
+  it("ranks matches within each group while preserving group and blank-query order", async () => {
+    getUserFavorites.mockResolvedValue({
+      email: "admin@example.com", paths: ["/stock-deduction", "/stock"],
+    });
+    vi.mocked(api.get).mockResolvedValue({ data: { data: {
+      roles: [{ id: "admin", name: "Admin" }],
+      groups: [{ id: "stock", name: "Stock group", paths: ["/stock-deduction", "/stock"] }],
+      permissions: {},
+    } } });
+    const { container } = renderSidebar();
+    await screen.findByText("Stock group");
+    await screen.findByText("รายการโปรด");
+    const nav = getSidebarNav(container);
+    const links = () => Array.from(nav.querySelectorAll("a"), (link) => link.getAttribute("href"));
+    const original = ["/stock-deduction", "/stock", "/stock-deduction", "/stock"];
+    expect(links()).toEqual(original);
+    const input = screen.getByPlaceholderText("ค้นหาเมนู...");
+    fireEvent.change(input, { target: { value: "stock" } });
+    expect(links()).toEqual(["/stock", "/stock-deduction", "/stock", "/stock-deduction"]);
+    expect(Array.from(nav.querySelectorAll("button > span.truncate"), (heading) => heading.textContent))
+      .toEqual(["รายการโปรด", "Stock group"]);
+    fireEvent.change(input, { target: { value: "" } });
+    expect(links()).toEqual(original);
+  });
+
+  it("แสดง Assign Lab แค่ครั้งเดียวเมื่อกลุ่มมี /petition/:id และ /petition/assign", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        data: {
+          roles: [{ id: "admin", name: "Admin" }],
+          groups: [
+            {
+              id: "samples",
+              name: "งานตัวอย่าง",
+              paths: ["/petition", "/petition/:id"],
+              sortOrder: 10,
+            },
+            {
+              id: "lab",
+              name: "LAB",
+              paths: ["/petition/assign"],
+              sortOrder: 20,
+            },
+          ],
+          permissions: {},
+        },
+      },
+    });
+    const { container } = renderSidebar();
+
+    await screen.findByText("LAB");
+
+    const nav = getSidebarNav(container);
+    expect(nav.querySelectorAll('a[href="/petition/assign"]')).toHaveLength(1);
   });
 
   it("รายการที่ถูกเพิ่มเป็นโปรดโผล่สองที่ — กลุ่มรายการโปรด และกลุ่มเดิม", async () => {
@@ -159,6 +279,18 @@ describe("AppSidebar", () => {
     const nav = getSidebarNav(container);
     const stockLinks = nav.querySelectorAll('a[href="/stock"]');
     expect(stockLinks).toHaveLength(2);
+  });
+
+  it("แสดง Validation ในรายการโปรดและกลุ่มเดิมเมื่อบันทึกเป็นโปรด", async () => {
+    getUserFavorites.mockResolvedValue({ email: "admin@example.com", paths: ["/validation"] });
+    renderSidebar();
+    const favoritesGroup = await screen.findByRole("button", { name: "รายการโปรด" });
+    const menuGroup = screen.getByRole("button", { name: "เมนู" });
+    const links = screen.getAllByRole("link", { name: "Validation" });
+
+    expect(links).toHaveLength(2);
+    expect(links[0].closest("nav > div")).toBe(favoritesGroup.parentElement);
+    expect(links[1].closest("nav > div")).toBe(menuGroup.parentElement);
   });
 
   it("ไม่แสดงกลุ่มรายการโปรดเมื่อ user เสียสิทธิ์เข้าถึง path ที่บันทึกไว้เป็นรายการโปรด (non-admin)", async () => {

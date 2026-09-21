@@ -333,6 +333,25 @@ describe("SubstanceStandardsDialog", () => {
     expect(screen.queryByText("CYPERMETHRIN 25% W/V EC(GMP)")).not.toBeInTheDocument();
   });
 
+  it("ranks item codes ahead of common name matches while retaining category filtering", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => ({
+      data: { data: path === "/master-items" ? [
+        { item_no: "AA", common_name: "A rising name", inventory_posting_group: "RM" },
+        { item_no: "RI", common_name: "Z exact", inventory_posting_group: "RM" },
+        { item_no: "RI-100", common_name: "M prefix", inventory_posting_group: "RM" },
+        { item_no: "RI", common_name: "Excluded FG", inventory_posting_group: "FG" },
+      ] : [] },
+    }));
+    renderDialog();
+    await screen.findByText("A rising name");
+    fireEvent.change(screen.getByLabelText("หมวดหมู่สาร"), { target: { value: "RM" } });
+    fireEvent.change(screen.getByPlaceholderText("ค้นหา..."), { target: { value: "ri" } });
+    const names = ["Z exact", "M prefix", "A rising name"];
+    const buttons = screen.getAllByRole("button").filter((button) => names.some((name) => button.textContent?.includes(name)));
+    expect(buttons.map((button) => button.textContent)).toEqual(names.map((name) => expect.stringContaining(name)));
+    expect(screen.queryByText("Excluded FG")).not.toBeInTheDocument();
+  });
+
   it("adds standards by formulation common name code", async () => {
     const { onSave } = renderDialog();
 

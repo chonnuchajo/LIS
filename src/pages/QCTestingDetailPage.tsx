@@ -20,10 +20,14 @@ import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
+import AdditionalSampleRequestDialog from '@/components/petition/AdditionalSampleRequestDialog';
+import { createResultAutosaveQueue, currentSampleResults, pendingAdditionalSample, sampleRoundFor, sampleRoundIdFor } from '@/lib/additionalSamples';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { qcReceivedAt } from '@/lib/receiveStatus';
 import {
-  PETITION_DEPT_LABELS,
   type Petition,
+  type AdditionalSampleRequest,
   type PetitionItem,
   type PetitionPhase,
   type QCTestResult,
@@ -47,9 +51,9 @@ import { normalizeRoles } from '@/lib/roles';
 import {
   SG_VALUE_LABEL,
   SG_TEMP_LABEL,
-  hasHandTypedEntries,
   densityRowToEntry,
   formatTSetComparison,
+  isSgMachineUnitKey,
 } from '@/lib/densitySync';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -118,6 +122,9 @@ function TestField({
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
   const isAbnormal = hideStandard ? false : (outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value));
+  const numericBounds = field.type !== 'text'
+    ? (field as ParameterValueField & { min?: number; max?: number })
+    : undefined;
   const customText = optionOutputText(field, value);
 
   return (
@@ -199,8 +206,8 @@ function TestField({
         <Input
           type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
           step={field.type === 'float' ? 'any' : undefined}
-          min={field.type !== 'text' ? (field as any).min : undefined}
-          max={field.type !== 'text' ? (field as any).max : undefined}
+          min={numericBounds?.min}
+          max={numericBounds?.max}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           // เลื่อนเมาส์ (wheel) ห้ามเปลี่ยนค่าตัวเลข — พิมพ์อย่างเดียว: blur ทิ้งโฟกัสตอน scroll
@@ -318,14 +325,28 @@ export default function QCTestingDetailPage() {
   const confirm = useConfirm();
   const flashClass = useArrivalFlash();
 
-  const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  const { data: fetchedPetition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  const [requestedPetition, setRequestedPetition] = useState<Petition | null>(null);
+  const petition = requestedPetition && requestedPetition._id === fetchedPetition?._id
+    && Date.parse(requestedPetition.updatedAt) >= Date.parse(fetchedPetition.updatedAt)
+    ? requestedPetition : fetchedPetition;
+  const [additionalSampleOpen, setAdditionalSampleOpen] = useState(false);
+  const pendingSample = pendingAdditionalSample(petition, 'qc');
+  const roundsKey = JSON.stringify(petition?.additionalSampleRequests ?? []);
+  const roundRequests = useMemo(() => JSON.parse(roundsKey) as AdditionalSampleRequest[], [roundsKey]);
+  const resultsKey = id + ':' + roundsKey;
+  const [loadedResultsKey, setLoadedResultsKey] = useState('');
+  const resultLoad = useRef(0);
+  const currentPetitionPhase = petition?.currentPhase ?? 1;
+  const [selectedRoundPhases, setSelectedRoundPhases] = useState<Record<string, PetitionPhase>>({});
   const petitionCategory = getPetitionCategory(petition);
   // Active worklist for tab-strip switcher (other petitions currently in QC)
   const { data: worklistData } = usePetitionList({
     status: 'pendingReview,inProgress',
     limit: 20,
   });
-  const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  const [allParameters, setAllParameters] = useState<ParameterItem[]>([]);
+  const parameters = useMemo(() => allParameters.filter((parameter) => (parameter.scope ?? 'qc') === 'qc'), [allParameters]);
   const groupMembership = useItemGroupMembership();
   const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
     groupMembership.get(itemGroupKey(it)) ?? [];
@@ -344,7 +365,8 @@ export default function QCTestingDetailPage() {
   const [wasReturned, setWasReturned] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
   const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
-  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const autosaves = useMemo(createResultAutosaveQueue, [id]);
+  useEffect(() => () => { void autosaves.flush().catch(() => {}); }, [autosaves]);
   const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
   const [copyPasteWarnings, setCopyPasteWarnings] = useState<Record<string, boolean>>({});
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
@@ -354,7 +376,7 @@ export default function QCTestingDetailPage() {
   // Load parameters and existing results (QC scope only)
   useEffect(() => {
     api.getParameters()
-      .then((all) => setParameters(all.filter((p) => (p.scope ?? 'qc') === 'qc')))
+      .then(setAllParameters)
       .catch(() => {});
   }, []);
 
@@ -453,12 +475,14 @@ export default function QCTestingDetailPage() {
 
   // Default the visible phase tab to the petition's current phase
   useEffect(() => {
-    if (!petition) return;
-    setSelectedPhase((petition.currentPhase ?? 1) as PetitionPhase);
-  }, [petition?._id, petition?.currentPhase]);
+    setSelectedPhase(currentPetitionPhase);
+  }, [id, currentPetitionPhase]);
 
   const loadResults = useCallback((petitionId: string) => {
-    return api.getQCResults(petitionId).then((results) => {
+    const load = ++resultLoad.current;
+    return api.getQCResults(petitionId).then((allResults) => {
+      if (load !== resultLoad.current) return;
+      const results = currentSampleResults({ additionalSampleRequests: roundRequests }, allResults, allParameters);
       setSavedResults(results);
       const v: Record<string, Record<string, unknown>> = {};
       const v2: Record<string, Record<string, unknown>> = {};
@@ -487,13 +511,15 @@ export default function QCTestingDetailPage() {
       setEntriesByKey(en);
       setSaveStates(s);
       setSaveStatesPhase2(s2);
+      setLoadedResultsKey(resultsKey);
     }).catch(() => {});
-  }, []);
+  }, [roundRequests, allParameters, resultsKey]);
 
   useEffect(() => {
-    if (!id) return;
-    loadResults(id);
-  }, [id, loadResults]);
+    if (!id || !parameters.length) return;
+    void loadResults(id);
+    return () => { resultLoad.current += 1; };
+  }, [id, loadResults, parameters.length]);
 
   const handleFieldChange = useCallback(
     (
@@ -504,6 +530,8 @@ export default function QCTestingDetailPage() {
       newVal: unknown,
       phase: PetitionPhase = 1,
     ) => {
+      if (pendingAdditionalSample(petition, 'qc') || additionalSampleOpen || submitting) return;
+      if (phase === 2 && ((sampleRoundFor(petition, 'qc', item.seq) ?? petition).currentPhase ?? 1) === 1) return;
       const k = resultKey(item.seq, param._id!);
       advanceToInProgress();
 
@@ -521,13 +549,13 @@ export default function QCTestingDetailPage() {
       }));
 
       const debounceKey = `${k}__${fieldLabel}__p${phase}`;
-      clearTimeout(debounceRefs.current[debounceKey]);
-      debounceRefs.current[debounceKey] = setTimeout(async () => {
+      autosaves.schedule(debounceKey, async () => {
         try {
           await api.saveQCResult({
             petitionId: petition._id!,
             petitionNo: petition.petitionNo,
             itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'qc', item.seq),
             sampleId: item.sampleId,
             sampleName: item.sampleName,
             commonName: item.commonName,
@@ -553,15 +581,16 @@ export default function QCTestingDetailPage() {
               },
             },
           }));
-        } catch {
+        } catch (error) {
           setStatesFn((prev) => ({
             ...prev,
             [k]: { ...(prev[k] ?? {}), [fieldLabel]: { state: 'error' } },
           }));
+          throw error;
         }
-      }, 800);
+      }, k);
     },
-    [user, advanceToInProgress],
+    [user, advanceToInProgress, autosaves, additionalSampleOpen, submitting],
   );
 
   // multiEntry write: field write into entry `entryIndex` of a multiEntry param.
@@ -575,6 +604,7 @@ export default function QCTestingDetailPage() {
       fieldLabel: string,
       newVal: unknown,
     ) => {
+      if (pendingAdditionalSample(petition, 'qc') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       advanceToInProgress();
 
@@ -586,13 +616,13 @@ export default function QCTestingDetailPage() {
       });
 
       const debounceKey = `${k}__entry${entryIndex}__${fieldLabel}`;
-      clearTimeout(debounceRefs.current[debounceKey]);
-      debounceRefs.current[debounceKey] = setTimeout(async () => {
+      autosaves.schedule(debounceKey, async () => {
         try {
           await api.saveQCResult({
             petitionId: petition._id!,
             petitionNo: petition.petitionNo,
             itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'qc', item.seq),
             sampleId: item.sampleId,
             sampleName: item.sampleName,
             commonName: item.commonName,
@@ -604,12 +634,13 @@ export default function QCTestingDetailPage() {
             enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
           });
           if (id) await loadResults(id);
-        } catch {
+        } catch (error) {
           toast.error('บันทึกค่าไม่สำเร็จ');
+          throw error;
         }
-      }, 800);
+      }, k);
     },
-    [user, advanceToInProgress, id, loadResults],
+    [user, advanceToInProgress, id, loadResults, autosaves, additionalSampleOpen, submitting],
   );
 
   // multiEntry remove: trim entry `entryIndex` then persist the whole array.
@@ -620,32 +651,36 @@ export default function QCTestingDetailPage() {
       param: ParameterItem,
       entryIndex: number,
     ) => {
+      if (pendingAdditionalSample(petition, 'qc') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       const current = getEntryValues({ entries: entriesByKey[k] }, param);
       const trimmed = current.filter((_, i) => i !== entryIndex);
       setEntriesByKey((prev) => ({ ...prev, [k]: trimmed.map((e) => ({ ...(e ?? {}) })) }));
       try {
-        await api.saveQCEntries({
-          petitionId: petition._id!,
-          petitionNo: petition.petitionNo,
-          itemSeq: item.seq,
-          sampleId: item.sampleId,
-          sampleName: item.sampleName,
-          commonName: item.commonName,
-          parameterId: param._id!,
-          parameterName: param.name,
-          entries: trimmed,
-          enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+        await autosaves.run(k, async () => {
+          await api.saveQCEntries({
+            petitionId: petition._id!,
+            petitionNo: petition.petitionNo,
+            itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'qc', item.seq),
+            sampleId: item.sampleId,
+            sampleName: item.sampleName,
+            commonName: item.commonName,
+            parameterId: param._id!,
+            parameterName: param.name,
+            entries: trimmed,
+            enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+          });
         });
         if (id) await loadResults(id);
       } catch {
         toast.error('ลบรายการไม่สำเร็จ');
       }
     },
-    [user, entriesByKey, id, loadResults],
+    [user, entriesByKey, id, loadResults, autosaves, additionalSampleOpen, submitting],
   );
 
-  // Density sync: replace the SG param's entries with one entry per matched
+  // Density sync: replace the SG param's entries with the selected valid
   // Result-Density row (Density + T block; T set lives in provenance only).
   const applyDensityRows = useCallback(
     async (
@@ -654,31 +689,39 @@ export default function QCTestingDetailPage() {
       param: ParameterItem,
       docs: Record<string, unknown>[],
     ) => {
+      if (pendingAdditionalSample(petition, 'qc') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       const fetchedAt = new Date().toISOString();
-      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt));
+      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL);
+      const sgValueKeys = sgValueField
+        ? expandFieldForItem(sgValueField, item.commonName, { category: petitionCategory }).map((unit) => unit.key)
+        : [SG_VALUE_LABEL];
+      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt, sgValueKeys));
       setEntriesByKey((prev) => ({ ...prev, [k]: rows.map((e) => ({ ...e })) }));
       setEntryRowCounts((c) => ({ ...c, [k]: Math.max(rows.length, 1) }));
       advanceToInProgress();
       try {
-        await api.saveQCEntries({
-          petitionId: petition._id!,
-          petitionNo: petition.petitionNo,
-          itemSeq: item.seq,
-          sampleId: item.sampleId,
-          sampleName: item.sampleName,
-          commonName: item.commonName,
-          parameterId: param._id!,
-          parameterName: param.name,
-          entries: rows,
-          enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+        await autosaves.run(k, async () => {
+          await api.saveQCEntries({
+            petitionId: petition._id!,
+            petitionNo: petition.petitionNo,
+            itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'qc', item.seq),
+            sampleId: item.sampleId,
+            sampleName: item.sampleName,
+            commonName: item.commonName,
+            parameterId: param._id!,
+            parameterName: param.name,
+            entries: rows,
+            enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+          });
         });
         if (id) await loadResults(id);
       } catch {
         toast.error('บันทึกค่าไม่สำเร็จ');
       }
     },
-    [user, advanceToInProgress, id, loadResults],
+    [user, advanceToInProgress, id, loadResults, petitionCategory, autosaves, additionalSampleOpen, submitting],
   );
 
   const handleOutlierCheck = useCallback(
@@ -823,10 +866,16 @@ export default function QCTestingDetailPage() {
     matchParametersForItem(item, parameters, idsFor(item), { petitionCategory }).some((p) => p.hasPhases),
   );
   const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
-  const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
+  const effectivePhaseForItem = (item: PetitionItem): PetitionPhase => {
+    if (!hasAnyPhasedParam) return 1;
+    const round = sampleRoundFor(petition, 'qc', item.seq);
+    return round ? selectedRoundPhases[round._id + ':' + item.seq] ?? round.currentPhase ?? 1 : selectedPhase;
+  };
 
-  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] =>
-    visibleFieldsForPhase(param, phase, petition.phase2TriggeredBy?.parameterId);
+  const visibleFields = (param: ParameterItem, phase: PetitionPhase, item: PetitionItem): ParameterValueField[] => {
+    const phaseState = sampleRoundFor(petition, param.scope ?? 'qc', item.seq) ?? petition;
+    return visibleFieldsForPhase(param, phase, phaseState.phase2TriggeredBy?.parameterId);
+  };
 
   const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
   const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
@@ -856,19 +905,29 @@ export default function QCTestingDetailPage() {
     fieldsToScan: ParameterValueField[],
     item: PetitionItem,
     src: Record<string, unknown>,
+    parameterId: string,
+    phase: PetitionPhase = 1,
   ): number => {
+    const prefix = item.seq + '__';
+    const context: ConditionContext = {
+      sameParam: src,
+      otherParams: Object.fromEntries(Object.entries(valuesForPhase(phase))
+        .filter(([key]) => key.startsWith(prefix) && key !== resultKey(item.seq, parameterId))
+        .map(([key, value]) => [key.slice(prefix.length), value])),
+    };
     let count = 0;
     fieldsToScan.forEach((field) => {
       expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards, category: petitionCategory }).forEach((unit) => {
         if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
-          if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
+          if (isConditionalOutputAbnormal(unit.field, context)) count += 1;
           return;
         }
+        const field = unit.field.conditionalMode ? resolveFieldStandard(unit.field, context) : unit.field;
         if (unit.field.multiple) {
           readMultiple(src, unit.key).forEach((v) => {
-            if (isFieldAbnormal(unit.field, v)) count += 1;
+            if (isFieldAbnormal(field, v)) count += 1;
           });
-        } else if (isFieldAbnormal(unit.field, src[unit.key])) {
+        } else if (isFieldAbnormal(field, src[unit.key])) {
           count += 1;
         }
       });
@@ -882,18 +941,18 @@ export default function QCTestingDetailPage() {
       const matched = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
-        const p1Fields = visibleFields(param, 1);
+        const p1Fields = visibleFields(param, 1, item);
         // multiEntry: scan every entry; otherwise the flat phase-1 dict.
         if (param.multiEntry) {
           getEntryValues({ entries: entriesByKey[k] }, param).forEach((entryValues) => {
-            count += countAbnormalInValues(p1Fields, item, entryValues);
+            count += countAbnormalInValues(p1Fields, item, entryValues, param._id!);
           });
         } else {
-          count += countAbnormalInValues(p1Fields, item, values[k] ?? {});
+          count += countAbnormalInValues(p1Fields, item, values[k] ?? {}, param._id!);
         }
         if (hasAnyPhasedParam) {
           const p2Values = valuesPhase2[k] ?? {};
-          count += countAbnormalInValues(visibleFields(param, 2), item, p2Values);
+          count += countAbnormalInValues(visibleFields(param, 2, item), item, p2Values, param._id!, 2);
         }
       });
     });
@@ -901,10 +960,11 @@ export default function QCTestingDetailPage() {
   };
   const abnormalCount = countAbnormal();
 
-  const validate = (phaseToCheck: PetitionPhase): string[] => {
+  const validate = (): string[] => {
     const missing: string[] = [];
-    const phaseValues = valuesForPhase(phaseToCheck);
     items.forEach((item) => {
+      const phaseToCheck = effectivePhaseForItem(item);
+      const phaseValues = valuesForPhase(phaseToCheck);
       const matched = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
@@ -917,7 +977,7 @@ export default function QCTestingDetailPage() {
                 suffix: ` (รายการที่ ${i + 1})`,
               }))
             : [{ values: phaseValues[k] ?? {}, suffix: '' }];
-        visibleFields(param, phaseToCheck).forEach((field) => {
+        visibleFields(param, phaseToCheck, item).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
           expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards, category: petitionCategory }).forEach((unit) => {
             valueObjs.forEach(({ values: itemValues, suffix }) => {
@@ -955,17 +1015,25 @@ export default function QCTestingDetailPage() {
   };
 
   // required ครบทุกช่องของ phase ปัจจุบัน → ปุ่มเปลี่ยนจาก "บันทึกแบบร่าง" เป็น "บันทึก" (ปิด track)
-  const isComplete = validate(effectivePhase).length === 0;
+  const isComplete = validate().length === 0;
 
-  const handleSaveDraft = () => {
-    toast.success('บันทึกแบบร่างเรียบร้อย', {
-      description: 'ค่าที่กรอกถูกบันทึกอัตโนมัติแล้ว',
-    });
-    navigate('/qc-testing');
+  const handleSaveDraft = async () => {
+    if (pendingSample || submitting) return;
+    setSubmitting(true);
+    try {
+      await autosaves.flush();
+      toast.success('บันทึกแบบร่างเรียบร้อย');
+      navigate('/qc-testing');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'บันทึกผลไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSubmitResult = async () => {
-    const missing = validate(effectivePhase);
+    if (pendingSample || submitting || additionalSampleOpen || loadedResultsKey !== resultsKey) return;
+    const missing = validate();
     if (missing.length > 0) {
       toast.error('กรอกข้อมูลไม่ครบ', {
         description: `ขาด ${missing.length} ช่อง:\n${missing.slice(0, 5).join('\n')}${missing.length > 5 ? `\n…และอีก ${missing.length - 5}` : ''}`,
@@ -983,6 +1051,7 @@ export default function QCTestingDetailPage() {
     if (!ok) return;
     setSubmitting(true);
     try {
+      await autosaves.flush();
       const updated = await api.completePetitionTrack(petition._id, 'qc', user?.name ?? 'system');
       toast.success(
         updated.status === 'success'
@@ -999,7 +1068,7 @@ export default function QCTestingDetailPage() {
 
   // Locked once QC has submitted its results — read-only while waiting for Lab
   // to finish (status==='success' petitions redirect to the approval page above).
-  const isLocked = !!petition.qcCompletedAt;
+  const isLocked = !!petition.qcCompletedAt || !!pendingSample;
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -1020,7 +1089,7 @@ export default function QCTestingDetailPage() {
         }
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+        <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
         {wasReturned && (
           <span
             className="inline-flex items-center text-orange-500"
@@ -1078,7 +1147,7 @@ export default function QCTestingDetailPage() {
                     : 'bg-white text-grey-700 border-grey-200 hover:border-primary-300 hover:bg-primary-50',
                 )}
                 disabled={isActive}
-                title={`${PETITION_DEPT_LABELS[p.dept]} · ${p.items?.length ?? 0} รายการ`}
+                title={`${petitionDepartmentLabel(p)} · ${p.items?.length ?? 0} รายการ`}
               >
                 <span
                   className={cn(
@@ -1100,7 +1169,7 @@ export default function QCTestingDetailPage() {
         <div className="text-center py-12 text-grey-400">ไม่มีรายการตัวอย่างในคำร้องนี้</div>
       )}
 
-      {hasAnyPhasedParam && (
+      {hasAnyPhasedParam && items.some((item) => !sampleRoundFor(petition, 'qc', item.seq)) && (
         <PhaseBanner
           currentPhase={currentPhase}
           selectedPhase={selectedPhase}
@@ -1150,9 +1219,12 @@ export default function QCTestingDetailPage() {
       {/* Each item */}
       {items.map((item) => {
         const matchedParams = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
+        const round = sampleRoundFor(petition, 'qc', item.seq);
+        const itemCurrentPhase = (round ?? petition).currentPhase ?? 1;
+        const effectivePhase = effectivePhaseForItem(item);
         const phaseValues = valuesForPhase(effectivePhase);
         const phaseSaves = savesForPhase(effectivePhase);
-        const phaseLocked = effectivePhase === 2 && currentPhase === 1;
+        const phaseLocked = effectivePhase === 2 && itemCurrentPhase === 1;
         return (
           <Card key={item.seq} className={`overflow-hidden${/[16]$/.test(String(item.batchNo ?? '').trim()) ? ' border-blue-300' : ''}`}>
             <CardHeader className={`pb-3 ${/[16]$/.test(String(item.batchNo ?? '').trim()) ? 'bg-blue-50' : 'bg-grey-50'}`}>
@@ -1182,6 +1254,16 @@ export default function QCTestingDetailPage() {
             </CardHeader>
 
             <CardContent className="pt-4 space-y-5">
+              {round && matchedParams.some((parameter) => parameter.hasPhases) && (
+                <PhaseBanner
+                  currentPhase={itemCurrentPhase}
+                  selectedPhase={effectivePhase}
+                  onSelectPhase={(phase) => setSelectedRoundPhases((previous) => ({ ...previous, [round._id + ':' + item.seq]: phase }))}
+                  phase2DueAt={round.phase2DueAt}
+                  phase2UnlockedAt={round.phase2UnlockedAt}
+                  triggeredByName={round.phase2TriggeredBy?.parameterName}
+                />
+              )}
               {matchedParams.length === 0 ? (
                 <p className="text-sm text-grey-400 italic">
                   ไม่พบพารามิเตอร์ที่ตรงกับรายการทดสอบ
@@ -1190,7 +1272,7 @@ export default function QCTestingDetailPage() {
               ) : (
                 matchedParams.map((param) => {
                   const k = resultKey(item.seq, param._id!);
-                  const fields = visibleFields(param, effectivePhase);
+                  const fields = visibleFields(param, effectivePhase, item);
                   if (fields.length === 0) return null;
                   // Build the condition context for resolving conditionalMode standards:
                   // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1207,7 +1289,7 @@ export default function QCTestingDetailPage() {
                     })(),
                   };
                   const lastBatch = lastBatchByKey.get(`${item.commonName}__${String(param._id)}`);
-                  const fieldDisabled = isLocked || phaseLocked;
+                  const fieldDisabled = isLocked || phaseLocked || additionalSampleOpen || submitting || loadedResultsKey !== resultsKey;
 
                   // Render a single render-unit (one field, or one substance slice).
                   // `srcValues` is the value-object to read/display from; `onUnitChange`
@@ -1241,12 +1323,11 @@ export default function QCTestingDetailPage() {
                       ? lastBatch?.values?.[unit.field.label]
                       : undefined;
 
-                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by the
-                    // density sync (instrument readings), never typed by hand — render them
-                    // read-only so the only way to populate them is the "ดึงค่า ถพ." button.
+                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by
+                    // validated Result-Density rows, never typed by hand.
                     const isSgMachineField =
                       (param.valueFields ?? []).some((f) => f.label === SG_VALUE_LABEL) &&
-                      (unit.field.label === SG_VALUE_LABEL || unit.field.label === SG_TEMP_LABEL);
+                      isSgMachineUnitKey(unit.key, unit.field.label);
                     const unitDisabled = fieldDisabled || isSgMachineField;
 
                     // Field-level `multiple` — repeatable list of inputs sharing the
@@ -1428,10 +1509,9 @@ export default function QCTestingDetailPage() {
                           return (
                             <div className="space-y-4">
                               {isSgParam && !fieldDisabled && (
-                                <div className="flex justify-end">
+                                <div>
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}
-                                    hasHandTyped={hasHandTypedEntries(savedRows)}
                                     onRows={(docs) => applyDensityRows(petition, item, param, docs)}
                                   />
                                 </div>
@@ -1520,7 +1600,7 @@ export default function QCTestingDetailPage() {
           status==='success' redirects to qc-approval above, so this is the
           waiting-for-Lab state. Hides the action footer so the locked page is a
           clean read-only view (back/nav stay usable) instead of a dead end. */}
-      {isLocked && petition.status !== 'approved' && petition.status !== 'rejected' && (
+      {!!petition.qcCompletedAt && !pendingSample && petition.status !== 'approved' && petition.status !== 'rejected' && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex flex-col items-center gap-2">
           <CheckCircle2 className="h-6 w-6 text-blue-500" />
           <p className="text-sm font-semibold text-blue-700">
@@ -1532,14 +1612,35 @@ export default function QCTestingDetailPage() {
         </div>
       )}
 
+      <AdditionalSampleRequestDialog
+        key={petition._id}
+        petition={petition}
+        side="qc"
+        items={items.filter((item) => matchParametersForItem(item, parameters, idsFor(item), { petitionCategory }).length > 0)}
+        open={additionalSampleOpen}
+        onOpenChange={setAdditionalSampleOpen}
+        beforeSubmit={autosaves.flush}
+        onRequested={setRequestedPetition}
+      />
+
+      {pendingSample && (
+        <div role="status" className="rounded-lg border bg-card p-4 space-y-2">
+          <Badge variant="yellow-soft">รอรับตัวอย่างเพิ่ม (QC)</Badge>
+          <p className="text-sm text-muted-foreground">{pendingSample.reason} — ยังแก้ไขหรือปิดผลตรวจฝั่ง QC ไม่ได้จนกว่าจะรับรอบนี้</p>
+        </div>
+      )}
+
       {/* Action buttons — hidden once locked (qcCompletedAt set) so the read-only
           page can't re-fire the submit→confirm→navigate cycle. */}
       {items.length > 0 && !isLocked && (
         <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          {abnormalCount > 0 && qcReceivedAt(petition) && (
+            <Button variant="outline" onClick={() => setAdditionalSampleOpen(true)} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}>ขอตัวอย่างเพิ่ม</Button>
+          )}
           <Button
             variant={isComplete ? 'primary' : 'outline'}
             onClick={isComplete ? handleSubmitResult : handleSaveDraft}
-            disabled={submitting}
+            disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}
             className="gap-2"
           >
             {submitting ? (

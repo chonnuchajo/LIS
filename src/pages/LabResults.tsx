@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { usePetitionList } from "@/hooks/usePetition";
-import { PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import { rankSearchResults } from "@/lib/searchRanking";
+import type { Petition } from "@/types/petition.types";
 
 export default function LabResults() {
   const navigate = useNavigate();
@@ -15,17 +17,24 @@ export default function LabResults() {
     const items = (data?.items ?? []) as Petition[];
     const q = search.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((p) =>
+    const matches = items.filter((p) =>
       `${p.petitionNo} ${p.submittedBy?.name ?? ""}`.toLowerCase().includes(q),
     );
+    return rankSearchResults(matches, search, (petition) => {
+      const itemNos = (petition.items ?? []).map((item) => item.itemNo).filter((itemNo) => itemNo?.trim());
+      return {
+        primary: itemNos.length ? itemNos : [petition.petitionNo],
+        secondary: [petition.petitionNo, petition.submittedBy?.name],
+      };
+    });
   }, [data, search]);
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-lis-text">ผลวิเคราะห์ Lab</h1>
-          <p className="text-sm text-gray-500">คำร้องที่หัวหน้าห้องปฏิบัติการออกผลแล้ว</p>
+          <h1 className="text-xl font-bold text-foreground">ผลวิเคราะห์ Lab</h1>
+          <p className="text-sm text-muted-foreground">คำร้องที่หัวหน้าห้องปฏิบัติการออกผลแล้ว</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -33,13 +42,13 @@ export default function LabResults() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาเลขคำร้อง / ผู้ส่ง"
-            className="rounded-md border px-3 py-1.5 text-sm"
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
 
-        <div className="overflow-x-auto rounded-lg border bg-white">
+        <div className="overflow-x-auto rounded-lg border bg-card text-card-foreground shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs text-gray-500">
+            <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">เลขคำร้อง</th>
                 <th className="px-3 py-2">แผนก</th>
@@ -49,19 +58,19 @@ export default function LabResults() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">กำลังโหลด…</td></tr>
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">กำลังโหลด…</td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">ยังไม่มีคำร้องที่หัวหน้า Lab ออกผล</td></tr>
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">ยังไม่มีคำร้องที่หัวหน้า Lab ออกผล</td></tr>
               )}
               {rows.map((p) => (
                 <tr
                   key={p._id}
                   onClick={() => navigate(`/lab-results/${p._id}`)}
-                  className="cursor-pointer border-t hover:bg-gray-50"
+                  className="cursor-pointer border-t border-border hover:bg-accent/60"
                 >
                   <td className="px-3 py-2 font-medium">{p.petitionNo}</td>
-                  <td className="px-3 py-2">{PETITION_DEPT_LABELS[p.dept]}</td>
+                  <td className="px-3 py-2">{petitionDepartmentLabel(p)}</td>
                   <td className="px-3 py-2">{p.submittedBy?.name ?? "-"}</td>
                   <td className="px-3 py-2">
                     {p.labApprovedAt ? new Date(p.labApprovedAt).toLocaleDateString("th-TH") : "-"}

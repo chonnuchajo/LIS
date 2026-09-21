@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { api, type LabelToleranceRule, type ParameterValueField } from "@/lib/api";
-import { getItemNo, getPackSize, getRawCommonName, getSampleName, getTradeName } from "@/lib/masterItemFields";
+import { getItemNo, getPackSize, getRawCommonName, getSampleName, getTradeName, itemNoKeys } from "@/lib/masterItemFields";
 import { productTypeLabels } from "@/lib/productClassification";
 import { formatLabelToleranceNumber } from "@/lib/standardOperators";
 import { parseLabelPercent } from "@/lib/substances";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -183,7 +184,7 @@ function previewLine(rule: LabelToleranceRule): string {
         : null;
     if (autoRange == null && headRange == null) return "";
     const auto = autoRange != null ? `ผ่าน ${rangeText(autoRange[0], autoRange[1])}` : "";
-    const head = headRange != null ? `หัวหน้าตรวจสอบ ${rangeText(headRange[0], headRange[1])}` : "";
+    const head = headRange != null ? `เกณฑ์กรม ${rangeText(headRange[0], headRange[1])}` : "";
     return `${selectors || "กฎ"} -> ${[auto, head].filter(Boolean).join(" | ")}`;
   }
 
@@ -204,7 +205,7 @@ function previewLine(rule: LabelToleranceRule): string {
   if (autoRange == null && headRange == null) return "";
 
   const auto = autoRange != null ? `ผ่าน ${rangeText(autoRange[0], autoRange[1])}` : "";
-  const head = headRange != null ? `หัวหน้าตรวจสอบ ${rangeText(headRange[0], headRange[1])}` : "";
+  const head = headRange != null ? `เกณฑ์กรม ${rangeText(headRange[0], headRange[1])}` : "";
   return `${selectors || "กฎ"} -> ${[auto, head].filter(Boolean).join(" | ")}`;
 }
 
@@ -474,7 +475,10 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                           placeholder="เช่น ABAMECTIN"
                         />
                         <datalist id={`label-tolerance-master-substances-${index}`}>
-                          {masterOptions.slice(0, 300).map((option) => (
+                          {rankSearchResults(masterOptions, rule.substance ?? "", (option) => ({
+                            primary: [option.itemNo || option.commonName, ...itemNoKeys.map((key) => option.row[key])],
+                            secondary: [option.commonName, option.packSize, option.itemName],
+                          })).slice(0, 300).map((option) => (
                             <option
                               key={option.key}
                               value={option.commonName}
@@ -564,7 +568,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                               </SelectTrigger>
                               <SelectContent className="z-[10001]">
                                 <SelectItem value="none">ไม่มี</SelectItem>
-                                <SelectItem value="percent">% ของหัวหน้า</SelectItem>
+                                <SelectItem value="percent">% ของเกณฑ์กรม</SelectItem>
                                 <SelectItem value="abs">± ค่าคงที่</SelectItem>
                                 <SelectItem value="range">ค่าระหว่าง</SelectItem>
                               </SelectContent>
@@ -608,14 +612,14 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                               : autoMode === "range"
                                 ? "กรอกช่วงต่ำสุด-สูงสุดที่ผ่านอัตโนมัติ"
                                 : autoMode === "percent"
-                                  ? 'ถ้าเลือก % จะคิดจากช่วง "หัวหน้าตรวจสอบ"'
+                                  ? 'ถ้าเลือก % จะคิดจากช่วง "เกณฑ์กรม"'
                                   : "กรอกเป็นค่า ± จริงตามหน่วยของช่อง"}
                           </p>
                         </div>
 
                         {canEditHeadFields && (
                           <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                            <Label className="text-sm">หัวหน้าตรวจสอบ</Label>
+                            <Label className="text-sm">เกณฑ์กรม</Label>
                             <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
                               <Select
                                 value={headMode}
@@ -633,7 +637,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                               </Select>
                               {headMode === "none" ? (
                                 <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                                  ไม่มีช่วงหัวหน้าตรวจสอบ
+                                  ไม่มีช่วงเกณฑ์กรม
                                 </p>
                               ) : headMode === "range" ? (
                                 <div className="grid grid-cols-2 gap-2">

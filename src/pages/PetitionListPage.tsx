@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -16,36 +16,50 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { usePetitionList } from '@/hooks/usePetition';
+import { createPetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem } from '@/lib/api';
+import { getItemNo, getRawCommonName, getSampleName } from '@/lib/masterItemFields';
+import { normalizeMasterItemPayload } from '@/lib/petitionMasterItem';
 import { parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
   canSeePetition,
   canUserCreatePetition as canUserCreatePetitionShared,
   isLabRole,
-  isLabBatchNo,
   petitionHasLabReadableItem,
 } from '@/lib/petitionVisibility';
 import { normalizeRoles } from '@/lib/roles';
 import { petitionStatusBadge } from '@/lib/statusBadge';
+import { formatStockQuantityWithUnit } from '@/lib/stockQuantity';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { rankSearchResults } from '@/lib/searchRanking';
 import { cn } from '@/lib/utils';
 import {
-  PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
   PETITION_STATUSES,
   type Petition,
 } from '@/types/petition.types';
+import type { SixMonthMedicineStockItem } from '@/types/stock';
 
 const PAGE_SIZE = 20;
+const NEW_PETITION_PATH = '/petitions/new';
+const FG_WAREHOUSE_DEPARTMENT = 'คลังสินค้า FG';
+const QUALITY_RESUBMISSION_WAIT_MONTHS = 6;
 
 // How long a petition arriving from a dashboard drill-down stays visually marked
 // before it settles back into an ordinary list card.
 const HIGHLIGHT_GLOW_MS = 5000;
+const PULL_TO_REFRESH_DEVICE_QUERY = '(max-width: 1023px), (pointer: coarse), (any-pointer: coarse)';
+const PULL_TO_REFRESH_THRESHOLD_PX = 72;
 
 const SUMMARY_STATUS_GROUPS: Array<{
   key: string;
@@ -80,7 +94,7 @@ export type PetitionListPageProps = {
 function petitionMetaLine(petition: Petition) {
   return [
     petition.submittedBy?.name,
-    PETITION_DEPT_LABELS[petition.dept],
+    petitionDepartmentLabel(petition),
     new Date(petition.createdAt).toLocaleString('th-TH', {
       dateStyle: 'short',
       timeStyle: 'short',
@@ -90,27 +104,611 @@ function petitionMetaLine(petition: Petition) {
     .join(' • ');
 }
 
-function displayPerson(name?: string | null) {
-  const value = (name ?? '').trim();
-  return value || 'ยังไม่มี';
+function formatSixMonthStockDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function petitionOwnerLine(petition: Petition) {
-  const qcOwner = petition.qcReceivedBy?.trim();
-  const labOwner = petition.labReceivedBy?.trim();
-  return `QC: ${displayPerson(qcOwner)} | Lab: ${displayPerson(labOwner)}`;
+function formatSixMonthReferenceMonth(value?: string) {
+  if (!value) return '-';
+  const date = new Date(`${value}-01T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 }
 
-function petitionNextStepText(petition: Petition) {
-  if (petition.status === 'sampleSent') return 'สิ่งที่ต้องทำ: รอรับตัวอย่างเข้ากระบวนการ';
-  if (petition.status === 'pendingReview' && !petition.assignedTo) {
-    return 'สิ่งที่ต้องทำ: รอ assign ผู้รับงาน';
+function sixMonthStockRowKey(item: SixMonthMedicineStockItem) {
+  return `${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`;
+}
+
+function sixMonthStockItemNoKey(value?: string | null) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function sixMonthStockValue(value?: string | number | null) {
+  const text = String(value ?? '').trim();
+  return text || '-';
+}
+
+function preferMasterText(masterValue?: string, fallbackValue?: string) {
+  return String(masterValue ?? '').trim() || String(fallbackValue ?? '').trim();
+}
+
+function sixMonthStockLocation(item: SixMonthMedicineStockItem) {
+  return [item.locationCode, item.binCode].map(sixMonthStockValue).join(' / ');
+}
+
+function buildSixMonthMasterItemLookup(payload: unknown) {
+  const lookup = new Map<string, { commonName: string; itemName: string }>();
+  normalizeMasterItemPayload(payload).forEach((item) => {
+    const key = sixMonthStockItemNoKey(getItemNo(item));
+    if (!key) return;
+    lookup.set(key, {
+      commonName: getRawCommonName(item),
+      itemName: getSampleName(item),
+    });
+  });
+  return lookup;
+}
+
+function enrichSixMonthStockItem(
+  item: SixMonthMedicineStockItem,
+  masterItemLookup: Map<string, { commonName: string; itemName: string }>,
+): SixMonthMedicineStockItem {
+  const masterItem = masterItemLookup.get(sixMonthStockItemNoKey(item.itemNo));
+  if (!masterItem) return item;
+  return {
+    ...item,
+    commonName: preferMasterText(masterItem.commonName, item.commonName),
+    itemName: preferMasterText(masterItem.itemName, item.itemName),
+  };
+}
+
+function sixMonthStockSampleName(item: SixMonthMedicineStockItem) {
+  return [item.itemName, item.commonName, item.itemNo].map(sixMonthStockValue).find((value) => value !== '-') || 'รายการยา';
+}
+
+function firstPetitionItem(petition: Petition) {
+  return petition.items[0];
+}
+
+function petitionItemCountLabel(petition: Petition) {
+  return petition.items.length > 1 ? ` +${petition.items.length - 1} รายการ` : '';
+}
+
+function petitionBatchLotLabel(petition: Petition) {
+  const firstItem = firstPetitionItem(petition);
+  return [firstItem?.batchNo, firstItem?.lotNo].filter(Boolean).join(' / ') || '-';
+}
+
+function sixMonthStockLotKey(value?: string | null) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function parseValidDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildRecentQualityLotKeys(petitions: Petition[], currentDate: Date) {
+  const lotKeys = new Set<string>();
+  petitions.forEach((petition) => {
+    const submittedAt = parseValidDate(petition.submittedBy?.submittedAt) ?? parseValidDate(petition.createdAt);
+    if (!submittedAt) return;
+    if (currentDate >= addMonths(submittedAt, QUALITY_RESUBMISSION_WAIT_MONTHS)) return;
+
+    petition.items.forEach((item) => {
+      const lotKey = sixMonthStockLotKey(item.lotNo || item.batchNo);
+      if (lotKey) lotKeys.add(lotKey);
+    });
+  });
+  return lotKeys;
+}
+
+type SixMonthMedicineTabProps = {
+  showFgQualityAlerts: boolean;
+};
+
+type SixMonthMedicineStockTabProps = {
+  onQualitySubmissionCreated?: () => void;
+};
+
+function canUseTouchPullToRefresh() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PULL_TO_REFRESH_DEVICE_QUERY).matches;
+}
+
+function findScrollableParent(element: HTMLElement | null) {
+  let current: HTMLElement | null = element;
+  while (current && current !== document.body) {
+    const overflowY = window.getComputedStyle(current).overflowY;
+    if (/(auto|scroll|overlay)/.test(overflowY) && current.scrollHeight > current.clientHeight) return current;
+    current = current.parentElement;
   }
-  if (petition.status === 'rejected') return 'หมายเหตุ: คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
-  if (petition.qcReceivedBy || petition.labReceivedBy) return `ผู้รับผิดชอบ: ${petitionOwnerLine(petition)}`;
-  if (petition.status === 'inProgress') return 'สิ่งที่ต้องทำ: อยู่ระหว่างดำเนินการ';
-  if (petition.status === 'approved' || petition.status === 'success') return 'สถานะ: งานนี้เสร็จสิ้นแล้ว';
-  return 'สิ่งที่ต้องทำ: ตรวจสอบรายละเอียดคำร้อง';
+  return null;
+}
+
+function isAtPullRefreshTop(element: HTMLElement | null) {
+  const scrollableParent = findScrollableParent(element);
+  if (scrollableParent) return scrollableParent.scrollTop <= 0;
+  return window.scrollY <= 0 && document.documentElement.scrollTop <= 0 && document.body.scrollTop <= 0;
+}
+
+function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const startYRef = useRef<number | null>(null);
+  const startXRef = useRef(0);
+  const armedRef = useRef(false);
+  const refreshingRef = useRef(false);
+  const [pullState, setPullState] = useState<'idle' | 'pulling' | 'ready' | 'refreshing'>('idle');
+
+  const resetPull = useCallback(() => {
+    startYRef.current = null;
+    armedRef.current = false;
+    if (!refreshingRef.current) setPullState('idle');
+  }, []);
+
+  const handleTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch || event.touches.length !== 1 || refreshingRef.current || !canUseTouchPullToRefresh()) {
+      resetPull();
+      return;
+    }
+    if (!isAtPullRefreshTop(rootRef.current)) {
+      resetPull();
+      return;
+    }
+    startYRef.current = touch.clientY;
+    startXRef.current = touch.clientX;
+    armedRef.current = false;
+  }, [resetPull]);
+
+  const handleTouchMove = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const startY = startYRef.current;
+    const touch = event.touches[0];
+    if (startY === null || !touch) return;
+    const deltaY = touch.clientY - startY;
+    const deltaX = Math.abs(touch.clientX - startXRef.current);
+    if (deltaY <= 0 || deltaX > deltaY || !isAtPullRefreshTop(rootRef.current)) {
+      armedRef.current = false;
+      setPullState('idle');
+      return;
+    }
+    if (deltaY > 8) event.preventDefault();
+    armedRef.current = deltaY >= PULL_TO_REFRESH_THRESHOLD_PX;
+    setPullState(armedRef.current ? 'ready' : 'pulling');
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const shouldRefresh = armedRef.current && !refreshingRef.current;
+    startYRef.current = null;
+    armedRef.current = false;
+    if (!shouldRefresh) {
+      setPullState('idle');
+      return;
+    }
+    refreshingRef.current = true;
+    setPullState('refreshing');
+    void onRefresh().finally(() => {
+      refreshingRef.current = false;
+      setPullState('idle');
+    });
+  }, [onRefresh]);
+
+  return {
+    rootRef,
+    pullState,
+    pullMessage:
+      pullState === 'refreshing'
+        ? 'กำลังรีเฟรช...'
+        : pullState === 'ready'
+          ? 'ปล่อยเพื่อรีเฟรช'
+          : 'ดึงลงเพื่อรีเฟรช',
+    pullHandlers: {
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd,
+      onTouchCancel: resetPull,
+    },
+  };
+}
+
+function SixMonthMedicineDetailDrawer({
+  item,
+  onClose,
+}: {
+  item: SixMonthMedicineStockItem;
+  onClose: () => void;
+}) {
+  const itemName = sixMonthStockValue(item.itemName);
+  const commonName = sixMonthStockValue(item.commonName);
+  const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="space-y-0.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="break-words text-sm font-medium text-foreground">{value}</div>
+    </div>
+  );
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="space-y-1 border-b border-border p-6 pr-12 text-left">
+          <SheetTitle className="text-xl font-bold text-primary">{sixMonthStockValue(item.itemNo)}</SheetTitle>
+          <SheetDescription className="sr-only">รายละเอียดสต๊อกยาเกิน 6 เดือน</SheetDescription>
+          <p className="text-sm text-muted-foreground">{itemName}</p>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-6 p-6">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลหลัก</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="commonname" value={commonName} />
+              <Field label="Lot" value={sixMonthStockValue(item.lotNo)} />
+              <Field label="Registering Date" value={formatSixMonthStockDate(item.registeringDate)} />
+              <Field label="อายุ (เดือน)" value={<Badge variant="outline">{item.ageMonths}</Badge>} />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลคลัง</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Stock Qty" value={formatStockQuantityWithUnit(item.stockQty, item.unit)} />
+              <Field label="Stock Qty Base" value={formatStockQuantityWithUnit(item.stockQtyBase, item.unit)} />
+              <Field label="ตำแหน่ง" value={sixMonthStockLocation(item)} />
+              <Field label="Company" value={sixMonthStockValue(item.companySource)} />
+            </div>
+          </section>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedicineStockTabProps = {}) {
+  const { user } = useAuth();
+  const [sixMonthSearch, setSixMonthSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
+  const [selectedItem, setSelectedItem] = useState<SixMonthMedicineStockItem | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(() => new Set());
+  const [localSubmittedQualityLotKeys, setLocalSubmittedQualityLotKeys] = useState<Set<string>>(() => new Set());
+  const [isSubmittingQuality, setIsSubmittingQuality] = useState(false);
+  const [qualitySubmitError, setQualitySubmitError] = useState<string | null>(null);
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['stock', 'medicine-six-months'],
+    queryFn: api.getSixMonthMedicineStock,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: masterItemsPayload, refetch: refetchMasterItems } = useQuery({
+    queryKey: ['master-items', 'six-month-medicine-commonname'],
+    queryFn: async () => {
+      const res = await api.get<unknown>('/master-items');
+      return res.data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: fgQualityPetitionData } = usePetitionList({ dept: 'fg', limit: 100 });
+  const pullToRefresh = useTouchPullToRefresh(async () => {
+    await Promise.all([refetch(), refetchMasterItems()]);
+  });
+  const masterItemLookup = useMemo(
+    () => buildSixMonthMasterItemLookup(masterItemsPayload),
+    [masterItemsPayload],
+  );
+  const stockItems = useMemo(
+    () => (data?.items ?? []).map((item) => enrichSixMonthStockItem(item, masterItemLookup)),
+    [data?.items, masterItemLookup],
+  );
+  const qualityCooldownLotKeys = useMemo(() => {
+    const serverDate = parseValidDate(data?.serverTime) ?? new Date();
+    const recentLotKeys = buildRecentQualityLotKeys(fgQualityPetitionData?.items ?? [], serverDate);
+    localSubmittedQualityLotKeys.forEach((lotKey) => recentLotKeys.add(lotKey));
+    return recentLotKeys;
+  }, [data?.serverTime, fgQualityPetitionData?.items, localSubmittedQualityLotKeys]);
+  const availableStockItems = useMemo(
+    () => stockItems.filter((item) => !qualityCooldownLotKeys.has(sixMonthStockLotKey(item.lotNo))),
+    [qualityCooldownLotKeys, stockItems],
+  );
+  const filtered = useMemo(() => {
+    const q = sixMonthSearch.trim().toLowerCase();
+    const matches = availableStockItems.filter((item) => {
+      const itemNo = item.itemNo.trim().toUpperCase();
+      const matchesKind = kindFilter === 'all'
+        || (kindFilter === 'rm' && itemNo.startsWith('R'))
+        || (kindFilter === 'fg' && itemNo.startsWith('F'));
+      if (!matchesKind) return false;
+      if (!q) return true;
+      return [
+        item.itemNo,
+        item.commonName,
+        item.lotNo,
+      ].some((value) => (value ?? '').toLowerCase().includes(q));
+    });
+    return rankSearchResults(matches, sixMonthSearch, (item) => ({
+      primary: [item.itemNo],
+      secondary: [item.commonName, item.lotNo],
+    }));
+  }, [availableStockItems, sixMonthSearch, kindFilter]);
+  const filteredKeys = useMemo(() => filtered.map(sixMonthStockRowKey), [filtered]);
+  const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((key) => selectedRowKeys.has(key));
+  const someFilteredSelected = filteredKeys.some((key) => selectedRowKeys.has(key));
+  const selectedItems = useMemo(
+    () => availableStockItems.filter((item) => selectedRowKeys.has(sixMonthStockRowKey(item))),
+    [availableStockItems, selectedRowKeys],
+  );
+  const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
+
+  const toggleRowSelection = useCallback((item: SixMonthMedicineStockItem, checked: boolean) => {
+    const key = sixMonthStockRowKey(item);
+    setSelectedRowKeys((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const toggleAllFiltered = useCallback((checked: boolean) => {
+    setSelectedRowKeys((current) => {
+      const next = new Set(current);
+      filteredKeys.forEach((key) => {
+        if (checked) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, [filteredKeys]);
+
+  const handleCreateQualityPetition = useCallback(async () => {
+    if (selectedItems.length === 0) return;
+    setIsSubmittingQuality(true);
+    setQualitySubmitError(null);
+    const actorName = user?.name?.trim() || user?.email?.trim() || 'system';
+    const actorDepartment = user?.department?.trim() || FG_WAREHOUSE_DEPARTMENT;
+
+    try {
+      await createPetition({
+        dept: 'fg',
+        submittedBy: {
+          employeeId: user?.employeeId || undefined,
+          name: actorName,
+          department: actorDepartment,
+        },
+        deliveredBy: {
+          employeeId: user?.employeeId || undefined,
+          name: actorName,
+        },
+        items: selectedItems.map((item, index) => ({
+          seq: index + 1,
+          sampleName: sixMonthStockSampleName(item),
+          commonName: item.commonName || '',
+          batchNo: sixMonthStockValue(item.lotNo) !== '-' ? item.lotNo : item.itemNo,
+          lotNo: item.lotNo || undefined,
+          itemNo: item.itemNo || undefined,
+          testItems: 'ส่งตรวจคุณภาพ',
+          sendToLab: false,
+          note: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
+          sampleQuantity: 1,
+        })),
+        cause: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
+      } as Parameters<typeof createPetition>[0]);
+      setLocalSubmittedQualityLotKeys((current) => {
+        const next = new Set(current);
+        selectedItems.forEach((item) => {
+          const lotKey = sixMonthStockLotKey(item.lotNo);
+          if (lotKey) next.add(lotKey);
+        });
+        return next;
+      });
+      setSelectedRowKeys(new Set());
+      onQualitySubmissionCreated?.();
+    } catch (submitError) {
+      setQualitySubmitError(submitError instanceof Error ? submitError.message : 'ยื่นคำร้องไม่สำเร็จ');
+    } finally {
+      setIsSubmittingQuality(false);
+    }
+  }, [onQualitySubmissionCreated, selectedItems, user?.department, user?.email, user?.employeeId, user?.name]);
+
+  return (
+    <div ref={pullToRefresh.rootRef} className="space-y-3 overscroll-y-contain" {...pullToRefresh.pullHandlers}>
+      <div
+        aria-live="polite"
+        className={cn(
+          'overflow-hidden rounded-xl border border-primary/30 bg-primary/10 text-center text-sm font-medium text-primary transition-all',
+          pullToRefresh.pullState === 'idle' ? 'h-0 border-transparent py-0 opacity-0' : 'py-2 opacity-100',
+        )}
+      >
+        {pullToRefresh.pullMessage}
+      </div>
+      <Card className="border-border shadow-none">
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">รายการยาเกิน 6 เดือน</CardTitle>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {onQualitySubmissionCreated && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreateQualityPetition}
+                disabled={selectedItems.length === 0 || isSubmittingQuality}
+              >
+                {isSubmittingQuality ? 'กำลังส่ง...' : `ส่งตรวจคุณภาพ (${selectedItems.length})`}
+              </Button>
+            )}
+            <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
+              <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทั้งหมด</SelectItem>
+                <SelectItem value="rm">RM</SelectItem>
+                <SelectItem value="fg">FG</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              value={sixMonthSearch}
+              onChange={(event) => setSixMonthSearch(event.target.value)}
+              placeholder="ค้นหา item / lot / commonname"
+              className="h-9 w-full min-w-[220px] sm:w-72"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {qualitySubmitError && (
+            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {qualitySubmitError}
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow>
+                  {onQualitySubmissionCreated && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        aria-label="เลือกทั้งหมดในรายการยาเกิน 6 เดือน"
+                        checked={allFilteredSelected ? true : someFilteredSelected ? 'indeterminate' : false}
+                        disabled={filteredKeys.length === 0 || isSubmittingQuality}
+                        onCheckedChange={(checked) => toggleAllFiltered(checked === true)}
+                      />
+                    </TableHead>
+                  )}
+                  <TableHead>Item No</TableHead>
+                  <TableHead>commonname</TableHead>
+                  <TableHead>Lot</TableHead>
+                  <TableHead>Registering Date</TableHead>
+                  <TableHead className="text-right">อายุ (เดือน)</TableHead>
+                  <TableHead className="text-right">Stock Qty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดข้อมูล...</TableCell></TableRow>
+                ) : isError ? (
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
+                ) : filtered.map((item) => (
+                  <TableRow
+                    key={sixMonthStockRowKey(item)}
+                    tabIndex={0}
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => setSelectedItem(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedItem(item);
+                      }
+                    }}
+                  >
+                    {onQualitySubmissionCreated && (
+                      <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          aria-label={`เลือก ${item.itemNo || '-'} ${item.lotNo || '-'}`}
+                          checked={selectedRowKeys.has(sixMonthStockRowKey(item))}
+                          disabled={isSubmittingQuality}
+                          onCheckedChange={(checked) => toggleRowSelection(item, checked === true)}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium text-foreground">{item.itemNo || '-'}</TableCell>
+                    <TableCell>{item.commonName || '-'}</TableCell>
+                    <TableCell>{item.lotNo || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatSixMonthStockDate(item.registeringDate)}</TableCell>
+                    <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
+                    <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      {selectedItem && (
+        <SixMonthMedicineDetailDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
+    </div>
+  );
+}
+
+function FgQualityAlertsTab() {
+  const { data, loading, error } = usePetitionList({ dept: 'fg', status: 'deliveringQC', limit: 100 });
+  const petitions = data?.items ?? [];
+
+  return (
+    <Card className="border-border shadow-none">
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="text-base">แจ้งเตือนส่งตรวจคุณภาพ</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">คำร้อง FG ที่อยู่สถานะกำลังส่งตัวอย่าง</p>
+        </div>
+        <Badge variant="outline">{petitions.length}</Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขคำร้อง</TableHead>
+                <TableHead>ผู้ยื่น</TableHead>
+                <TableHead>วันที่ยื่น</TableHead>
+                <TableHead>สินค้า</TableHead>
+                <TableHead>Batch / Lot</TableHead>
+                <TableHead>สถานะ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดรายการแจ้งเตือน...</TableCell></TableRow>
+              ) : error ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-red-500">{error}</TableCell></TableRow>
+              ) : petitions.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีรายการแจ้งเตือน</TableCell></TableRow>
+              ) : petitions.map((petition) => {
+                const firstItem = firstPetitionItem(petition);
+                return (
+                  <TableRow key={petition._id}>
+                    <TableCell className="font-medium text-foreground">{petition.petitionNo || '-'}</TableCell>
+                    <TableCell>{petition.submittedBy?.name || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatSixMonthStockDate(petition.submittedBy?.submittedAt || petition.createdAt)}</TableCell>
+                    <TableCell>{firstItem?.sampleName || '-'}{petitionItemCountLabel(petition)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{petitionBatchLotLabel(petition)}</TableCell>
+                    <TableCell><Badge variant="primary-soft">ส่งตรวจคุณภาพ</Badge></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) {
+  const [activeTab, setActiveTab] = useState('six-month-stock');
+  if (!showFgQualityAlerts) return <SixMonthMedicineStockTab />;
+
+  return (
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
+      <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+        <TabsList className="w-max">
+          <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
+          <TabsTrigger value="six-month-stock">รายการยาเกิน 6 เดือน</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="fg-quality-alerts" className="mt-0">
+        <FgQualityAlertsTab />
+      </TabsContent>
+      <TabsContent value="six-month-stock" className="mt-0">
+        <SixMonthMedicineStockTab onQualitySubmissionCreated={() => setActiveTab('fg-quality-alerts')} />
+      </TabsContent>
+    </Tabs>
+  );
 }
 
 export default function PetitionListPage({
@@ -127,7 +725,10 @@ export default function PetitionListPage({
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
-  const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions-old/new'));
+  const department = String(user?.department ?? '').trim();
+  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head') || department === FG_WAREHOUSE_DEPARTMENT;
+  const canSeeFgQualityAlertsTab = roles.includes('admin') || department === FG_WAREHOUSE_DEPARTMENT;
+  const canCreatePetition = canUserCreatePetition(user, canAccess(NEW_PETITION_PATH));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();
 
@@ -350,11 +951,9 @@ export default function PetitionListPage({
     ref?: React.Ref<HTMLDivElement>,
   ) => {
     const statusBadge = petitionStatusBadge(petition);
-    const sampleNames = petition.items
-      .map((item) => item.sampleName)
-      .filter((item): item is string => Boolean(item));
+    const sampleNames = petition.items.map((item) => item.commonName?.trim() || '-');
     const primarySample = sampleNames[0] ?? '-';
-    const extraSamples = Math.max(0, sampleNames.length - 1);
+    const extraSamples = Math.max(0, petition.items.length - 1);
     const testItems = canSeeTestItems
       ? parameterNamesForPetition(petition, displayParameters)
       : [];
@@ -366,8 +965,8 @@ export default function PetitionListPage({
         data-highlight={isGlowing ? 'on' : undefined}
         onOpen={() => navigate(petitionDetailPath(petition))}
         className={cn(
-          'w-full rounded-2xl border-black-50 p-4 text-left transition duration-700 hover:border-primary-200 hover:bg-grey-50/40',
-          isGlowing && 'border-amber-300 bg-amber-50 ring-2 ring-amber-200 hover:bg-amber-50',
+          'w-full rounded-2xl border-border p-4 text-left transition duration-700 hover:border-primary/40 hover:bg-accent/50',
+          isGlowing && 'border-amber-300 bg-amber-50 ring-2 ring-amber-200 hover:bg-amber-50 dark:border-amber-500/50 dark:bg-amber-500/10 dark:ring-amber-500/30 dark:hover:bg-amber-500/10',
         )}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -375,26 +974,22 @@ export default function PetitionListPage({
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
               <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-              <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+              <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
             </div>
 
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium text-black-500">{primarySample}</p>
+                <p className="text-sm font-medium text-foreground">{primarySample}</p>
                 {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
-                <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
+                <span className="text-xs text-muted-foreground">{petition.items.length} รายการ</span>
               </div>
               {testItems.length > 0 && (
-                <p className="line-clamp-2 text-sm text-grey-600">
+                <p className="line-clamp-2 text-sm text-muted-foreground">
                   {testItems.slice(0, 4).join(' • ')}
                   {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
                 </p>
               )}
-              <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
-            </div>
-
-            <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
-              {petitionNextStepText(petition)}
+              <p className="text-xs text-muted-foreground">{petitionMetaLine(petition)}</p>
             </div>
 
             <PetitionStatusTimeline petition={petition} compact />
@@ -412,7 +1007,7 @@ export default function PetitionListPage({
           description={description}
           actions={
             canCreatePetition ? (
-              <Button onClick={() => navigate('/petitions-old/new')}>
+              <Button onClick={() => navigate(NEW_PETITION_PATH)}>
                 <FilePlus2 className="h-4 w-4" />
                 ยื่นคำร้องใหม่
               </Button>
@@ -434,6 +1029,17 @@ export default function PetitionListPage({
           </div>
         )}
 
+        <Tabs defaultValue="petitions" className="space-y-4">
+          <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              <TabsTrigger value="petitions">รายการคำร้อง</TabsTrigger>
+              {canSeeSixMonthMedicineTab && (
+                <TabsTrigger value="six-month-medicine">List ยา 6 เดือน</TabsTrigger>
+              )}
+            </TabsList>
+          </div>
+
+          <TabsContent value="petitions" className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
             <Card
@@ -442,18 +1048,18 @@ export default function PetitionListPage({
               className={cn(
                 "rounded-2xl p-4 text-left transition-all",
                 card.active
-                  ? "border-primary-300 bg-primary-50 shadow-sm ring-1 ring-primary-100"
-                  : "border-black-50 hover:border-primary-200 hover:bg-grey-50/50",
+                  ? "border-primary/50 bg-primary/10 shadow-sm ring-1 ring-primary/20"
+                  : "border-border hover:border-primary/40 hover:bg-accent/50",
               )}
             >
-              <p className="text-sm font-medium text-grey-600">{card.label}</p>
-              <p className="mt-2 text-3xl font-bold text-black-500">{card.count}</p>
-              <p className="mt-1 text-xs text-grey-500">{card.hint}</p>
+              <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+              <p className="mt-2 text-3xl font-bold text-foreground">{card.count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p>
             </Card>
           ))}
         </div>
 
-        <div className="rounded-2xl border border-black-50 bg-white p-4">
+        <div className="rounded-2xl border border-border bg-card p-4 text-card-foreground">
           <PageToolbar
             search={{
               value: searchInput,
@@ -467,7 +1073,7 @@ export default function PetitionListPage({
                     type="button"
                     className={cn(
                       'flex h-10 min-w-[210px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                      selectedStatuses.length === 0 && 'text-grey-500',
+                      selectedStatuses.length === 0 && 'text-muted-foreground',
                     )}
                   >
                     <span className="truncate text-left">
@@ -481,8 +1087,8 @@ export default function PetitionListPage({
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
-                  <div className="mb-1 flex items-center justify-between border-b border-black-50 px-1 pb-2">
-                    <span className="text-xs font-medium text-grey-700">เลือกสถานะ</span>
+                  <div className="mb-1 flex items-center justify-between border-b border-border px-1 pb-2">
+                    <span className="text-xs font-medium text-foreground">เลือกสถานะ</span>
                     {selectedStatuses.length > 0 && (
                       <button
                         type="button"
@@ -534,17 +1140,17 @@ export default function PetitionListPage({
           />
         </div>
 
-        <Card className="border-black-50 shadow-none">
+        <Card className="border-border shadow-none">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base">รายการคำร้อง</CardTitle>
-                <p className="mt-1 text-sm text-grey-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   เลือกคำร้องที่ต้องการดูต่อหรือดำเนินการขั้นถัดไป
                 </p>
               </div>
               {data && totalCount > 0 && (
-                <span className="text-sm text-grey-500">
+                <span className="text-sm text-muted-foreground">
                   แสดง {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalCount)} จาก {totalCount} รายการ
                 </span>
               )}
@@ -552,13 +1158,13 @@ export default function PetitionListPage({
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
-              <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center text-grey-500">
+              <div className="rounded-[10px] border border-dashed border-border py-12 text-center text-muted-foreground">
                 กำลังโหลดรายการคำร้อง...
               </div>
             ) : listItems.length === 0 ? (
-              <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center">
-                <p className="text-sm font-medium text-black-500">{emptyTitle}</p>
-                <p className="mt-1 text-xs text-grey-500">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
+              <div className="rounded-[10px] border border-dashed border-border py-12 text-center">
+                <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
+                <p className="mt-1 text-xs text-muted-foreground">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
               </div>
             ) : (
               listItems.map((petition) => {
@@ -575,7 +1181,7 @@ export default function PetitionListPage({
 
         {data && totalCount > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <span className="text-grey-500">
+            <span className="text-muted-foreground">
               แสดง {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalCount)} จาก {totalCount} รายการ
             </span>
             <div className="flex items-center gap-2">
@@ -588,7 +1194,7 @@ export default function PetitionListPage({
                 <ChevronLeft className="h-4 w-4" />
                 ก่อนหน้า
               </Button>
-              <span className="font-medium text-black-500">
+              <span className="font-medium text-foreground">
                 หน้า {page} / {totalPages}
               </span>
               <Button
@@ -603,6 +1209,14 @@ export default function PetitionListPage({
             </div>
           </div>
         )}
+          </TabsContent>
+
+          {canSeeSixMonthMedicineTab && (
+            <TabsContent value="six-month-medicine">
+              <SixMonthMedicineTab showFgQualityAlerts={canSeeFgQualityAlertsTab} />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </AppLayout>
   );

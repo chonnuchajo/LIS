@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   OptionOutput,
+  ParameterApplyRule,
   ParameterItem,
   ParameterScope,
   ParameterValueField,
@@ -38,6 +39,50 @@ import {
 import { productTypeLabels } from "@/lib/productClassification";
 
 const CRITERIA_PREVIEW_COUNT = 5;
+
+const APPLY_RULE_KEYS = [
+  "itemNos",
+  "itemNames",
+  "fullCommonNames",
+  "commonNames",
+  "productTypes",
+  "categories",
+  "subCategories",
+  "itemGroups",
+] as const satisfies readonly (keyof ParameterApplyRule)[];
+
+function cleanStringList(values: string[] | undefined): string[] {
+  return Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)));
+}
+
+function normalizedApplyRules(rules: ParameterApplyRule[] | undefined): ParameterApplyRule[] {
+  return (rules ?? []).filter((rule) => APPLY_RULE_KEYS.some((key) => (rule[key]?.length ?? 0) > 0));
+}
+
+function formatWarehouseCategoryOption(value: string): string {
+  if (value === "RM") return "คลัง RM";
+  if (value === "FG") return "คลัง FG";
+  return value;
+}
+
+function summarizeApplyRule(rule: ParameterApplyRule, groupNameById: Map<string, string>): string {
+  const parts: string[] = [];
+  const add = (label: string, values: string[] | undefined, mapValue?: (value: string) => string) => {
+    const displayValues = cleanStringList(values).map((value) => mapValue?.(value) ?? value);
+    if (displayValues.length > 0) parts.push(`${label}: ${displayValues.join(', ')}`);
+  };
+
+  add("รหัสสินค้า", rule.itemNos);
+  add("Item", rule.itemNames);
+  add("Common Name", rule.fullCommonNames);
+  add("ประเภท Common Name", rule.commonNames);
+  add("ประเภท", rule.productTypes, (value) => productTypeLabels[value] ?? value);
+  add("หมวดหมู่", rule.categories, formatWarehouseCategoryOption);
+  add("หมวดย่อย", rule.subCategories);
+  add("กลุ่ม", rule.itemGroups, (id) => groupNameById.get(id) ?? id);
+
+  return parts.join(" · ") || "ทุก item";
+}
 
 type ParameterDetailDrawerProps = {
   parameter: ParameterItem;
@@ -95,25 +140,30 @@ function ApplyToSection({
   groupNameById: Map<string, string>;
 }) {
   const hasExcludes =
-    (parameter.excludeItemNames?.length ?? 0) +
+      (parameter.excludeItemNos?.length ?? 0) +
+      (parameter.excludeItemNames?.length ?? 0) +
+      (parameter.excludeFullCommonNames?.length ?? 0) +
       (parameter.excludeCommonNames?.length ?? 0) +
       (parameter.excludeProductTypes?.length ?? 0) +
       (parameter.excludeCategories?.length ?? 0) +
       (parameter.excludeSubCategories?.length ?? 0) +
       (parameter.excludeItemGroups?.length ?? 0) >
     0;
-  if (parameter.applyAll && !hasExcludes) {
+  const applyRules = normalizedApplyRules(parameter.applyRules);
+  if (parameter.applyAll && !hasExcludes && applyRules.length === 0) {
     return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">ทั้งหมด</Badge>;
   }
   const groups: { label: string; values: string[]; color: string }[] = [
+    { label: "รหัสสินค้า", values: parameter.itemNos ?? [], color: "bg-violet-50 text-violet-700" },
     { label: "Item", values: parameter.itemNames ?? [], color: "bg-violet-50 text-violet-700" },
-    { label: "Common", values: parameter.commonNames ?? [], color: "bg-blue-50 text-blue-700" },
+    { label: "Common Name", values: parameter.fullCommonNames ?? [], color: "bg-blue-50 text-blue-700" },
+    { label: "ประเภท Common Name", values: parameter.commonNames ?? [], color: "bg-blue-50 text-blue-700" },
     {
       label: "ประเภท",
       values: (parameter.productTypes ?? []).map((v) => productTypeLabels[v] ?? v),
       color: "bg-emerald-50 text-emerald-700",
     },
-    { label: "หมวดหมู่", values: parameter.categories ?? [], color: "bg-amber-50 text-amber-700" },
+    { label: "หมวดหมู่", values: (parameter.categories ?? []).map((v) => v === "RM" ? "คลัง RM" : v === "FG" ? "คลัง FG" : v), color: "bg-amber-50 text-amber-700" },
     { label: "หมวดย่อย", values: parameter.subCategories ?? [], color: "bg-orange-50 text-orange-700" },
     {
       label: "กลุ่ม",
@@ -125,13 +175,15 @@ function ApplyToSection({
     groups.unshift({ label: "ทั้งหมด", values: ["ทั้งหมด"], color: "bg-amber-100 text-amber-800" });
   }
   const excludes: { label: string; values: string[] }[] = [
+    { label: "รหัสสินค้า", values: parameter.excludeItemNos ?? [] },
     { label: "Item", values: parameter.excludeItemNames ?? [] },
-    { label: "Common", values: parameter.excludeCommonNames ?? [] },
+    { label: "Common Name", values: parameter.excludeFullCommonNames ?? [] },
+    { label: "ประเภท Common Name", values: parameter.excludeCommonNames ?? [] },
     {
       label: "ประเภท",
       values: (parameter.excludeProductTypes ?? []).map((v) => productTypeLabels[v] ?? v),
     },
-    { label: "หมวดหมู่", values: parameter.excludeCategories ?? [] },
+    { label: "หมวดหมู่", values: (parameter.excludeCategories ?? []).map((v) => v === "RM" ? "คลัง RM" : v === "FG" ? "คลัง FG" : v) },
     { label: "หมวดย่อย", values: parameter.excludeSubCategories ?? [] },
     {
       label: "กลุ่ม",
@@ -139,11 +191,21 @@ function ApplyToSection({
     },
   ].filter((g) => g.values.length > 0);
 
-  if (groups.length === 0 && excludes.length === 0) {
+  if (applyRules.length === 0 && groups.length === 0 && excludes.length === 0) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   return (
     <div className="space-y-1.5">
+      {applyRules.length > 0 ? (
+        <div className="space-y-2">
+          {applyRules.map((rule, index) => (
+            <div key={index} className="rounded-md border bg-card p-2 text-xs text-card-foreground">
+              <Badge variant="secondary">item {index + 1}</Badge>
+              <p className="mt-1 text-muted-foreground">{summarizeApplyRule(rule, groupNameById)}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {groups.map((g) => (
         <div key={g.label} className="flex flex-wrap items-baseline gap-1">
           <span className="text-xs font-semibold text-muted-foreground">{g.label}:</span>
@@ -412,6 +474,7 @@ export function ParameterDetailDrawer({
         <div className="flex-1 space-y-5 p-6">
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">ใช้กับ</h3>
+            <p className="text-xs text-muted-foreground">ต้องตรงทุกมิติที่เลือกพร้อมกัน</p>
             <ApplyToSection parameter={parameter} groupNameById={groupNameById} />
           </section>
 

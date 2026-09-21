@@ -1,10 +1,11 @@
 import FitToBox from '@/components/petition/FitToBox';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { customerCodeFromDepartment } from '@/lib/customerCode';
-import { isLabBatch } from '@/types/petition.types';
+import { shouldSendItemToLab } from '@/lib/petitionRouting';
 import type { Petition, PetitionItem, QCTestResult } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
 import { resolveSpecificGravity, type SgParameter } from '@/lib/formSpecificGravity';
+import { expandItemsBySampleQuantity } from '@/lib/petitionPrintItems';
 import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from '@/lib/printConfig';
 
 function buddhistShort(iso?: string | null): string {
@@ -361,6 +362,7 @@ function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; 
   const requester = lr.requester;
   const sampleReturnReturn = lr.sampleReturn === 'return';
   const sampleReturnNoReturn = lr.sampleReturn === 'discard';
+  const printRows = expandItemsBySampleQuantity(items);
   return (
     <section className="pr-page2">
       <FitToBox className="pr-p2-inner" contentClassName="pr-fit-col">
@@ -507,9 +509,9 @@ function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; 
             </tr>
           </thead>
           <tbody>
-            {items.length > 0 ? items.map((item) => (
-              <tr key={item.seq}>
-                <td className="pr-center">{item.seq}</td>
+            {printRows.length > 0 ? printRows.map(({ item, rowSeq, copyIndex }) => (
+              <tr key={`${item.seq}-${copyIndex}`}>
+                <td className="pr-center">{rowSeq}</td>
                 <td>{item.commonName || item.sampleName}</td>
                 <td>{item.batchNo}</td>
                 <td className="pr-center">{buddhistShort(item.productionDate)}</td>
@@ -589,7 +591,7 @@ interface Props {
 }
 
 export default function PetitionPrintTemplate({ labRequest, petition, qcResults = [], sgParam = null }: Props) {
-  const labItems = petition.items.filter((it) => isLabBatch(it.batchNo));
+  const labItems = petition.items.filter((it) => shouldSendItemToLab(it));
   const itemsToShow = labItems.length > 0 ? labItems : petition.items.filter((it) => it.seq === labRequest.sampleSeq);
   // เลขที่ใบนำส่งใช้ค่าเดียวทั้งใบ (default = เลขคำขอ) — ดึงจากรายการที่ใบนี้อ้างถึง
   const submissionNo = itemsToShow[0]?.submissionNo ?? petition.items[0]?.submissionNo ?? '';

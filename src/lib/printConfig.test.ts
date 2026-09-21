@@ -99,8 +99,8 @@ describe("defaultPrinterFor", () => {
   it("returns the flagged default of the kind", () => {
     expect(defaultPrinterFor(list, "a4")?.id).toBe("2");
   });
-  it("falls back to the first of the kind", () => {
-    expect(defaultPrinterFor(list, "sticker")?.id).toBe("3");
+  it("does not invent a default when no printer is flagged", () => {
+    expect(defaultPrinterFor(list, "sticker")).toBeUndefined();
   });
   it("undefined when none / empty", () => {
     expect(defaultPrinterFor([], "a4")).toBeUndefined();

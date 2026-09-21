@@ -23,6 +23,32 @@ describe('computeAbnormalFlags', () => {
       .toEqual({ p1: false });
   });
 
+  it('uses the exact substance standard before same-first-token standards', () => {
+    const densityParam = {
+      _id: 'density',
+      multiEntry: true,
+      valueFields: [{
+        label: 'ค่าถพ.',
+        type: 'float',
+        substanceMode: true,
+        substanceStandards: [
+          { substance: 'GLYPHOSATE 48% W/V SL (AM)', operator: 'between', value: 1.186, value2: 1.191 },
+          { substance: 'GLYPHOSATE 48% W/V SL (IPA)', operator: 'between', value: 1.155, value2: 1.187 },
+        ],
+      }],
+    };
+    const docs = [{
+      petitionId: 'p1',
+      parameterId: 'density',
+      itemSeq: 1,
+      commonName: 'GLYPHOSATE 48% W/V SL (IPA)',
+      entries: [{ 'ค่าถพ.::glyphosate': 1.1568 }],
+    }];
+
+    expect(computeAbnormalFlags({ docs, params: [densityParam], petitions: [petition] }))
+      .toEqual({ p1: false });
+  });
+
   it('reports false for a petition that has no results yet', () => {
     expect(computeAbnormalFlags({ docs: [], params: [], petitions: [petition] }))
       .toEqual({ p1: false });

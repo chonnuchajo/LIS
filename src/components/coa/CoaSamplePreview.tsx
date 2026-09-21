@@ -86,28 +86,28 @@ export default function CoaSamplePreview({
   const sample = sampleCoaPage.samples[0];
 
   return (
-    <section className={cn("rounded-md border border-sky-100 bg-white p-4 shadow-sm", className)}>
+    <section className={cn("rounded-lg border bg-card p-4 text-card-foreground shadow-sm", className)}>
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-sky-950">{title}</h2>
-        <p className="mt-1 text-sm text-sky-700">{description}</p>
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
 
       <div className="mb-4 grid gap-3 text-sm sm:grid-cols-3">
-        <div className="rounded-md bg-sky-50 p-3">
-          <div className="font-semibold text-sky-900">เลข COA</div>
-          <div className="mt-1 text-sky-700">{sampleCoaPage.coaNo}</div>
+        <div className="rounded-md bg-muted p-3">
+          <div className="font-semibold text-foreground">เลข COA</div>
+          <div className="mt-1 text-muted-foreground">{sampleCoaPage.coaNo}</div>
         </div>
-        <div className="rounded-md bg-sky-50 p-3">
-          <div className="font-semibold text-sky-900">สินค้า</div>
-          <div className="mt-1 text-sky-700">{sample.commonName}</div>
+        <div className="rounded-md bg-muted p-3">
+          <div className="font-semibold text-foreground">สินค้า</div>
+          <div className="mt-1 text-muted-foreground">{sample.commonName}</div>
         </div>
-        <div className="rounded-md bg-sky-50 p-3">
-          <div className="font-semibold text-sky-900">Batch</div>
-          <div className="mt-1 text-sky-700">{sample.batchNo}</div>
+        <div className="rounded-md bg-muted p-3">
+          <div className="font-semibold text-foreground">Batch</div>
+          <div className="mt-1 text-muted-foreground">{sample.batchNo}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-slate-200 bg-slate-100 p-4">
+      <div className="overflow-x-auto rounded-md border bg-muted p-4">
         <CoaReportTemplate pages={[sampleCoaPage]} />
       </div>
     </section>

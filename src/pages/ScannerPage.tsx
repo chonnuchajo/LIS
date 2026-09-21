@@ -11,42 +11,26 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { useAuth } from '@/hooks/useAuth';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { additionalSamplePayload, extractScannedCode, fetchPetitionByScannedCode, getScannedAdditionalSample, type AdditionalSampleRequest } from '@/lib/additionalSampleQr';
 
 const READER_ID = 'icp-qr-reader';
+const HARDWARE_SCAN_IDLE_MS = 250;
+const MIN_HARDWARE_SCAN_LENGTH = 3;
 type Phase = 'idle' | 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
 
-function extractScannedCode(raw: string): string {
-  const text = raw.trim();
-  if (!text) return '';
-
-  try {
-    const payload = JSON.parse(text) as { id?: unknown; petitionId?: unknown; petitionNo?: unknown; sampleId?: unknown };
-    const value = payload.id ?? payload.petitionId ?? payload.petitionNo ?? payload.sampleId;
-    if (value) return String(value).trim();
-  } catch {
-    // QR may be plain text or a URL.
-  }
-
-  try {
-    const url = new URL(text);
-    const parts = url.pathname.split('/').filter(Boolean);
-    return decodeURIComponent(parts[parts.length - 1] || text).trim();
-  } catch {
-    return text;
-  }
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
-async function fetchPetitionByScannedCode(code: string): Promise<Petition> {
-  try {
-    const res = await api.get<Petition>(`/petitions/scan/${encodeURIComponent(code)}`);
-    return res.data.data;
-  } catch (scanErr) {
-    const res = await api.get<Petition>(`/petitions/${encodeURIComponent(code)}`);
-    return res.data.data;
-  }
-}
 
-async function deliverPetition(id: string, actor?: string): Promise<Petition> {
+async function deliverPetition(id: string, actor?: string, request?: AdditionalSampleRequest | null): Promise<Petition> {
+  if (request) {
+    const response = await api.patch<Petition>(`/petitions/${id}/deliver`, { actor, ...additionalSamplePayload(request) });
+    return response.data.data;
+  }
   try {
     const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent', actor });
     return res.data.data;
@@ -61,9 +45,15 @@ export default function ScannerPage() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
+  const [additionalRequest, setAdditionalRequest] = useState<AdditionalSampleRequest | null>(null);
+  const scanBusy = useRef(false);
+  const deliveryBusy = useRef(false);
+  const deliveredRounds = useRef(new Set<string>());
   const [errorMsg, setErrorMsg] = useState('');
   const [manualCode, setManualCode] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const hardwareScanBufferRef = useRef('');
+  const hardwareScanTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (phase !== 'scanning') return;
@@ -125,18 +115,25 @@ export default function ScannerPage() {
 
   async function fetchAndConfirm(id: string) {
     const code = extractScannedCode(id);
-    if (!code) return;
+    if (!code || scanBusy.current) return;
+    scanBusy.current = true;
     setPendingId(code);
     setPhase('loading');
     try {
       const found = await fetchPetitionByScannedCode(code);
+      const request = getScannedAdditionalSample(found, code);
+      if (request && (request.status === 'sent' || deliveredRounds.current.has(request._id))) {
+        throw new Error('ตัวอย่างเพิ่มรอบนี้นำส่งแล้ว ไม่สามารถนำส่งซ้ำได้');
+      }
+      setAdditionalRequest(request ?? null);
       setPetition(found);
       setPendingId(found._id);
       setPhase('confirming');
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? 'ไม่พบข้อมูลคำร้อง กรุณาตรวจสอบรหัส';
+          ?.message ?? (err instanceof Error ? err.message : 'ไม่พบข้อมูลคำร้อง กรุณาตรวจสอบรหัส');
+      scanBusy.current = false;
       setErrorMsg(msg);
       setPhase('error');
     }
@@ -144,28 +141,81 @@ export default function ScannerPage() {
 
   async function confirmDeliver() {
     const id = petition?._id || pendingId;
-    if (!id) return;
+    if (!id || deliveryBusy.current || phase !== 'confirming') return;
+    deliveryBusy.current = true;
     setPhase('loading');
     try {
-      const delivered = await deliverPetition(id, user?.name || user?.email);
+      const delivered = await deliverPetition(id, user?.name || user?.email, additionalRequest);
+      if (additionalRequest) deliveredRounds.current.add(additionalRequest._id);
       setPetition(delivered);
       setPhase('success');
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+          ?.message ?? (err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+      scanBusy.current = false;
+      deliveryBusy.current = false;
       setErrorMsg(msg);
       setPhase('error');
     }
   }
 
   function reset() {
+    scanBusy.current = false;
+    deliveryBusy.current = false;
+    setAdditionalRequest(null);
     setPetition(null);
     setPendingId('');
     setErrorMsg('');
     setManualCode('');
     setPhase('idle');
   }
+
+  useEffect(() => {
+    const acceptingScan = phase === 'idle' || phase === 'no-camera' || phase === 'error';
+
+    const clearHardwareScanBuffer = () => {
+      hardwareScanBufferRef.current = '';
+      if (hardwareScanTimerRef.current) {
+        window.clearTimeout(hardwareScanTimerRef.current);
+        hardwareScanTimerRef.current = null;
+      }
+    };
+
+    if (!acceptingScan) {
+      clearHardwareScanBuffer();
+      return undefined;
+    }
+
+    const scheduleBufferClear = () => {
+      if (hardwareScanTimerRef.current) window.clearTimeout(hardwareScanTimerRef.current);
+      hardwareScanTimerRef.current = window.setTimeout(clearHardwareScanBuffer, HARDWARE_SCAN_IDLE_MS);
+    };
+
+    const handleHardwareScannerKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isEditableTarget(event.target)) return;
+
+      if (event.key === 'Enter') {
+        const code = hardwareScanBufferRef.current.trim();
+        clearHardwareScanBuffer();
+        if (code.length >= MIN_HARDWARE_SCAN_LENGTH) {
+          event.preventDefault();
+          fetchAndConfirm(code);
+        }
+        return;
+      }
+
+      if (event.ctrlKey || event.altKey || event.metaKey || event.key.length !== 1) return;
+      hardwareScanBufferRef.current += event.key;
+      scheduleBufferClear();
+    };
+
+    window.addEventListener('keydown', handleHardwareScannerKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleHardwareScannerKeyDown);
+      clearHardwareScanBuffer();
+    };
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== 'success') return;
@@ -188,7 +238,7 @@ export default function ScannerPage() {
           <h1 className="text-lg font-bold text-black-500">ส่งตัวอย่าง</h1>
         </div>
         <p className="mt-2 text-xs text-grey-500">
-          กดปุ่ม "สแกน QR Code" แล้วเล็งกล้องไปที่ QR Code บนใบคำร้องเพื่อยืนยันการส่งตัวอย่าง
+          ยิง QR Code ด้วยเครื่องสแกนเนอร์ได้ทันทีโดยไม่ต้องคลิกช่องเลขคำร้อง หรือกดปุ่มเพื่อใช้กล้อง
         </p>
       </div>
 
@@ -284,6 +334,14 @@ export default function ScannerPage() {
 
               <div className="border-t border-grey-100" />
 
+              {additionalRequest && (
+                <div className="rounded-lg border bg-card p-3 text-sm text-foreground space-y-1">
+                  <p className="font-semibold">ตัวอย่างเพิ่ม · {additionalRequest.side.toUpperCase()} · รอบ {petition.additionalSampleRequests?.findIndex((request) => request._id === additionalRequest._id) + 1}</p>
+                  <p className="whitespace-pre-wrap break-words">{additionalRequest.reason}</p>
+                  {additionalRequest.items.map((item) => <p key={item.itemSeq}>{petition.items.find((entry) => entry.seq === item.itemSeq)?.sampleName || `รายการ ${item.itemSeq}`} · จำนวน {item.quantity}</p>)}
+                </div>
+              )}
+
               <div className="flex gap-2 text-sm">
                 <User className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
                 <div>
@@ -294,10 +352,10 @@ export default function ScannerPage() {
 
               <div className="flex gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
-                <span className="text-grey-600">{petition.dept}</span>
+                <span className="text-grey-600">{petitionDepartmentLabel(petition)}</span>
               </div>
 
-              {petition.items.length > 0 && (
+              {!additionalRequest && petition.items.length > 0 && (
                 <div className="bg-grey-50 rounded-lg p-3 space-y-1">
                   <p className="text-xs font-medium text-grey-500 mb-1.5">
                     รายการตัวอย่าง ({petition.items.length} รายการ)
@@ -346,7 +404,7 @@ export default function ScannerPage() {
               <span className="font-semibold text-black-500">{petition.petitionNo}</span>
             </p>
             <p className="text-xs text-grey-400">
-              {petition.submittedBy?.name ?? '-'} · {petition.dept}
+              {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
             </p>
             <Button variant="primary" className="mt-2 w-full" onClick={reset}>
               กลับ

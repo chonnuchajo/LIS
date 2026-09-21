@@ -17,6 +17,7 @@ import {
   Settings,
   SlidersHorizontal,
   ShieldCheck,
+  UserCheck,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -28,8 +29,10 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
+  { icon: ShieldCheck, label: "Validation", path: "/validation" },
   { icon: Home, label: "หน้าแรก", path: "/home" },
   { icon: FileText, label: "รายการคำร้อง", path: "/petition" },
+  { icon: FlaskConical, label: "เงื่อนไขส่ง Lab", path: "/lab-send-conditions" },
   { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results" },
   { icon: ClipboardList, label: "ผลวิเคราะห์ Lab", path: "/lab-results" },
   { icon: FileCheck2, label: "ออกเอกสาร COA", path: "/coa" },
@@ -44,9 +47,11 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FlaskConical, label: "การทดสอบ QC", path: "/qc-testing" },
   { icon: FlaskConical, label: "การทดสอบ Lab", path: "/lab-testing" },
   { icon: Gauge, label: "ผล Density", path: "/density-results" },
+  { icon: UserCheck, label: "Assign Lab", path: "/petition/assign" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
+  { icon: FileText, label: "Full spec", path: "/full-spec" },
   { icon: Wrench, label: "รายการเครื่อง", path: "/machines" },
   { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: SlidersHorizontal, label: "พารามิเตอร์ตรวจสอบ", path: "/parameter-settings" },

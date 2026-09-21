@@ -19,6 +19,7 @@ import {
   type PetitionStatus,
 } from "@/types/petition.types";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
+import { rankSearchResults } from "@/lib/searchRanking";
 
 const EVENT_VARIANT: Record<PetitionAuditEvent, "gray-soft" | "primary-soft" | "yellow-soft" | "blue-soft" | "green-soft" | "red-soft"> = {
   created: "primary-soft",
@@ -65,17 +66,23 @@ const AdminData = () => {
       qcNote: approvals[s.id]?.qcNote,
     }));
 
-  const filtered = approvedRecords.filter(r =>
+  const filtered = rankSearchResults(approvedRecords.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase()) ||
     r.id.toLowerCase().includes(search.toLowerCase()) ||
     (r.receiver || "").toLowerCase().includes(search.toLowerCase())
-  );
+  ), search, (record) => ({
+    primary: [record.id || record.name],
+    secondary: [record.name, record.receiver],
+  }));
 
-  const filteredLogs = activeLogData.filter(l =>
+  const filteredLogs = rankSearchResults(activeLogData.filter(l =>
     l.sampleId.toLowerCase().includes(logSearch.toLowerCase()) ||
     l.drugName.toLowerCase().includes(logSearch.toLowerCase()) ||
     l.instrument.toLowerCase().includes(logSearch.toLowerCase())
-  );
+  ), logSearch, (log) => ({
+    primary: [log.sampleId, log.instrument],
+    secondary: [log.drugName],
+  }));
 
   const handleExport = () => {
     const headers = ["Sample ID", "ชื่อยา", "วันที่", "เวลา", "ผู้วิเคราะห์", "เครื่องมือ", "Density", "%AI", "Result", "QC", "หมายเหตุ QC"];

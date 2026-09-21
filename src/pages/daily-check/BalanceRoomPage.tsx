@@ -1,17 +1,15 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getDailyCheckTrend, type DailyCheckTrend } from '@/lib/aiApi';
-import { Scale, CheckCircle2, Clock, RotateCcw, List, ClipboardList, Filter } from "lucide-react";
+import { Scale, CheckCircle2, Clock, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api, type DailyCheckRecord } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { getCurrentDailyCheckPeriod, getDailyCheckPeriod, getDailyCheckPeriodLabel } from "@/lib/dailyCheckPeriod";
 
 interface ScaleDraft {
   weights100: [string, string, string];
@@ -41,11 +39,6 @@ const todayStr = () => {
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 
-const fmtDate = (s: string) => {
-  const [y, m, d] = s.split("-");
-  return `${d}/${m}/${y}`;
-};
-
 const emptyDraft = (): ScaleDraft => ({
   weights100: ["", "", ""],
   weights10: ["", "", ""],
@@ -57,6 +50,13 @@ const BalanceRoomPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const todayLabel = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+  const currentPeriod = getCurrentDailyCheckPeriod();
+  const currentPeriodLabel = getDailyCheckPeriodLabel(currentPeriod);
+  const currentPeriodHint = currentPeriod === "morning"
+    ? "08:00–12:00"
+    : currentPeriod === "afternoon"
+      ? "13:00–17:00"
+      : "เปิด 08:00–12:00 และ 13:00–17:00";
 
   const [drafts, setDrafts] = useState<Record<string, ScaleDraft>>({});
   const [consecutiveAlert, setConsecutiveAlert] = useState<DailyCheckTrend | null>(null);
@@ -67,11 +67,6 @@ const BalanceRoomPage = () => {
     getDailyCheckTrend({ type: 'consecutive', scaleId: sid, days: 7 }).then(setConsecutiveAlert);
   }, []);
 
-  // Filters
-  const [filterDate, setFilterDate] = useState<string>(todayStr());
-  const [filterScale, setFilterScale] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "pass" | "fail">("all");
-
   // วันนี้ (สำหรับแสดง record ของวันนี้บนการ์ดเช็ค)
   const { data: todayRecords = [] } = useQuery({
     queryKey: ["daily-checks", "today"],
@@ -79,24 +74,16 @@ const BalanceRoomPage = () => {
     refetchOnWindowFocus: true,
   });
 
-  // History (filtered)
-  const { data: historyRecords = [], isLoading: historyLoading } = useQuery({
-    queryKey: ["daily-checks", "history", filterDate, filterScale, filterStatus],
-    queryFn: () =>
-      api.getDailyChecks({
-        date: filterDate || todayStr(),
-        scaleId: filterScale === "all" ? undefined : filterScale,
-        status: filterStatus === "all" ? undefined : filterStatus,
-      }),
-  });
-
   const latestByScale = useMemo(() => {
     const map: Record<string, DailyCheckRecord> = {};
+    if (!currentPeriod) return map;
     for (const r of todayRecords) {
+      const recordPeriod = r.period ?? getDailyCheckPeriod(r.checkedAt);
+      if (recordPeriod !== currentPeriod) continue;
       if (!map[r.scaleId]) map[r.scaleId] = r;
     }
     return map;
-  }, [todayRecords]);
+  }, [todayRecords, currentPeriod]);
 
   const createMutation = useMutation({
     mutationFn: api.createDailyCheck,
@@ -142,6 +129,10 @@ const BalanceRoomPage = () => {
     Math.abs(avg - target) <= TOLERANCE ? "pass" : "fail";
 
   const handleCheck = (id: string) => {
+    if (!currentPeriod) {
+      toast.error("Daily Check บันทึกได้เฉพาะช่วงเช้า 08:00-12:00 หรือบ่าย 13:00-17:00");
+      return;
+    }
     const r = getDraft(id);
     if (r.weights100.some(v => !v) || r.weights10.some(v => !v)) {
       toast.error("กรุณากรอกค่าน้ำหนักให้ครบทั้ง 6 ค่า");
@@ -190,9 +181,12 @@ const BalanceRoomPage = () => {
           <h2 className="text-lg font-semibold text-foreground">
             ห้องเครื่องชั่ง — Calibrate เครื่องชั่ง
           </h2>
-          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel}</p>
+          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel} · รอบ{currentPeriodLabel} ({currentPeriodHint})</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
+            รอบ{currentPeriodLabel}
+          </Badge>
           <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
             <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
           </Badge>
@@ -209,18 +203,7 @@ const BalanceRoomPage = () => {
         </div>
       )}
 
-      <Tabs defaultValue="check" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="check" className="gap-1.5">
-            <ClipboardList className="w-4 h-4" /> บันทึกผล
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-1.5">
-            <List className="w-4 h-4" /> รายการบันทึก
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="check">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {SCALES.map(scale => {
               const todayRec = latestByScale[scale.id];
               const r = getDraft(scale.id);
@@ -269,7 +252,7 @@ const BalanceRoomPage = () => {
                             placeholder={showResult && todayRec ? todayRec.weights100[i] : `ครั้งที่ ${i + 1}`}
                             value={r.weights100[i]}
                             onChange={e => updateWeight(scale.id, "100", i, e.target.value)}
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || !currentPeriod}
                             className="text-xs h-8"
                           />
                         ))}
@@ -297,7 +280,7 @@ const BalanceRoomPage = () => {
                             placeholder={showResult && todayRec ? todayRec.weights10[i] : `ครั้งที่ ${i + 1}`}
                             value={r.weights10[i]}
                             onChange={e => updateWeight(scale.id, "10", i, e.target.value)}
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || !currentPeriod}
                             className="text-xs h-8"
                           />
                         ))}
@@ -313,7 +296,7 @@ const BalanceRoomPage = () => {
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">ผู้บันทึก</label>
                       <Input
-                        value={user?.name ?? ""}
+                        value={showResult && todayRec ? todayRec.recorder : (user?.name ?? "")}
                         readOnly
                         disabled
                         className="text-xs h-8 bg-muted/40"
@@ -328,143 +311,21 @@ const BalanceRoomPage = () => {
                       <Button
                         className="w-full gap-2"
                         onClick={() => handleCheck(scale.id)}
-                        disabled={createMutation.isPending}
+                        disabled={createMutation.isPending || !currentPeriod}
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        {createMutation.isPending && createMutation.variables?.scaleId === scale.id ? "กำลังบันทึก..." : "บันทึกผล Calibrate"}
+                        {!currentPeriod
+                          ? "นอกเวลาบันทึก"
+                          : createMutation.isPending && createMutation.variables?.scaleId === scale.id
+                            ? "กำลังบันทึก..."
+                            : "บันทึกผล Calibrate"}
                       </Button>
                     )}
                   </CardContent>
                 </Card>
               );
             })}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="history">
-          <Card>
-            <CardHeader className="space-y-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <List className="w-4 h-4 text-primary" />
-                ประวัติการ Calibrate
-              </CardTitle>
-
-              {/* Filters */}
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Filter className="w-3 h-3" /> วันที่
-                  </label>
-                  <Input
-                    type="date"
-                    value={filterDate}
-                    onChange={e => setFilterDate(e.target.value)}
-                    className="h-8 text-xs w-[160px]"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] text-muted-foreground">เครื่องชั่ง</label>
-                  <Select value={filterScale} onValueChange={setFilterScale}>
-                    <SelectTrigger className="h-8 text-xs w-[160px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">ทั้งหมด</SelectItem>
-                      {SCALES.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] text-muted-foreground">สถานะ</label>
-                  <Select value={filterStatus} onValueChange={v => setFilterStatus(v as "all" | "pass" | "fail")}>
-                    <SelectTrigger className="h-8 text-xs w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">ทั้งหมด</SelectItem>
-                      <SelectItem value="pass">ผ่าน</SelectItem>
-                      <SelectItem value="fail">ไม่ผ่าน</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => {
-                    setFilterDate(todayStr());
-                    setFilterScale("all");
-                    setFilterStatus("all");
-                  }}
-                >
-                  รีเซ็ตตัวกรอง
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {historyLoading ? (
-                <p className="text-sm text-muted-foreground text-center py-8">กำลังโหลด...</p>
-              ) : historyRecords.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">ไม่พบรายการในช่วงที่เลือก</p>
-              ) : (
-                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                  <Table className="min-w-[1000px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>วันที่</TableHead>
-                        <TableHead>เวลา</TableHead>
-                        <TableHead>เครื่องชั่ง</TableHead>
-                        <TableHead className="text-center">100g #1</TableHead>
-                        <TableHead className="text-center">100g #2</TableHead>
-                        <TableHead className="text-center">100g #3</TableHead>
-                        <TableHead className="text-center">เฉลี่ย 100g</TableHead>
-                        <TableHead className="text-center">10g #1</TableHead>
-                        <TableHead className="text-center">10g #2</TableHead>
-                        <TableHead className="text-center">10g #3</TableHead>
-                        <TableHead className="text-center">เฉลี่ย 10g</TableHead>
-                        <TableHead className="text-center">สถานะ</TableHead>
-                        <TableHead>ผู้บันทึก</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {historyRecords.map(h => {
-                        const allPass = h.status === "pass";
-                        return (
-                          <TableRow key={h._id}>
-                            <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.date)}</TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{fmtTime(h.checkedAt)}</TableCell>
-                            <TableCell className="font-medium whitespace-nowrap">{h.scaleName}</TableCell>
-                            {[0, 1, 2].map(i => (
-                              <TableCell key={`100-${i}`} className="text-center text-xs">{h.weights100[i]}</TableCell>
-                            ))}
-                            <TableCell className={`text-center text-xs font-semibold ${h.status100 === "pass" ? "text-green-600" : "text-red-600"}`}>
-                              {h.avg100.toFixed(4)}
-                            </TableCell>
-                            {[0, 1, 2].map(i => (
-                              <TableCell key={`10-${i}`} className="text-center text-xs">{h.weights10[i]}</TableCell>
-                            ))}
-                            <TableCell className={`text-center text-xs font-semibold ${h.status10 === "pass" ? "text-green-600" : "text-red-600"}`}>
-                              {h.avg10.toFixed(4)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge className={`text-xs ${allPass ? "bg-green-100 text-green-700 border-green-300" : "bg-red-100 text-red-700 border-red-300"}`}>
-                                {allPass ? "ผ่าน" : "ไม่ผ่าน"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{h.recorder}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
     </>
   );
 };

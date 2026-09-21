@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const ResultDensity = require('../models/ResultDensity');
-const { batchMatches } = require('../lib/densityBatch');
+const { batchMatches, withDensityBatch } = require('../lib/densityBatch');
 const { sortLatestDensities } = require('../lib/resultDensitySort');
+const { rankSearchResults } = require('../lib/searchRanking');
 const { triggerDensitySync } = require('../lib/densitySyncTrigger');
 
 // POST /api/result-densities/sync — fire the n8n webhook that pulls fresh DMA 501
@@ -28,15 +29,14 @@ router.get('/products', async (req, res) => {
   }
 });
 
-// GET /api/result-densities/by-batch/:batch — rows whose Sample name exactly
-// matches :batch. Matching is done in JS via batchMatches so the rule is
-// identical to the unit-tested helper.
+// GET /api/result-densities/by-batch/:batch — rows whose displayed Batch column
+// matches :batch. Matching is done in JS via batchMatches so it is unit-tested.
 router.get('/by-batch/:batch', async (req, res) => {
   try {
     const batch = String(req.params.batch || '').trim();
     if (!batch) return res.json({ batch, docs: [] });
-    const all = await ResultDensity.find({}).sort({ _id: 1 }).lean();
-    const docs = all.filter((d) => batchMatches(batch, d['Sample name']));
+    const all = (await ResultDensity.find({}).sort({ _id: 1 }).lean()).map(withDensityBatch);
+    const docs = all.filter((d) => batchMatches(batch, d));
     res.json({ batch, docs });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -76,7 +76,10 @@ router.get('/', async (req, res) => {
       filter['Date & time'] = { $regex: `^${formatted.replace(/\//g, '\\/')}` };
     }
 
-    const allDocs = sortLatestDensities(await ResultDensity.find(filter).lean());
+    const latestDocs = sortLatestDensities(await ResultDensity.find(filter).lean()).map(withDensityBatch);
+    const allDocs = search ? rankSearchResults(latestDocs, search, (row) => ({
+      primary: [row['Sample ID']], secondary: [row['Sample name']],
+    })) : latestDocs;
     const total = allDocs.length;
     const docs = allDocs.slice(skip, skip + limit);
 

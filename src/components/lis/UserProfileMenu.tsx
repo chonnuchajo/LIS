@@ -1,11 +1,18 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, LogOut, User, UserPlus, Users } from "lucide-react";
+import { Check, LogOut, Settings, User, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeRoles } from "@/lib/roles";
+import ProfileSettingsDialog from "./ProfileSettingsDialog";
+import {
+  SIGNATURE_DEVICE_UNSUPPORTED_MESSAGE,
+  canManageSignature,
+  isSignatureDeviceSupported,
+} from "@/lib/signatureAccess";
 import { cn } from "@/lib/utils";
 
 interface UserProfileMenuProps {
@@ -18,6 +25,8 @@ const getInitial = (name?: string, email?: string) =>
 const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
   const navigate = useNavigate();
   const { user, logout, isPwa = false, accounts = [], activeAccountId, switchAccount, addAccount } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (!user) return null;
 
@@ -26,6 +35,7 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
   const roleLabel = roles.length > 0 ? roles.join(", ") : "No role";
   const assignment = [user.department, user.position].filter(Boolean).join(" / ") || "Unassigned";
   const showAccountSwitcher = isPwa && accounts.length > 0;
+  const showSignatureAction = canManageSignature(roles);
 
   const handleSwitchAccount = (accountId: string) => {
     if (accountId === activeAccountId) return;
@@ -46,27 +56,42 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
     navigate("/login", { replace: true });
   };
 
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="User profile"
-          className={cn(
-            "inline-flex size-10 items-center justify-center rounded-full border border-border bg-background hover:bg-accent transition-colors",
-            className,
-          )}
-        >
-          <Avatar className="size-8">
-            {user.photoUrl ? <AvatarImage src={user.photoUrl} alt={displayName} /> : null}
-            <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-              {user.photoUrl ? <User /> : getInitial(user.name, user.email)}
-            </AvatarFallback>
-          </Avatar>
-        </button>
-      </PopoverTrigger>
+  const handleAddSignature = () => {
+    if (!isSignatureDeviceSupported()) {
+      toast.error(SIGNATURE_DEVICE_UNSUPPORTED_MESSAGE);
+      return;
+    }
+    setSettingsOpen(false);
+    navigate("/profile/signature");
+  };
 
-      <PopoverContent align="end" className="w-72 p-0">
+  const handleOpenSettings = () => {
+    setProfileOpen(false);
+    setSettingsOpen(true);
+  };
+
+  return (
+    <>
+      <Popover open={profileOpen} onOpenChange={setProfileOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="User profile"
+            className={cn(
+              "inline-flex size-10 items-center justify-center rounded-full border border-border bg-background hover:bg-accent transition-colors",
+              className,
+            )}
+          >
+            <Avatar className="size-8">
+              {user.photoUrl ? <AvatarImage src={user.photoUrl} alt={displayName} /> : null}
+              <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+                {user.photoUrl ? <User /> : getInitial(user.name, user.email)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </PopoverTrigger>
+
+        <PopoverContent align="end" className="w-72 p-0">
         <div className="flex items-center gap-3 border-b p-4">
           <Avatar className="size-10">
             {user.photoUrl ? <AvatarImage src={user.photoUrl} alt={displayName} /> : null}
@@ -143,6 +168,13 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
         )}
 
         <div className="border-t p-2">
+          <Button type="button" variant="ghost" className="w-full justify-start" onClick={handleOpenSettings}>
+            <Settings />
+            ตั้งค่า
+          </Button>
+        </div>
+
+        <div className="border-t p-2">
           <Button
             type="button"
             variant="ghost"
@@ -153,8 +185,15 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
             Sign out
           </Button>
         </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+      <ProfileSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        showSignatureAction={showSignatureAction}
+        onAddSignature={handleAddSignature}
+      />
+    </>
   );
 };
 

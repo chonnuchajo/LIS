@@ -111,6 +111,26 @@ describe("LabelToleranceDialog", () => {
     ]);
   });
 
+  it("ranks item codes before the datalist limit without changing the selected substance", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => ({
+      data: { data: path === "/master-items" ? [
+        ...Array.from({ length: 300 }, (_, index) => ({
+          item_no: `AA-${index}`, common_name: `A rising ${index}`,
+        })),
+        { item_no: "RI", common_name: "Z exact" },
+      ] : [] },
+    }));
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มกฎ" }));
+    await waitFor(() => expect(document.querySelectorAll("datalist option")).toHaveLength(300));
+    expect(document.querySelector('datalist option[value="Z exact"]')).toBeNull();
+    const input = screen.getByPlaceholderText("เช่น ABAMECTIN");
+    fireEvent.change(input, { target: { value: "ri" } });
+    expect(document.querySelector("datalist option")).toHaveAttribute("value", "Z exact");
+    expect(document.querySelectorAll("datalist option")).toHaveLength(300);
+    expect(input).toHaveValue("ri");
+  });
+
   it("opens existing rules collapsed", async () => {
     renderDialog(undefined, [
       {

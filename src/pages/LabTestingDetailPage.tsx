@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FlaskConical,
@@ -24,7 +24,7 @@ import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal, resolveLabelTolerance } from '@/lib/parameterValidation';
-import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
+import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY, readSpecificGravityEntryValue } from '@/lib/formSpecificGravity';
 import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
 import { describeResolvedStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -33,11 +33,14 @@ import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
+import AdditionalSampleRequestDialog from '@/components/petition/AdditionalSampleRequestDialog';
+import { createResultAutosaveQueue, currentSampleResults, pendingAdditionalSample, sampleRoundFor, sampleRoundIdFor } from '@/lib/additionalSamples';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import {
-  PETITION_DEPT_LABELS,
   type Petition,
+  type AdditionalSampleRequest,
   type PetitionItem,
   type PetitionPhase,
   type QCTestResult,
@@ -70,9 +73,6 @@ function formatTime(d: Date | string | undefined) {
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
-
-const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
-
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
@@ -135,7 +135,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  return formatLabelToleranceRange(rv, unit).replace(/^หัวหน้าตรวจสอบ/, 'เกณฑ์กลาง');
+  return formatLabelToleranceRange(rv, unit);
 }
 
 interface TestFieldProps {
@@ -192,14 +192,14 @@ function TestField({
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <label className="text-sm font-medium text-grey-700">
+        <label className="text-sm font-medium text-foreground">
           {field.label}
-          {field.unit && <span className="text-grey-400 font-normal ml-1">({field.unit})</span>}
+          {field.unit && <span className="text-muted-foreground font-normal ml-1">({field.unit})</span>}
           {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
         </label>
         {headerMeta}
         {!readOnly && saveInfo?.state === 'saved' && saveInfo.savedBy && (
-          <span className="text-xs text-grey-400">
+          <span className="text-xs text-muted-foreground">
             กรอกโดย {saveInfo.savedBy} เมื่อ {formatTime(saveInfo.savedAt)}
           </span>
         )}
@@ -218,7 +218,7 @@ function TestField({
           </span>
         )}
         {!readOnly && saveInfo?.state === 'saving' && (
-          <Loader2 className="h-3 w-3 animate-spin text-grey-400" />
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         )}
         {!readOnly && saveInfo?.state === 'saved' && (
           <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -240,7 +240,7 @@ function TestField({
             className={cn(
               'h-8 text-sm',
               isAbnormal && 'border-red-400 ring-1 ring-red-200',
-              readOnly && 'bg-grey-50 cursor-default',
+              readOnly && 'bg-muted cursor-default',
             )}
           >
             <SelectValue placeholder="เลือกค่า..." />
@@ -266,7 +266,7 @@ function TestField({
           </SelectContent>
         </Select>
       ) : field.type === 'photo' ? (
-        <div className="text-xs text-grey-400 italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
+        <div className="text-xs text-muted-foreground italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
       ) : (
         <div className="flex items-center gap-2">
           <Input
@@ -284,7 +284,7 @@ function TestField({
             className={cn(
               'h-8 text-sm',
               isAbnormal && 'border-red-400 ring-1 ring-red-200',
-              readOnly && 'bg-grey-50 cursor-default',
+              readOnly && 'bg-muted cursor-default',
             )}
             placeholder={
               field.standardOperator
@@ -306,11 +306,11 @@ function TestField({
       )}
 
       {customText && (
-        <p className="text-[11px] text-grey-600">ℹ️ {customText}</p>
+        <p className="text-[11px] text-muted-foreground">ℹ️ {customText}</p>
       )}
 
       {outputResult && outputResult.text && (
-        <p className={cn('text-[11px]', outputResult.kind === 'abnormal' ? 'text-red-600' : 'text-emerald-700')}>
+        <p className={cn('text-[11px]', outputResult.kind === 'abnormal' ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-300')}>
           ผลลัพธ์: {outputResult.text}
         </p>
       )}
@@ -337,13 +337,13 @@ function TestField({
       ) : null}
 
       {showNote && !readOnly && (
-        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 space-y-1">
+        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 space-y-1">
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-amber-800">
               คำอธิบาย / หมายเหตุ <span className="text-red-500">*</span>
             </label>
             {noteSaveInfo?.state === 'saving' && (
-              <Loader2 className="h-3 w-3 animate-spin text-grey-400" />
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
             )}
             {noteSaveInfo?.state === 'saved' && (
               <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -357,10 +357,10 @@ function TestField({
             onChange={(e) => onNoteChange(e.target.value)}
             disabled={effectivelyDisabled}
             placeholder={`อธิบายเพิ่มเติมเมื่อเลือก "${strVal}"`}
-            className="w-full text-sm rounded border border-amber-300 bg-white px-2 py-1 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-grey-50 disabled:cursor-not-allowed"
+            className="w-full text-sm rounded border border-amber-500/40 bg-background px-2 py-1 min-h-[60px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-muted disabled:cursor-not-allowed"
           />
           {noteSaveInfo?.state === 'saved' && noteSaveInfo.savedBy && (
-            <p className="text-xs text-amber-700">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
               กรอกโดย {noteSaveInfo.savedBy} เมื่อ {formatTime(noteSaveInfo.savedAt)}
             </p>
           )}
@@ -381,7 +381,20 @@ export default function LabTestingDetailPage() {
   const confirm = useConfirm();
   const flashClass = useArrivalFlash();
 
-  const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  const { data: fetchedPetition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  const [requestedPetition, setRequestedPetition] = useState<Petition | null>(null);
+  const petition = requestedPetition && requestedPetition._id === fetchedPetition?._id
+    && Date.parse(requestedPetition.updatedAt) >= Date.parse(fetchedPetition.updatedAt)
+    ? requestedPetition : fetchedPetition;
+  const [additionalSampleOpen, setAdditionalSampleOpen] = useState(false);
+  const pendingSample = pendingAdditionalSample(petition, 'lab');
+  const roundsKey = JSON.stringify(petition?.additionalSampleRequests ?? []);
+  const roundRequests = useMemo(() => JSON.parse(roundsKey) as AdditionalSampleRequest[], [roundsKey]);
+  const resultsKey = id + ':' + roundsKey;
+  const [loadedResultsKey, setLoadedResultsKey] = useState('');
+  const resultLoad = useRef(0);
+  const currentPetitionPhase = petition?.currentPhase ?? 1;
+  const [selectedRoundPhases, setSelectedRoundPhases] = useState<Record<string, PetitionPhase>>({});
   const petitionCategory = getPetitionCategory(petition);
   const { data: worklistData } = usePetitionList({
     status: 'pendingReview,inProgress',
@@ -415,7 +428,8 @@ export default function LabTestingDetailPage() {
   const [wasReturned, setWasReturned] = useState(false);
   const [redoExplanation, setRedoExplanation] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
-  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const autosaves = useMemo(createResultAutosaveQueue, [id]);
+  useEffect(() => () => { void autosaves.flush().catch(() => {}); }, [autosaves]);
 
   // Load all parameters, filter for Lab scope + shared QC params
   useEffect(() => {
@@ -453,9 +467,8 @@ export default function LabTestingDetailPage() {
 
   // Default the visible phase tab to the petition's current phase
   useEffect(() => {
-    if (!petition) return;
-    setSelectedPhase((petition.currentPhase ?? 1) as PetitionPhase);
-  }, [petition?._id, petition?.currentPhase]);
+    setSelectedPhase(currentPetitionPhase);
+  }, [id, currentPetitionPhase]);
 
   // Detect if this petition was previously sent back from QC Approval
   useEffect(() => {
@@ -471,7 +484,10 @@ export default function LabTestingDetailPage() {
   }, [petition?._id]);
 
   const loadResults = useCallback((petitionId: string) => {
-    return api.getQCResults(petitionId).then((results) => {
+    const load = ++resultLoad.current;
+    return api.getQCResults(petitionId).then((allResults) => {
+      if (load !== resultLoad.current) return;
+      const results = currentSampleResults({ additionalSampleRequests: roundRequests }, allResults, allParameters);
       setSavedResults(results);
       const v: Record<string, Record<string, unknown>> = {};
       const v2: Record<string, Record<string, unknown>> = {};
@@ -500,13 +516,15 @@ export default function LabTestingDetailPage() {
       setEntriesByKey(en);
       setSaveStates(s);
       setSaveStatesPhase2(s2);
+      setLoadedResultsKey(resultsKey);
     }).catch(() => {});
-  }, []);
+  }, [roundRequests, allParameters, resultsKey]);
 
   useEffect(() => {
-    if (!id) return;
-    loadResults(id);
-  }, [id, loadResults]);
+    if (!id || !allParameters.length) return;
+    void loadResults(id);
+    return () => { resultLoad.current += 1; };
+  }, [id, loadResults, allParameters.length]);
 
   const handleFieldChange = useCallback(
     (
@@ -517,6 +535,8 @@ export default function LabTestingDetailPage() {
       newVal: unknown,
       phase: PetitionPhase = 1,
     ) => {
+      if (pendingAdditionalSample(petition, 'lab') || additionalSampleOpen || submitting) return;
+      if (phase === 2 && ((sampleRoundFor(petition, 'lab', item.seq) ?? petition).currentPhase ?? 1) === 1) return;
       const k = resultKey(item.seq, param._id!);
 
       advanceToInProgress();
@@ -535,13 +555,13 @@ export default function LabTestingDetailPage() {
       }));
 
       const debounceKey = `${k}__${fieldLabel}__p${phase}`;
-      clearTimeout(debounceRefs.current[debounceKey]);
-      debounceRefs.current[debounceKey] = setTimeout(async () => {
+      autosaves.schedule(debounceKey, async () => {
         try {
           await api.saveQCResult({
             petitionId: petition._id!,
             petitionNo: petition.petitionNo,
             itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'lab', item.seq),
             sampleId: item.sampleId,
             sampleName: item.sampleName,
             parameterId: param._id!,
@@ -566,15 +586,16 @@ export default function LabTestingDetailPage() {
               },
             },
           }));
-        } catch {
+        } catch (error) {
           setStatesFn((prev) => ({
             ...prev,
             [k]: { ...(prev[k] ?? {}), [fieldLabel]: { state: 'error' } },
           }));
+          throw error;
         }
-      }, 800);
+      }, k);
     },
-    [user, advanceToInProgress],
+    [user, advanceToInProgress, autosaves, additionalSampleOpen, submitting],
   );
 
   // multiEntry write: field write into entry `entryIndex` of a multiEntry param.
@@ -588,6 +609,7 @@ export default function LabTestingDetailPage() {
       fieldLabel: string,
       newVal: unknown,
     ) => {
+      if (pendingAdditionalSample(petition, 'lab') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       advanceToInProgress();
 
@@ -599,13 +621,13 @@ export default function LabTestingDetailPage() {
       });
 
       const debounceKey = `${k}__entry${entryIndex}__${fieldLabel}`;
-      clearTimeout(debounceRefs.current[debounceKey]);
-      debounceRefs.current[debounceKey] = setTimeout(async () => {
+      autosaves.schedule(debounceKey, async () => {
         try {
           await api.saveQCResult({
             petitionId: petition._id!,
             petitionNo: petition.petitionNo,
             itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'lab', item.seq),
             sampleId: item.sampleId,
             sampleName: item.sampleName,
             parameterId: param._id!,
@@ -616,12 +638,13 @@ export default function LabTestingDetailPage() {
             enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
           });
           if (id) await loadResults(id);
-        } catch {
+        } catch (error) {
           toast.error('บันทึกค่าไม่สำเร็จ');
+          throw error;
         }
-      }, 800);
+      }, k);
     },
-    [user, advanceToInProgress, id, loadResults],
+    [user, advanceToInProgress, id, loadResults, autosaves, additionalSampleOpen, submitting],
   );
 
   // multiEntry remove: trim entry `entryIndex` then persist the whole array.
@@ -632,35 +655,39 @@ export default function LabTestingDetailPage() {
       param: ParameterItem,
       entryIndex: number,
     ) => {
+      if (pendingAdditionalSample(petition, 'lab') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       const current = getEntryValues({ entries: entriesByKey[k] }, param);
       const trimmed = current.filter((_, i) => i !== entryIndex);
       setEntriesByKey((prev) => ({ ...prev, [k]: trimmed.map((e) => ({ ...(e ?? {}) })) }));
       try {
-        await api.saveQCEntries({
-          petitionId: petition._id!,
-          petitionNo: petition.petitionNo,
-          itemSeq: item.seq,
-          sampleId: item.sampleId,
-          sampleName: item.sampleName,
-          parameterId: param._id!,
-          parameterName: param.name,
-          entries: trimmed,
-          enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+        await autosaves.run(k, async () => {
+          await api.saveQCEntries({
+            petitionId: petition._id!,
+            petitionNo: petition.petitionNo,
+            itemSeq: item.seq,
+            sampleRoundId: sampleRoundIdFor(petition, 'lab', item.seq),
+            sampleId: item.sampleId,
+            sampleName: item.sampleName,
+            parameterId: param._id!,
+            parameterName: param.name,
+            entries: trimmed,
+            enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+          });
         });
         if (id) await loadResults(id);
       } catch {
         toast.error('ลบรายการไม่สำเร็จ');
       }
     },
-    [user, entriesByKey, id, loadResults],
+    [user, entriesByKey, id, loadResults, autosaves, additionalSampleOpen, submitting],
   );
 
   if (petitionLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       </AppLayout>
     );
@@ -669,7 +696,7 @@ export default function LabTestingDetailPage() {
   if (petitionError || !petition) {
     return (
       <AppLayout>
-        <div className="text-center text-grey-500">
+        <div className="text-center text-muted-foreground">
           {petitionError || 'ไม่พบข้อมูลคำร้อง'}
         </div>
       </AppLayout>
@@ -681,7 +708,7 @@ export default function LabTestingDetailPage() {
   // Items with no Lab-readable params should not appear here.
   const allLabBatchItems = isResearchAndDevelopmentPetition(petition)
     ? (petition.items ?? [])
-    : (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+    : (petition.items ?? []).filter((it) => shouldSendItemToLab(it));
   const labItems = paramsLoaded
     ? allLabBatchItems.filter(
         (it) => matchLabParametersForItem(petition, it, allParameters, idsFor(it)).length > 0,
@@ -694,10 +721,16 @@ export default function LabTestingDetailPage() {
   );
   const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
   // If user hasn't picked a tab, default to current phase
-  const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
+  const effectivePhaseForItem = (item: PetitionItem): PetitionPhase => {
+    if (!hasAnyPhasedParam) return 1;
+    const round = sampleRoundFor(petition, 'lab', item.seq);
+    return round ? selectedRoundPhases[round._id + ':' + item.seq] ?? round.currentPhase ?? 1 : selectedPhase;
+  };
 
-  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] =>
-    visibleFieldsForPhase(param, phase, petition.phase2TriggeredBy?.parameterId);
+  const visibleFields = (param: ParameterItem, phase: PetitionPhase, item: PetitionItem): ParameterValueField[] => {
+    const phaseState = sampleRoundFor(petition, param.scope ?? 'qc', item.seq) ?? petition;
+    return visibleFieldsForPhase(param, phase, phaseState.phase2TriggeredBy?.parameterId);
+  };
 
   const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
   const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
@@ -728,19 +761,29 @@ export default function LabTestingDetailPage() {
     fieldsToScan: ParameterValueField[],
     item: PetitionItem,
     src: Record<string, unknown>,
+    parameterId: string,
+    phase: PetitionPhase = 1,
   ): number => {
+    const prefix = item.seq + '__';
+    const context: ConditionContext = {
+      sameParam: src,
+      otherParams: Object.fromEntries(Object.entries(valuesForPhase(phase))
+        .filter(([key]) => key.startsWith(prefix) && key !== resultKey(item.seq, parameterId))
+        .map(([key, value]) => [key.slice(prefix.length), value])),
+    };
     let count = 0;
     fieldsToScan.forEach((field) => {
       expandFieldForItem(field, item.commonName, { category: petitionCategory }).forEach((unit) => {
         if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
-          if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
+          if (isConditionalOutputAbnormal(unit.field, context)) count += 1;
           return;
         }
+        const field = unit.field.conditionalMode ? resolveFieldStandard(unit.field, context) : unit.field;
         if (unit.field.multiple) {
           readMultiple(src, unit.key).forEach((v) => {
-            if (isFieldAbnormal(unit.field, v)) count += 1;
+            if (isFieldAbnormal(field, v)) count += 1;
           });
-        } else if (isFieldAbnormal(unit.field, src[unit.key])) {
+        } else if (isFieldAbnormal(field, src[unit.key])) {
           count += 1;
         }
       });
@@ -755,19 +798,19 @@ export default function LabTestingDetailPage() {
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // skip read-only shared QC params
         const k = resultKey(item.seq, param._id!);
-        const p1Fields = visibleFields(param, 1);
+        const p1Fields = visibleFields(param, 1, item);
         // multiEntry: scan every entry; otherwise the flat phase-1 dict.
         if (param.multiEntry) {
           getEntryValues({ entries: entriesByKey[k] }, param).forEach((entryValues) => {
-            count += countAbnormalInValues(p1Fields, item, entryValues);
+            count += countAbnormalInValues(p1Fields, item, entryValues, param._id!);
           });
         } else {
-          count += countAbnormalInValues(p1Fields, item, values[k] ?? {});
+          count += countAbnormalInValues(p1Fields, item, values[k] ?? {}, param._id!);
         }
         // Check Phase 2 values for both/after fields if phased
         if (hasAnyPhasedParam) {
           const p2Values = valuesPhase2[k] ?? {};
-          count += countAbnormalInValues(visibleFields(param, 2), item, p2Values);
+          count += countAbnormalInValues(visibleFields(param, 2, item), item, p2Values, param._id!, 2);
         }
       });
     });
@@ -776,10 +819,11 @@ export default function LabTestingDetailPage() {
   const abnormalCount = countAbnormal();
 
   // Validate the currently-active phase only — Phase 2 submit doesn't require Phase 1 re-edit.
-  const validate = (phaseToCheck: PetitionPhase): string[] => {
+  const validate = (): string[] => {
     const missing: string[] = [];
-    const phaseValues = valuesForPhase(phaseToCheck);
     labItems.forEach((item) => {
+      const phaseToCheck = effectivePhaseForItem(item);
+      const phaseValues = valuesForPhase(phaseToCheck);
       const matched = matchLabParametersForItem(petition, item, allParameters, idsFor(item));
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // only validate Lab-owned params
@@ -793,7 +837,7 @@ export default function LabTestingDetailPage() {
                 suffix: ` (รายการที่ ${i + 1})`,
               }))
             : [{ values: phaseValues[k] ?? {}, suffix: '' }];
-        visibleFields(param, phaseToCheck).forEach((field) => {
+        visibleFields(param, phaseToCheck, item).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
           expandFieldForItem(field, item.commonName, { category: petitionCategory }).forEach((unit) => {
             valueObjs.forEach(({ values: itemValues, suffix }) => {
@@ -831,17 +875,25 @@ export default function LabTestingDetailPage() {
   };
 
   // required ครบทุกช่องของ phase ปัจจุบัน → ปุ่มเปลี่ยนจาก "บันทึกแบบร่าง" เป็น "บันทึก" (ปิด track)
-  const isComplete = validate(effectivePhase).length === 0;
+  const isComplete = validate().length === 0;
 
-  const handleSaveDraft = () => {
-    toast.success('บันทึกแบบร่างเรียบร้อย', {
-      description: 'ค่าที่กรอกถูกบันทึกอัตโนมัติแล้ว',
-    });
-    navigate('/lab-testing');
+  const handleSaveDraft = async () => {
+    if (pendingSample || submitting) return;
+    setSubmitting(true);
+    try {
+      await autosaves.flush();
+      toast.success('บันทึกแบบร่างเรียบร้อย');
+      navigate('/lab-testing');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'บันทึกผลไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSubmitResult = async () => {
-    const missing = validate(effectivePhase);
+    if (pendingSample || submitting || additionalSampleOpen || loadedResultsKey !== resultsKey) return;
+    const missing = validate();
     if (missing.length > 0) {
       toast.error('กรอกข้อมูลไม่ครบ', {
         description: `ขาด ${missing.length} ช่อง:\n${missing.slice(0, 5).join('\n')}${missing.length > 5 ? `\n…และอีก ${missing.length - 5}` : ''}`,
@@ -863,6 +915,7 @@ export default function LabTestingDetailPage() {
     if (!ok) return;
     setSubmitting(true);
     try {
+      await autosaves.flush();
       const updated = await api.completePetitionTrack(
         petition._id,
         'lab',
@@ -885,11 +938,11 @@ export default function LabTestingDetailPage() {
 
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
-  const isLocked = petition.status === 'success' || !!petition.labCompletedAt || !isAssigned;
+  const isLocked = petition.status === 'success' || !!petition.labCompletedAt || !isAssigned || !!pendingSample;
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
       (it) =>
-        (isResearchAndDevelopmentPetition(p) || isLabBatchNo(it.batchNo)) &&
+        (isResearchAndDevelopmentPetition(p) || shouldSendItemToLab(it)) &&
         matchLabParametersForItem(p, it, allParameters, idsFor(it)).length > 0,
     ),
   );
@@ -902,19 +955,19 @@ export default function LabTestingDetailPage() {
           onBack={() => navigate('/lab-testing')}
           title={
             <span className="inline-flex items-center gap-2">
-              <FlaskConical className="h-5 w-5 text-sky-500" />
+              <FlaskConical className="h-5 w-5 text-primary" />
               {petition.petitionNo}
             </span>
           }
           actions={
-            <span className="text-sm text-grey-500">
+            <span className="text-sm text-muted-foreground">
               ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
               {labReceivedBy(petition) && ` · ผู้รับงาน: ${labReceivedBy(petition)}`}
             </span>
           }
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           {wasReturned && (
             <span
               className="inline-flex items-center text-orange-500"
@@ -947,7 +1000,7 @@ export default function LabTestingDetailPage() {
         {/* Worklist tab strip */}
         {switchablePetitions.length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
-            <span className="text-xs text-grey-500 shrink-0 mr-1">สลับไป:</span>
+            <span className="text-xs text-muted-foreground shrink-0 mr-1">สลับไป:</span>
             {switchablePetitions.map((p) => {
               const isActive = p._id === petition._id;
                 return (
@@ -958,8 +1011,8 @@ export default function LabTestingDetailPage() {
                     className={cn(
                       'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border transition-colors',
                       isActive
-                        ? 'bg-sky-500 text-white border-sky-500 cursor-default'
-                        : 'bg-white text-grey-700 border-grey-200 hover:border-sky-300 hover:bg-sky-50',
+                        ? 'bg-primary text-primary-foreground border-primary cursor-default'
+                        : 'bg-card text-card-foreground border-border hover:border-primary/40 hover:bg-accent',
                     )}
                     disabled={isActive}
                   >
@@ -972,10 +1025,10 @@ export default function LabTestingDetailPage() {
         )}
 
         {labItems.length === 0 && (
-          <div className="text-center py-12 text-grey-400">ไม่มีรายการ Lab ในคำร้องนี้</div>
+              <div className="text-center py-12 text-muted-foreground">ไม่มีรายการ Lab ในคำร้องนี้</div>
         )}
 
-        {hasAnyPhasedParam && (
+        {hasAnyPhasedParam && labItems.some((item) => !sampleRoundFor(petition, 'lab', item.seq)) && (
           <PhaseBanner
             currentPhase={currentPhase}
             selectedPhase={selectedPhase}
@@ -989,15 +1042,17 @@ export default function LabTestingDetailPage() {
         {/* Each Lab item */}
         {labItems.map((item) => {
           const matchedParams = matchLabParametersForItem(petition, item, allParameters, idsFor(item));
+          const round = sampleRoundFor(petition, 'lab', item.seq);
+          const itemCurrentPhase = (round ?? petition).currentPhase ?? 1;
+          const effectivePhase = effectivePhaseForItem(item);
           const labOwnedParams = matchedParams.filter((p) => p.scope === 'lab');
           const sharedQcParams = matchedParams.filter((p) => p.scope === 'qc' && p.shareWithLab);
           const phaseValues = valuesForPhase(effectivePhase);
           const phaseSaves = savesForPhase(effectivePhase);
-          // Phase 2 is locked until petition.currentPhase advances
-          const phaseLocked = effectivePhase === 2 && currentPhase === 1;
+          const phaseLocked = effectivePhase === 2 && itemCurrentPhase === 1;
           return (
             <Card key={item.seq} className="overflow-hidden">
-              <CardHeader className="bg-sky-50/60 pb-3">
+              <CardHeader className="bg-muted pb-3">
                 <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                   <span>รายการที่ {item.seq}: {item.sampleName || '-'}</span>
                   {item.batchNo && (
@@ -1012,13 +1067,23 @@ export default function LabTestingDetailPage() {
                   )}
                 </CardTitle>
                 {item.testItems && (
-                  <p className="text-xs text-grey-500 mt-1">รายการทดสอบ: {item.testItems}</p>
+                  <p className="text-xs text-muted-foreground mt-1">รายการทดสอบ: {item.testItems}</p>
                 )}
               </CardHeader>
 
               <CardContent className="pt-4 space-y-5">
+                {round && matchedParams.some((parameter) => parameter.hasPhases) && (
+                  <PhaseBanner
+                    currentPhase={itemCurrentPhase}
+                    selectedPhase={effectivePhase}
+                    onSelectPhase={(phase) => setSelectedRoundPhases((previous) => ({ ...previous, [round._id + ':' + item.seq]: phase }))}
+                    phase2DueAt={round.phase2DueAt}
+                    phase2UnlockedAt={round.phase2UnlockedAt}
+                    triggeredByName={round.phase2TriggeredBy?.parameterName}
+                  />
+                )}
                 {matchedParams.length === 0 ? (
-                  <p className="text-sm text-grey-400 italic">
+                  <p className="text-sm text-muted-foreground italic">
                     ไม่พบพารามิเตอร์ Lab ที่ตรงกับรายการทดสอบ
                   </p>
                 ) : (
@@ -1026,7 +1091,7 @@ export default function LabTestingDetailPage() {
                     {/* Lab-owned parameters (editable) */}
                     {labOwnedParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = visibleFields(param, effectivePhase);
+                      const fields = visibleFields(param, effectivePhase, item);
                       if (fields.length === 0) return null;
                       // Build the condition context for resolving conditionalMode standards:
                       // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1045,10 +1110,10 @@ export default function LabTestingDetailPage() {
                       return (
                         <div key={param._id} className="space-y-3">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-grey-800 border-b pb-1 flex-1">
+                            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-1 flex-1">
                               {param.name}
                             </h3>
-                            <Badge className="bg-sky-100 text-sky-800 text-[10px] font-semibold uppercase hover:bg-sky-100">
+                            <Badge className="bg-primary/10 text-primary text-[10px] font-semibold uppercase hover:bg-primary/10">
                               Lab
                             </Badge>
                             {param.hasPhases && (
@@ -1057,11 +1122,11 @@ export default function LabTestingDetailPage() {
                               </Badge>
                             )}
                             {param.note && (
-                              <span className="text-xs text-grey-400">{param.note}</span>
+                              <span className="text-xs text-muted-foreground">{param.note}</span>
                             )}
                           </div>
                           {(() => {
-                            const fieldDisabled = isLocked || phaseLocked;
+                            const fieldDisabled = isLocked || phaseLocked || additionalSampleOpen || submitting || loadedResultsKey !== resultsKey;
 
                             // Render a single editable render-unit. `srcValues` is the
                             // value-object to read/display from; `onUnitChange` persists a
@@ -1106,10 +1171,10 @@ export default function LabTestingDetailPage() {
                                   onUnitChange(unit.key, next);
                                 };
                                 return (
-                                  <div key={unit.key} className="space-y-2 rounded-md border border-grey-200 p-2">
-                                    <p className="text-sm font-medium text-grey-700">
+                                  <div key={unit.key} className="space-y-2 rounded-md border border-border p-2">
+                                    <p className="text-sm font-medium text-foreground">
                                       {unit.field.label}
-                                      {unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}
+                                      {unit.field.unit && <span className="text-muted-foreground font-normal ml-1">({unit.field.unit})</span>}
                                     </p>
                                     {rows.map((rowVal, i) => {
                                       const isExisting = i < arr.length;
@@ -1223,7 +1288,7 @@ export default function LabTestingDetailPage() {
                                     </div>
                                   )}
                                   {beforeRef != null && beforeRef !== '' ? (
-                                    <p className="text-[10px] text-grey-400 mt-0.5">
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
                                       ก่อน: <span className="font-mono">{String(beforeRef)}</span>
                                     </p>
                                   ) : null}
@@ -1276,9 +1341,9 @@ export default function LabTestingDetailPage() {
                                     const entryValues = savedRows[ei] ?? {};
                                     const canRemove = !fieldDisabled && (shown > 1 || ei < savedCount);
                                     return (
-                                      <div key={ei} className="rounded-lg border border-grey-200 p-3 space-y-2">
+                                      <div key={ei} className="rounded-lg border border-border p-3 space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xs font-semibold text-grey-600 flex-1">
+                                          <span className="text-xs font-semibold text-muted-foreground flex-1">
                                             รายการที่ {ei + 1}
                                           </span>
                                           {canRemove && (
@@ -1330,7 +1395,7 @@ export default function LabTestingDetailPage() {
                     {/* Shared QC parameters (read-only) */}
                     {sharedQcParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = visibleFields(param, effectivePhase);
+                      const fields = visibleFields(param, effectivePhase, item);
                       if (fields.length === 0) return null;
                       // Build the condition context for resolving conditionalMode standards:
                       // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1349,7 +1414,7 @@ export default function LabTestingDetailPage() {
                       return (
                         <div key={param._id} className="space-y-3 rounded-lg bg-indigo-50/40 border border-indigo-100 p-3">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-grey-800 flex-1">
+                            <h3 className="text-sm font-semibold text-foreground flex-1">
                               {param.name}
                             </h3>
                             <Badge className="bg-indigo-100 text-indigo-800 text-[10px] font-semibold uppercase hover:bg-indigo-100">
@@ -1361,7 +1426,7 @@ export default function LabTestingDetailPage() {
                               </Badge>
                             )}
                             {param.note && (
-                              <span className="text-xs text-grey-400">{param.note}</span>
+                              <span className="text-xs text-muted-foreground">{param.note}</span>
                             )}
                           </div>
                           {(() => {
@@ -1398,13 +1463,13 @@ export default function LabTestingDetailPage() {
                               if (unit.field.multiple) {
                                 const arr = readMultiple(srcValues, unit.key);
                                 return (
-                                  <div key={unit.key} className="space-y-2 rounded-md border border-grey-200 p-2">
-                                    <p className="text-sm font-medium text-grey-700">
+                                  <div key={unit.key} className="space-y-2 rounded-md border border-border p-2">
+                                    <p className="text-sm font-medium text-foreground">
                                       {unit.field.label}
-                                      {unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}
+                                      {unit.field.unit && <span className="text-muted-foreground font-normal ml-1">({unit.field.unit})</span>}
                                     </p>
                                     {arr.length === 0 ? (
-                                      <p className="text-xs text-grey-400 italic">— ไม่มีค่า —</p>
+                                      <p className="text-xs text-muted-foreground italic">— ไม่มีค่า —</p>
                                     ) : (
                                       arr.map((rowVal, i) => (
                                         <TestField
@@ -1486,7 +1551,7 @@ export default function LabTestingDetailPage() {
                               // Read-only: one card per saved entry (no trailing add card).
                               const entryRows = getEntryValues({ entries: entriesByKey[k] }, param);
                               if (entryRows.length === 0) {
-                                return <p className="text-xs text-grey-400 italic pl-2">— QC ยังไม่กรอกรายการ —</p>;
+                                return <p className="text-xs text-muted-foreground italic pl-2">— QC ยังไม่กรอกรายการ —</p>;
                               }
                               // ถ้าเป็นพารามิเตอร์ ค่า ถพ. และมีหลายค่า → ให้ Lab เลือกค่าที่จะลงในใบคำขอรับบริการ
                               const isSgParam = (param.valueFields ?? []).some((f) => f.label === SG_FIELD_LABEL);
@@ -1499,8 +1564,8 @@ export default function LabTestingDetailPage() {
                               return (
                                 <div className="space-y-4">
                                   {showFormPicker && (
-                                    <div className="flex items-center gap-2 rounded-md bg-white border border-indigo-200 px-3 py-2">
-                                      <span className="text-xs font-semibold text-grey-700">ค่าที่ใช้ในใบคำขอรับบริการ:</span>
+                                    <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-card px-3 py-2 text-card-foreground">
+                                      <span className="text-xs font-semibold text-muted-foreground">ค่าที่ใช้ในใบคำขอรับบริการ:</span>
                                       <Select
                                         value={String(chosenIdx)}
                                         onValueChange={(v) =>
@@ -1512,14 +1577,15 @@ export default function LabTestingDetailPage() {
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {entryRows.map((ev, ei) => (
-                                            <SelectItem key={ei} value={String(ei)}>
-                                              รายการที่ {ei + 1}
-                                              {ev?.[SG_FIELD_LABEL] != null && ev[SG_FIELD_LABEL] !== ''
-                                                ? ` (${ev[SG_FIELD_LABEL]})`
-                                                : ''}
-                                            </SelectItem>
-                                          ))}
+                                          {entryRows.map((ev, ei) => {
+                                            const sgValue = readSpecificGravityEntryValue(ev, SG_FIELD_LABEL);
+                                            return (
+                                              <SelectItem key={ei} value={String(ei)}>
+                                                รายการที่ {ei + 1}
+                                                {sgValue != null && sgValue !== '' ? ` (${sgValue})` : ''}
+                                              </SelectItem>
+                                            );
+                                          })}
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -1529,14 +1595,14 @@ export default function LabTestingDetailPage() {
                                       key={ei}
                                       className={`rounded-lg border p-3 space-y-2 ${
                                         showFormPicker && ei === chosenIdx
-                                          ? 'border-indigo-400 bg-indigo-50/60'
-                                          : 'border-grey-200'
+                                          ? 'border-primary/50 bg-primary/10'
+                                          : 'border-border'
                                       }`}
                                     >
-                                      <span className="text-xs font-semibold text-grey-600">
+                                      <span className="text-xs font-semibold text-muted-foreground">
                                         รายการที่ {ei + 1}
                                         {showFormPicker && ei === chosenIdx && (
-                                          <span className="ml-1 text-indigo-700">← ใช้บนฟอร์ม</span>
+                                          <span className="ml-1 text-primary">← ใช้บนฟอร์ม</span>
                                         )}
                                       </span>
                                       {renderReadGrid(entryValues, undefined)}
@@ -1559,29 +1625,50 @@ export default function LabTestingDetailPage() {
         })}
 
         {/* banner เหตุผลส่งกลับ + ช่องอธิบายทำใหม่ (เฉพาะตอนยังกรอก/แก้อยู่) */}
-        {!petition.labCompletedAt && petition.labReturnNote && (
+        {!isLocked && petition.labReturnNote && (
           <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-2">
             <p className="text-sm font-semibold text-orange-700 flex items-center gap-1">
               <RotateCcw className="h-4 w-4" /> ถูกส่งกลับให้แก้ไข
             </p>
             <p className="text-sm text-orange-800">{petition.labReturnNote}</p>
-            <label className="block text-xs font-medium text-gray-600 mt-2">อธิบายว่าทำใหม่อย่างไร (จำเป็น)</label>
+            <label className="block text-xs font-medium text-muted-foreground mt-2">อธิบายว่าทำใหม่อย่างไร (จำเป็น)</label>
             <textarea
               value={redoExplanation}
               onChange={(e) => setRedoExplanation(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-orange-400"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-400"
               placeholder="เช่น คาลิเบรตเครื่องใหม่แล้วทดสอบซ้ำ"
             />
           </div>
         )}
 
+        <AdditionalSampleRequestDialog
+          key={petition._id}
+          petition={petition}
+          side="lab"
+          items={labItems.filter((item) => matchLabParametersForItem(petition, item, allParameters, idsFor(item)).some((parameter) => parameter.scope === 'lab'))}
+          open={additionalSampleOpen}
+          onOpenChange={setAdditionalSampleOpen}
+          beforeSubmit={autosaves.flush}
+          onRequested={setRequestedPetition}
+        />
+
+        {pendingSample && (
+          <div role="status" className="rounded-lg border bg-card p-4 space-y-2">
+            <Badge variant="yellow-soft">รอรับตัวอย่างเพิ่ม (LAB)</Badge>
+            <p className="text-sm text-muted-foreground">{pendingSample.reason} — ยังแก้ไขหรือปิดผลตรวจฝั่ง LAB ไม่ได้จนกว่าจะรับรอบนี้</p>
+          </div>
+        )}
+
         {/* Action buttons — เฉพาะตอนผู้ทดสอบยังไม่ยืนยัน */}
-        {labItems.length > 0 && !petition.labCompletedAt && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        {labItems.length > 0 && !isLocked && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 border-t border-border bg-background/95 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            {abnormalCount > 0 && labReceivedAt(petition) && (
+              <Button variant="outline" onClick={() => setAdditionalSampleOpen(true)} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}>ขอตัวอย่างเพิ่ม</Button>
+            )}
             <Button
               variant={isComplete ? 'primary' : 'outline'}
               onClick={isComplete ? handleSubmitResult : handleSaveDraft}
-              disabled={submitting}
+              disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}
               className="gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}
@@ -1592,12 +1679,12 @@ export default function LabTestingDetailPage() {
 
         {/* รอหัวหน้า Lab ออกผล */}
         {labItems.length > 0 && petition.labCompletedAt && !petition.labApprovedAt && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col items-center gap-3">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col items-center gap-3">
             <div className="flex flex-col items-center gap-1">
               <CheckCircle2 className="h-6 w-6 text-amber-500" />
-              <p className="text-sm font-semibold text-amber-700">บันทึกผลแล้ว — รอหัวหน้า Lab ออกผล</p>
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">บันทึกผลแล้ว — รอหัวหน้า Lab ออกผล</p>
               {abnormalCount > 0 && (
-                <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                   <AlertTriangle className="h-3.5 w-3.5" />คำร้องนี้มีค่าผิดปกติ {abnormalCount} รายการ
                 </p>
               )}
@@ -1607,10 +1694,10 @@ export default function LabTestingDetailPage() {
 
         {/* ผล Lab ออกแล้ว */}
         {petition.labApprovedAt && (
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-2">
+          <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 flex flex-col items-center gap-2">
             <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">ผล Lab ออกแล้ว</p>
-            {petition.labApprovedBy && <p className="text-xs text-gray-500">โดย {petition.labApprovedBy}</p>}
+            <p className="text-sm font-semibold text-green-700 dark:text-green-300">ผล Lab ออกแล้ว</p>
+            {petition.labApprovedBy && <p className="text-xs text-muted-foreground">โดย {petition.labApprovedBy}</p>}
           </div>
         )}
 

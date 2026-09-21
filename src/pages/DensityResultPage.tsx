@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { formatDensity3 } from '@/lib/densitySync';
 import { Gauge, RefreshCw, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 
@@ -10,8 +11,10 @@ function statusBadge(status: string) {
   if (!status) return null;
   const isValid = String(status).toLowerCase() === 'valid';
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-      isValid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
+      isValid
+        ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-500/30 dark:bg-green-500/15 dark:text-green-300'
+        : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300'
     }`}>
       {status}
     </span>
@@ -83,16 +86,16 @@ export default function DensityResultPage() {
 
   return (
     <AppLayout>
-    <div className="p-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Gauge className="h-5 w-5 text-blue-600" />
-          <h1 className="text-xl font-semibold text-gray-800">ผล Density</h1>
-          {isFetching && <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />}
+          <Gauge className="h-5 w-5 text-primary" />
+          <h1 className="text-xl font-semibold text-foreground">ผล Density</h1>
+          {isFetching && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {total.toLocaleString()} รายการ • รีเฟรชทุก 30 วิ
           </span>
           <div className="flex items-center gap-1">
@@ -100,16 +103,16 @@ export default function DensityResultPage() {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
-              className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs text-gray-500">{page}/{totalPages}</span>
+            <span className="text-xs text-muted-foreground">{page}/{totalPages}</span>
             <button
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -118,30 +121,30 @@ export default function DensityResultPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card p-3 text-card-foreground shadow-sm">
         {/* Search */}
         <div className="flex min-w-[200px] flex-1 flex-col gap-1">
-          <label className="text-xs text-gray-500">ค้นหา (Sample ID / ชื่อ)</label>
+          <label className="text-xs text-muted-foreground">ค้นหา (Sample ID / ชื่อ)</label>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
               placeholder="พิมพ์แล้วกด Enter..."
-              className="w-full rounded-md border border-gray-200 py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+              className="w-full rounded-md border border-input bg-background py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
 
         {/* Product filter */}
         <div className="flex min-w-[160px] flex-col gap-1">
-          <label className="text-xs text-gray-500">Product</label>
+          <label className="text-xs text-muted-foreground">Product</label>
           <select
             value={product}
             onChange={(e) => setProduct(e.target.value)}
-            className="rounded-md border border-gray-200 py-1.5 px-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="">ทั้งหมด</option>
             {products.map((p) => (
@@ -152,22 +155,22 @@ export default function DensityResultPage() {
 
         {/* Date filter */}
         <div className="flex min-w-[160px] flex-col gap-1">
-          <label className="text-xs text-gray-500">วันที่</label>
+          <label className="text-xs text-muted-foreground">วันที่</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-md border border-gray-200 py-1.5 px-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
 
         {/* Status filter */}
         <div className="flex min-w-[140px] flex-col gap-1">
-          <label className="text-xs text-gray-500">Status</label>
+          <label className="text-xs text-muted-foreground">Status</label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="rounded-md border border-gray-200 py-1.5 px-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="">All</option>
             <option value="Valid">Valid</option>
@@ -180,7 +183,7 @@ export default function DensityResultPage() {
           <button
             type="button"
             onClick={applyFilters}
-            className="rounded-md bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700"
+            className="rounded-md bg-primary px-4 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
           >
             ค้นหา
           </button>
@@ -188,7 +191,7 @@ export default function DensityResultPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50"
+              className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
               <X className="h-3.5 w-3.5" />
               ล้าง
@@ -198,41 +201,45 @@ export default function DensityResultPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border bg-card text-card-foreground shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <thead className="bg-muted text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Sample ID</th>
               <th className="px-4 py-3 text-left">Batch</th>
               <th className="px-4 py-3 text-left">Product</th>
               <th className="px-4 py-3 text-right">Density [g/cm³]</th>
+              <th className="px-4 py-3 text-right">Density (3 ตำแหน่ง)</th>
               <th className="px-4 py-3 text-right">T(block) [°C]</th>
               <th className="px-4 py-3 text-right">T(set) [°C]</th>
               <th className="px-4 py-3 text-left">วันเวลา</th>
               <th className="px-4 py-3 text-center">สถานะ</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             {docs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                   {isFetching ? 'กำลังโหลด...' : 'ไม่พบข้อมูล'}
                 </td>
               </tr>
             ) : (
               docs.map((row, idx) => (
-                <tr key={String(row._id)} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 text-gray-400">{(page - 1) * LIMIT + idx + 1}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{String(row['Sample ID'] ?? '')}</td>
-                  <td className="px-4 py-2.5 text-gray-800">{String(row['Sample name'] ?? '')}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{String(row['Product name'] ?? '')}</td>
-                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-blue-700">
+                <tr key={String(row._id)} className="hover:bg-accent/60">
+                  <td className="px-4 py-2.5 text-muted-foreground">{(page - 1) * LIMIT + idx + 1}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-foreground">{String(row['Sample ID'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-foreground">{String(row.Batch ?? row['Sample name'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{String(row['Product name'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-primary">
                     {String(row['Density [g/cm³]'] ?? '')}
                   </td>
-                  <td className="px-4 py-2.5 text-right font-mono text-gray-600">{String(row['T (block) [°C]'] ?? '')}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-gray-600">{String(row['T (set) [°C]'] ?? '')}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{String(row['Date & time'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+                    {formatDensity3(row)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">{String(row['T (block) [°C]'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">{String(row['T (set) [°C]'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{String(row['Date & time'] ?? '')}</td>
                   <td className="px-4 py-2.5 text-center">{statusBadge(String(row['Measurement status'] ?? ''))}</td>
                 </tr>
               ))

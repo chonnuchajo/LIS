@@ -6,6 +6,7 @@ export interface ChemicalRequisition {
   instrumentName: string;
   itemType: "solvent";
   solventId: string;
+  solventUnitQrId?: string;
   solventName: string;
   qty: number;
   unit: string;

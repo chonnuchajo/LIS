@@ -31,13 +31,13 @@ export const PETITION_STATUS_CONFIG: Record<
   PetitionStatus,
   { label: string; variant: StatusBadgeVariant }
 > = {
-  deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'gray-soft' },
+  deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'yellow-soft' },
   sampleSent:    { label: 'ส่งตัวอย่างแล้ว',  variant: 'primary-soft' },
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'กำลังดำเนินการ',     variant: 'blue-soft' },
   success:       { label: 'ทดสอบเสร็จสิ้น',  variant: 'green-soft' },
   approved:      { label: 'เสร็จสิ้น', variant: 'purple-soft' },
-  rejected:      { label: 'ส่งกลับให้แก้ไข',    variant: 'red-soft' },
+  rejected:      { label: 'Rework',    variant: 'red-soft' },
 };
 
 // ===== Department =====
@@ -69,10 +69,18 @@ export interface PetitionItem {
   packageUnit?: string;
   testUnit?: string;
   testItems?: string;
+  sendToLab?: boolean;
+  MF_Before?: string | null;
+  MF_Lasted?: string | null;
+  MF_GapDays?: number | null;
+  MF_BatchAfterGap?: number | null;
+  MF_ConsecutivePassCount?: number | null;
   note?: string;
+  sampleQuantity?: number;
   labelManufacturer?: string;
   labelSeller?: string;
   labelQuantity?: string;
+  labelQuantities?: string[];
   labelSampledBy?: string;
   labelSampledDate?: string;
   labelRemark?: string;
@@ -197,6 +205,25 @@ export interface ProductionWorkflow {
 }
 
 // ===== Petition (discriminated by dept) =====
+export interface AdditionalSampleRequest {
+  _id: string;
+  qrCode: string;
+  side: 'qc' | 'lab';
+  reason: string;
+  items: { itemSeq: number; quantity: number }[];
+  requestedAt: string;
+  requestedBy: { name: string; email?: string; employeeId?: string };
+  status: 'requested' | 'sent' | 'received';
+  sentAt?: string;
+  receivedAt?: string;
+  receivedBy?: { name: string };
+  previousResults?: unknown[];
+  currentPhase?: PetitionPhase;
+  phase2DueAt?: string | null;
+  phase2UnlockedAt?: string | null;
+  phase2TriggeredBy?: PhaseTriggerInfo | null;
+}
+
 interface PetitionBase {
   _id: string;
   petitionNo: string;
@@ -205,6 +232,9 @@ interface PetitionBase {
   submittedBy: PetitionSubmitter;
   deliveredBy?: PetitionDeliverer;
   items: PetitionItem[];
+  additionalSampleRequests?: AdditionalSampleRequest[];
+  scannedAdditionalSampleId?: string;
+  scannedAdditionalSampleCode?: string;
   priority?: 0 | 1;
   cause?: string;
   reviewHistory?: ReviewEntry[];
@@ -262,6 +292,7 @@ export type Petition = ProductionPetition | RmPetition | FgPetition;
 // ===== QC Test Results =====
 export interface QCTestResult {
   _id?: string;
+  sampleRoundId?: string;
   petitionId: string;
   petitionNo?: string;
   itemSeq: number;
@@ -282,6 +313,7 @@ export interface QCTestResult {
 }
 
 export interface SaveQCResultPayload {
+  sampleRoundId?: string;
   petitionId: string;
   petitionNo?: string;
   itemSeq: number;

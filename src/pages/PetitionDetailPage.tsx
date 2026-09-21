@@ -36,16 +36,14 @@ import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import ResultReportPrintTemplate from '@/components/petition/ResultReportPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
+import AdditionalSampleRequests from '@/components/petition/AdditionalSampleRequests';
 import LabResultReportTemplate, { LAB_REPORT_CSS } from '@/components/petition/LabResultReportTemplate';
 import {
   usePetition,
   deletePetition,
   useLabRequestsByPetition,
 } from '@/hooks/usePetition';
-import {
-  PETITION_DEPT_LABELS,
-  type Petition,
-} from '@/types/petition.types';
+import { PETITION_DEPT_LABELS, type Petition } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
@@ -57,11 +55,13 @@ import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
 import { buildLabResultReportPages } from '@/lib/labResultReport';
 import { canPrintSampleLabel, canPrintPreReport, canPrintLabResult } from '@/lib/petitionPrintability';
+import { isWaitingForAssignment } from '@/lib/petitionQueueVisibility';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { cn } from '@/lib/utils';
 
 function detailBannerText(petition: Petition) {
   if (petition.status === 'rejected') return 'คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
-  if (!petition.assignedTo && (petition.status === 'sampleSent' || petition.status === 'pendingReview')) {
+  if (isWaitingForAssignment(petition)) {
     return 'คำร้องนี้รอการมอบหมายผู้รับงาน';
   }
   if (petition.qcReceivedBy || petition.labReceivedBy) {
@@ -74,7 +74,7 @@ function detailBannerText(petition: Petition) {
 
 function detailBannerTone(petition: Petition) {
   if (petition.status === 'rejected') return 'border-orange-200 bg-orange-50 text-orange-800';
-  if (!petition.assignedTo && (petition.status === 'sampleSent' || petition.status === 'pendingReview')) {
+  if (isWaitingForAssignment(petition)) {
     return 'border-primary-200 bg-primary-50 text-primary-700';
   }
   if (petition.status === 'approved' || petition.status === 'success') {
@@ -400,7 +400,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                       <div>
                         <p className="text-xs uppercase tracking-wide text-grey-500">แผนก</p>
                         <div className="mt-1">
-                          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
+                          <Badge variant="blue-soft">{petitionDepartmentLabel(data)}</Badge>
                         </div>
                       </div>
                       <div>
@@ -436,8 +436,8 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <p>ผู้รับผิดชอบ QC: <span className="font-medium text-black-500">{displayPerson(data.qcReceivedBy)}</span></p>
                         <p>ผู้รับผิดชอบ Lab: <span className="font-medium text-black-500">{displayPerson(data.labReceivedBy)}</span></p>
                       </div>
-                      {!isResultMode && !data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview') && (
-                        <Button className="w-full" onClick={() => navigate('/petitions-old/assign')}>
+                      {!isResultMode && isWaitingForAssignment(data) && (
+                        <Button className="w-full" onClick={() => navigate('/petition/assign')}>
                           <UserCheck className="h-4 w-4" />
                           Assign ผู้รับงาน
                         </Button>
@@ -487,7 +487,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
 
                 <div className="flex flex-wrap items-baseline gap-3">
                   <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                  <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
+                  <Badge variant="blue-soft">{petitionDepartmentLabel(data)}</Badge>
                   <span className="text-xs text-grey-500">
                     ยื่นเมื่อ{' '}
                     {new Date(data.createdAt).toLocaleString('th-TH', {
@@ -497,6 +497,8 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                   </span>
                 </div>
                 <PetitionStatusTimeline petition={data} />
+
+                <AdditionalSampleRequests petition={data} />
 
                 <DevStatusStepper petitionId={data._id} status={data.status} onChanged={refresh} />
 

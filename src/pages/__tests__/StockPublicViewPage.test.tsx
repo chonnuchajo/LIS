@@ -51,6 +51,8 @@ describe("StockPublicViewPage", () => {
     expect(await screen.findByText("Standard A")).toBeInTheDocument();
     expect(screen.getByText("75 mg")).toBeInTheDocument();
     expect(screen.getByText("ขวดที่ 2")).toBeInTheDocument();
+    expect(screen.queryByText("qrId")).not.toBeInTheDocument();
+    expect(screen.queryByText("u_abc123")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^เบิก stock/ })).toHaveAttribute("href", "/stock-deduction?qrId=u_abc123");
   });
 
@@ -139,8 +141,32 @@ describe("StockPublicViewPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Methanol" })).toBeInTheDocument();
     expect(screen.getAllByText("4 ขวด").length).toBeGreaterThan(0);
+    expect(screen.queryByText("qrId")).not.toBeInTheDocument();
+    expect(screen.queryByText("sol1")).not.toBeInTheDocument();
     expect(screen.getByText("ประวัติสารเคมีนี้")).toBeInTheDocument();
     expect(screen.getByText("ยังไม่มี transaction ของรายการนี้")).toBeInTheDocument();
     expect(screen.queryByText("รูปขวด")).not.toBeInTheDocument();
+  });
+
+  it("loads solvent bottle history by scanned unit qrId", async () => {
+    apiMock.getPublicStockItem.mockResolvedValue({
+      kind: "solvent",
+      id: "sol1",
+      qrId: "u_sol_1",
+      name: "Methanol",
+      sizeLiter: 2.5,
+      qty: 1,
+      status: "active",
+      lotNo: "B-001",
+      lotBottleNo: 1,
+      exp: "2027-01-01T00:00:00.000Z",
+      photoUrls: [],
+    });
+    apiMock.getStockTransactions.mockResolvedValue([]);
+
+    renderPage("/stock/view?qrId=u_sol_1");
+
+    expect(await screen.findByRole("heading", { name: "Methanol" })).toBeInTheDocument();
+    expect(apiMock.getStockTransactions).toHaveBeenCalledWith({ itemType: "solvent", qrId: "u_sol_1", limit: 20 });
   });
 });

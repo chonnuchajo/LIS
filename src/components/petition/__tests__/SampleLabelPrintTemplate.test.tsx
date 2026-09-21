@@ -37,6 +37,16 @@ describe('SampleLabelPrintTemplate', () => {
     expect(screen.getByTestId('sample-label-batch-qr-text')).toHaveTextContent('26S-PCB25SC-HI-026');
   });
 
+  it('prints both QR codes at the same scannable size', () => {
+    const { container } = render(<SampleLabelPrintTemplate petition={petition} />);
+    const qrs = container.querySelectorAll('svg[aria-label^="QR "]');
+
+    expect(qrs).toHaveLength(2);
+    qrs.forEach((qr) => {
+      expect(qr).toHaveClass('h-[18mm]', 'w-[18mm]');
+    });
+  });
+
   it('keeps the document number out of the title flow instead of absolutely overlaying it', () => {
     const { container } = render(<SampleLabelPrintTemplate petition={petition} />);
 

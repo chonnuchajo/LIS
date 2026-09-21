@@ -4,8 +4,36 @@ const QCTestResult = require('../models/QCTestResult');
 const { zScore, linearRegression, consecutiveStreak } = require('../lib/smartRules');
 const Petition = require('../models/Petition');
 const DailyCheck = require('../models/DailyCheck');
-const { isOpenAIConfigured, generateStream, generateJSON } = require('../lib/openaiClient');
+const { isOpenAIConfigured, generateStream, generateJSON, generateJSONFromImage } = require('../lib/openaiClient');
 const Parameter = require('../models/Parameter');
+
+const STOCK_LABEL_OCR_SYSTEM = `คุณอ่านข้อความจากรูปฉลากหรือบางส่วนของสติ๊กเกอร์ขวด stock ในห้องแล็บ
+เป้าหมายคือเลข Code ใต้ QR บนสติ๊กเกอร์ เช่น 026601 หรือ 1016801
+ผู้ใช้อาจถ่ายเห็นแค่บางส่วนของฉลาก ไม่ต้องเห็นทั้งขวด และไม่ต้องอ่าน/ถอดรหัส QR
+ให้มองหาเลขตัวหนาใต้ QR ก่อน ข้ามชื่อสาร, %Purity, Batch/Lot, Exp date และรหัสเอกสาร
+ต้องรักษาเลขศูนย์นำหน้า เช่น 026601 ห้ามคืนเป็น 26601
+ห้ามเดา ถ้าอ่านไม่ชัดให้คืนค่าว่าง
+ตอบเป็น JSON object เท่านั้น รูปแบบ {"labelCode":"","candidates":[],"rawText":""}`;
+
+function normalizeStockLabelCandidate(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (digits.length < 5 || digits.length > 12) return '';
+  return digits;
+}
+
+function stockLabelCandidatesFromOcr(payload) {
+  const values = [];
+  if (payload?.labelCode) values.push(payload.labelCode);
+  if (Array.isArray(payload?.candidates)) values.push(...payload.candidates);
+  const rawText = typeof payload?.rawText === 'string' ? payload.rawText : '';
+  values.push(...rawText.match(/\d[\d\s-]{3,}\d/g) || []);
+
+  return [...new Set(values.map(normalizeStockLabelCandidate).filter(Boolean))];
+}
+
+function isSupportedImageDataUrl(value) {
+  return /^data:image\/(?:png|jpe?g|webp);base64,/i.test(String(value || ''));
+}
 
 // POST /api/ai/outlier-check
 // Body: { commonName, parameterId, fieldLabel, value }
@@ -316,6 +344,31 @@ ${itemLines || '(ยังไม่มีข้อมูล)'}
     res.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ai/stock-label-ocr
+// Body: { imageDataUrl }
+// Returns: { labelCode, candidates, rawText }
+router.post('/stock-label-ocr', async (req, res) => {
+  try {
+    const imageDataUrl = String(req.body?.imageDataUrl || '').trim();
+    if (!imageDataUrl) return res.status(400).json({ error: 'imageDataUrl required' });
+    if (!isSupportedImageDataUrl(imageDataUrl)) return res.status(400).json({ error: 'unsupported image data URL' });
+    if (imageDataUrl.length > 9_500_000) return res.status(413).json({ error: 'image too large' });
+    if (!isOpenAIConfigured()) return res.status(503).json({ error: 'OpenAI API key ไม่ได้ตั้งค่า' });
+
+    const generated = await generateJSONFromImage(
+      'อ่านข้อความเลขใต้ QR หรือ Code ใต้ QR บนสติ๊กเกอร์ขวด stock จากรูปนี้ เห็นแค่บางส่วนของฉลากก็ได้ แล้วคืนเฉพาะเลข Code ที่เป็นไปได้',
+      imageDataUrl,
+      { system: STOCK_LABEL_OCR_SYSTEM, temperature: 0, maxTokens: 300 },
+    );
+    const rawText = typeof generated?.rawText === 'string' ? generated.rawText.trim() : '';
+    const candidates = stockLabelCandidatesFromOcr(generated);
+
+    res.json({ labelCode: candidates[0] || '', candidates, rawText });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'ocr failed' });
   }
 });
 

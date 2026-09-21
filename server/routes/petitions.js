@@ -7,6 +7,7 @@ const PhysicalResult = require('../models/PhysicalResult');
 const Approval = require('../models/Approval');
 const RealtimeDensity = require('../models/RealtimeDensity');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
+const { buildSearchRankingStages } = require('../lib/searchRanking');
 const {
   bellDescribe,
   isCollapsibleDuplicate,
@@ -18,11 +19,22 @@ const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
 const StandardTime = require('../models/StandardTime');
-const { buildStatusLog, hasLabTrack, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
+const { buildStatusLog, hasLabTrack, shouldSendItemToLab, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
+const { router: additionalSamplesRouter, changeAdditionalSampleState, currentUser, canTestSide } = require('./additionalSamples');
+const { normalizeRoles } = require('../lib/roles');
+const { serializePetitionWrite } = require('../lib/petitionWriteQueue');
+const { pendingAdditionalSamples, additionalSampleCompletionError } = require('../lib/additionalSamples');
+router.use(additionalSamplesRouter);
 const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
 const { buildProductionWorkflow } = require('../lib/productionWorkflow');
-const { isResearchAndDevelopmentDepartment, requiresDeliveryAndBatch, requiresQcTrack } = require('../lib/petitionSubmissionRules');
+const {
+  isResearchAndDevelopmentDepartment,
+  normalizePetitionItems,
+  requiresDeliveryAndBatch,
+  requiresQcTrack,
+  validatePetitionSubmission,
+} = require('../lib/petitionSubmissionRules');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -54,11 +66,44 @@ function badRequest(res, message) {
   return res.status(400).json({ error: { message } });
 }
 
+async function additionalCompletionError(petition, sides) {
+  if (!petition.additionalSampleRequests?.length) return null;
+  const results = await QCTestResult.find({ petitionId: String(petition._id) }).lean();
+  for (const side of sides) {
+    const error = additionalSampleCompletionError(petition, side, results);
+    if (error) return error;
+  }
+  return null;
+}
+
+async function additionalActor(req, res, petition, side, headOnly = false) {
+  if (!petition.additionalSampleRequests?.length) return req.body?.actor || 'system';
+  const user = await currentUser(req);
+  if (!user) {
+    res.status(401).json({ error: { message: 'กรุณาเข้าสู่ระบบ' } });
+    return null;
+  }
+  const allowed = headOnly ? normalizeRoles(user).some(role => role === 'admin' || role === side + '-head') : canTestSide(user, petition, side);
+  if (!allowed) {
+    res.status(403).json({ error: { message: 'ไม่มีสิทธิ์ยืนยันผลให้ฝ่ายนี้' } });
+    return null;
+  }
+  return user.name || user.email;
+}
+
 function machineTypeOf(machine) {
   const text = `${machine?.code || ''} ${machine?.name || ''}`.toUpperCase();
   if (text.includes('HPLC')) return 'HPLC';
   if (text.includes('GC')) return 'GC';
   return '';
+}
+
+function queryStringList(value) {
+  const raw = Array.isArray(value) ? value : [value];
+  return raw
+    .flatMap((entry) => String(entry || '').split(','))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 async function matchStandardTime(machine) {
@@ -88,20 +133,35 @@ router.get('/', async (req, res) => {
     const status = req.query.status;
     const dept = req.query.dept;
     const search = (req.query.search || '').trim();
+    const assignedToEmployeeId = String(req.query.assignedToEmployeeId || '').trim();
+    const assignedToNames = queryStringList(req.query.assignedToName);
 
     const q = {};
     if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
+    const andConditions = [];
+    const assigneeConditions = [];
+    if (assignedToEmployeeId) assigneeConditions.push({ 'assignedTo.employeeId': assignedToEmployeeId });
+    assignedToNames.forEach((name) => assigneeConditions.push({ 'assignedTo.name': name }));
+    if (assigneeConditions.length > 1) {
+      andConditions.push({
+        $or: assigneeConditions,
+      });
+    } else if (assigneeConditions.length === 1) Object.assign(q, assigneeConditions[0]);
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      q.$or = [
-        { petitionNo: rx },
-        { prodOrderNos: rx },
-        { 'productionWorkflow.requestNo': rx },
-        { 'productionWorkflow.lisPetitionNo': rx },
-        { 'submittedBy.name': rx },
-        { 'items.batchNo': rx },
-      ];
+      andConditions.push({
+        $or: [
+          { petitionNo: rx },
+          { prodOrderNos: rx },
+          { 'productionWorkflow.requestNo': rx },
+          { 'productionWorkflow.lisPetitionNo': rx },
+          { 'submittedBy.name': rx },
+          { 'items.batchNo': rx },
+        ],
+      });
     }
+    if (andConditions.length === 1) Object.assign(q, andConditions[0]);
+    else if (andConditions.length > 1) q.$and = andConditions;
     const summaryQ = { ...q };
 
     if (status) {
@@ -129,7 +189,17 @@ router.get('/', async (req, res) => {
     }
 
     const [docs, total, summaryTotal, statusCountRows] = await Promise.all([
-      Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      search
+        ? Petition.aggregate([
+          { $match: { ...q, deletedAt: null } },
+          ...buildSearchRankingStages(search, {
+            primary: ['petitionNo'],
+            secondary: ['prodOrderNos', 'productionWorkflow.requestNo', 'productionWorkflow.lisPetitionNo', 'submittedBy.name', 'items.batchNo'],
+          }, { createdAt: -1 }),
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+        ]).then((rows) => rows.map((row) => Petition.hydrate(row)))
+        : Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
       Petition.countDocuments(q),
       Petition.countDocuments(summaryQ),
       Petition.aggregate([
@@ -321,7 +391,16 @@ router.get('/audit-logs', async (req, res) => {
     }
 
     const [items, total] = await Promise.all([
-      PetitionAuditLog.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      search
+        ? PetitionAuditLog.aggregate([
+          { $match: q },
+          ...buildSearchRankingStages(search, {
+            primary: ['petitionNo'], secondary: ['actor', 'note'],
+          }, { createdAt: -1 }),
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+        ])
+        : PetitionAuditLog.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       PetitionAuditLog.countDocuments(q),
     ]);
     res.json({ items, total, page, limit });
@@ -384,7 +463,7 @@ router.get('/notifications', async (req, res) => {
       const desc = bellDescribe(petition, log);
       if (!desc) continue;
       if (!isRelevant(desc, petition, viewer)) continue;
-      items.push(toNotification(petition, log, desc));
+      items.push(toNotification(petition, log, desc, viewer));
     }
 
     // Client uses serverTime as its next cursor — avoids client/server clock skew.
@@ -453,6 +532,12 @@ router.get('/scan/:code', async (req, res) => {
   try {
     const code = decodeURIComponent(req.params.code || '').trim();
     if (!code) return badRequest(res, 'ไม่พบรหัสจาก QR Code');
+    if (code.startsWith('LIS-EXTRA-')) {
+      const doc = await Petition.findOne({ 'additionalSampleRequests.qrCode': code }).lean();
+      const round = doc?.additionalSampleRequests?.find(entry => entry.qrCode === code);
+      if (!round) return res.status(404).json({ error: { message: 'ไม่พบรอบตัวอย่างเพิ่มจาก QR นี้' } });
+      return res.json({ ...doc, scannedAdditionalSampleId: String(round._id), scannedAdditionalSampleCode: round.qrCode });
+    }
 
     const query = [
       { petitionNo: code },
@@ -510,7 +595,7 @@ router.get('/status-log/:id', async (req, res) => {
     // sampleId has a completed PhysicalResult.
     const isResearchRequest = isResearchAndDevelopmentDepartment(petition.submittedBy?.department);
     const labSampleIds = (petition.items || [])
-      .filter((it) => isResearchRequest || isLabBatch(it.batchNo || ''))
+      .filter((it) => isResearchRequest || shouldSendItemToLab(it))
       .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
       .filter(Boolean);
     let labDone = !hasLabTrack(petition);
@@ -535,20 +620,23 @@ router.get('/status-log/:id', async (req, res) => {
 // Petition flips to `success` ONLY when every required track is complete
 // (QC always; Lab when the petition has a lab-batch item). Until then it stays
 // inProgress, waiting for the other side.
-router.post('/:id/complete', async (req, res) => {
+router.post('/:id/complete', serializePetitionWrite(async (req, res) => {
   try {
     const side = String(req.body?.side || '').trim();
-    const actor = req.body?.actor || 'system';
     if (!['lab', 'qc'].includes(side)) return badRequest(res, 'side ต้องเป็น "lab" หรือ "qc"');
 
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    const actor = await additionalActor(req, res, doc, side);
+    if (!actor) return;
     if (doc.status === 'approved' || doc.status === 'rejected') {
       return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถบันทึกผลได้' } });
     }
 
     const now = new Date();
     const redoExplanation = String(req.body?.redoExplanation || '').trim();
+    const additionalError = await additionalCompletionError(doc, [side]);
+    if (additionalError) return res.status(409).json({ error: { message: additionalError } });
     if (side === 'qc') {
       if (!requiresQcTrack(doc)) return badRequest(res, 'คำขอ R&D ไม่ต้องส่ง QC');
       if (doc.qcReturnNote && !redoExplanation) {
@@ -595,19 +683,22 @@ router.post('/:id/complete', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // POST /api/petitions/:id/lab-approve  → หัวหน้า Lab ออกผล Lab. success เกิดเมื่อครบทุก track.
-router.post('/:id/lab-approve', async (req, res) => {
+router.post('/:id/lab-approve', serializePetitionWrite(async (req, res) => {
   try {
-    const actor = req.body?.actor || 'system';
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    const actor = await additionalActor(req, res, doc, 'lab', true);
+    if (!actor) return;
     if (['success', 'approved', 'rejected'].includes(doc.status)) {
       return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้นออกผล Lab แล้ว' } });
     }
     if (!doc.labCompletedAt) return badRequest(res, 'ผู้ทดสอบ Lab ยังไม่ได้บันทึกผล');
     if (doc.labApprovedAt) return badRequest(res, 'ออกผล Lab ไปแล้ว');
+    const additionalError = await additionalCompletionError(doc, ['lab']);
+    if (additionalError) return res.status(409).json({ error: { message: additionalError } });
 
     const now = new Date();
     doc.labApprovedAt = now;
@@ -635,16 +726,17 @@ router.post('/:id/lab-approve', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // POST /api/petitions/:id/lab-reject  → หัวหน้า Lab ส่งผล Lab กลับให้ผู้ทดสอบแก้ (ไม่ใช่ reject ทั้งใบ).
-router.post('/:id/lab-reject', async (req, res) => {
+router.post('/:id/lab-reject', serializePetitionWrite(async (req, res) => {
   try {
-    const actor = req.body?.actor || 'system';
     const note = String(req.body?.note || '').trim();
     if (!note) return badRequest(res, 'กรุณาระบุเหตุผลที่ส่งกลับ');
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    const actor = await additionalActor(req, res, doc, 'lab', true);
+    if (!actor) return;
     if (['approved', 'rejected'].includes(doc.status)) {
       return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว' } });
     }
@@ -665,7 +757,7 @@ router.post('/:id/lab-reject', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // POST /api/petitions/:id/lab-agreement-review
 // บันทึก "สำหรับหัวหน้าห้องปฏิบัติการ" ครั้งเดียว → เขียนลงทุก LabRequest ของคำร้อง (fan-out)
@@ -709,12 +801,23 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /api/petitions/:id/advance-phase — manual phase advance (admin override)
-router.patch('/:id/advance-phase', async (req, res) => {
+router.patch('/:id/advance-phase', serializePetitionWrite(async (req, res) => {
   try {
     const id = req.params.id;
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
     const doc = await Petition.findOne(q);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (doc.additionalSampleRequests?.length) {
+      const round = doc.additionalSampleRequests.find(entry => String(entry._id) === String(req.body?.additionalSampleId || ''));
+      if (!round || round.status !== 'received' || round.side !== req.body?.side) return res.status(409).json({ error: { message: 'กรุณาระบุรอบตัวอย่างที่รับแล้วและฝ่ายที่ต้องการเปิด Phase 2' } });
+      const actor = await additionalActor(req, res, doc, round.side, true);
+      if (!actor) return;
+      if (round.currentPhase === 2) return badRequest(res, 'ตัวอย่างรอบนี้อยู่ใน Phase 2 แล้ว');
+      if (['approved', 'rejected'].includes(doc.status)) return res.status(409).json({ error: { message: 'คำขอนี้ปิดแล้ว' } });
+      round.phase2DueAt = new Date();
+      const advanced = await maybeAdvancePhase(doc, actor);
+      return res.json(advanced.toObject());
+    }
     if (doc.currentPhase === 2) {
       return badRequest(res, 'คำร้องนี้อยู่ใน Phase 2 แล้ว');
     }
@@ -726,29 +829,15 @@ router.patch('/:id/advance-phase', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // POST /api/petitions
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
-    if (!body.dept || !['production', 'rm', 'fg'].includes(body.dept)) {
-      return badRequest(res, 'กรุณาระบุแผนก (production / rm / fg)');
-    }
-    if (!body.submittedBy?.name) {
-      return badRequest(res, 'กรุณาระบุผู้ยื่นคำขอ');
-    }
-    const deliveryAndBatchRequired = requiresDeliveryAndBatch(body);
-    if (deliveryAndBatchRequired && !body.deliveredBy?.name) {
-      return badRequest(res, 'กรุณาระบุผู้นำส่ง');
-    }
-    if (!Array.isArray(body.items) || body.items.length === 0) {
-      return badRequest(res, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
-    }
-    for (const item of body.items) {
-      const batch = String(item.batchNo || '').trim();
-      if (deliveryAndBatchRequired && !batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
-    }
+    if (Object.keys(body).some(key => key.startsWith('additionalSampleRequests') || key.startsWith('$'))) return badRequest(res, 'รอบตัวอย่างเพิ่มต้องสร้างหลังรับและบันทึกผลตรวจเท่านั้น');
+    const submissionError = validatePetitionSubmission(body);
+    if (submissionError) return badRequest(res, submissionError);
     let revisionOf = null;
     if (body.revisionOf) {
       if (!mongoose.Types.ObjectId.isValid(body.revisionOf)) {
@@ -773,7 +862,10 @@ router.post('/', async (req, res) => {
     }
     const petitionNo = await nextPetitionNo();
     // เลขที่ใบนำส่ง: ใช้ค่าที่กรอก ถ้าเว้นว่าง default = เลขคำขอ
-    const items = body.items.map((it) => ({ ...it, submissionNo: it.submissionNo?.trim() || petitionNo }));
+    const items = normalizePetitionItems(body.items, {
+      department: body.submittedBy?.department,
+      petitionNo,
+    });
     const doc = await Petition.create({
       ...body,
       items,
@@ -796,15 +888,19 @@ router.post('/', async (req, res) => {
 });
 
 // PATCH /api/petitions/:id/deliver  → mark sample as sent (scan ส่ง)
-router.patch('/:id/deliver', async (req, res) => {
+router.patch('/:id/deliver', serializePetitionWrite(async (req, res) => {
   try {
     const id = req.params.id;
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
     const before = await Petition.findOne(q).lean();
     if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (req.body?.additionalSampleId || req.body?.additionalSampleCode) return await changeAdditionalSampleState(req, res, before, 'deliver');
+    if (pendingAdditionalSamples(before).length) return res.status(409).json({ error: { message: 'กรุณาสแกน QR ใบนำส่งตัวอย่างเพิ่มของรอบนี้' } });
+    if (before.additionalSampleRequests?.length) return res.status(409).json({ error: { message: 'คำขอนี้นำส่งแล้ว กรุณาใช้ QR รอบตัวอย่างเพิ่ม' } });
     const update = { status: 'sampleSent' };
     if (!before.sampleSentAt) update.sampleSentAt = new Date();
-    const doc = await Petition.findOneAndUpdate(q, update, { new: true });
+    const doc = await Petition.findOneAndUpdate({ ...q, status: before.status, __v: before.__v == null ? { $exists: false } : before.__v }, { $set: update, $inc: { __v: 1 } }, { new: true });
+    if (!doc) return res.status(409).json({ error: { message: 'คำขอเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่' } });
     if (before.status !== doc.status) {
       logAudit(doc, {
         event: 'statusChanged',
@@ -818,37 +914,43 @@ router.patch('/:id/deliver', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // PATCH /api/petitions/:id/receive  → QC/Lab รับตัวอย่าง (scan รับ)
-router.patch('/:id/receive', async (req, res) => {
+router.patch('/:id/receive', serializePetitionWrite(async (req, res) => {
   try {
     const id = req.params.id;
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
     const before = await Petition.findOne(q).lean();
     if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (req.body?.additionalSampleId || req.body?.additionalSampleCode) return await changeAdditionalSampleState(req, res, before, 'receive');
     // บล็อกเฉพาะสถานะที่ปิดงานแล้ว — ฝั่งที่สอง (Lab/QC) ยังรับได้แม้ status เป็น pendingReview/inProgress
     if (['success', 'approved', 'rejected'].includes(before.status)) {
       return badRequest(res, `ไม่สามารถรับได้: สถานะปัจจุบันคือ ${before.status}`);
     }
     const actor = req.body?.actor || 'system';
     const side = req.body?.side === 'lab' ? 'lab' : 'qc';
+    if (pendingAdditionalSamples(before, side).length) return res.status(409).json({ error: { message: 'กรุณาสแกน QR ใบนำส่งตัวอย่างเพิ่มของรอบนี้' } });
+    if (before.additionalSampleRequests?.some(round => round.side === side)) return res.status(409).json({ error: { message: 'รับตัวอย่างเดิมแล้ว กรุณาใช้ QR รอบตัวอย่างเพิ่ม' } });
     if (side === 'qc' && !requiresQcTrack(before)) return badRequest(res, 'คำขอ R&D ไม่ต้องส่ง QC');
     const now = new Date();
     const update = {
       [`${side}ReceivedBy`]: actor,
       [`${side}ReceivedAt`]: now,
     };
-    // ฝั่งแรกที่รับ: flip status จาก sampleSent → pendingReview
-    if (before.status === 'sampleSent') {
+    if (before.status === 'sampleSent' || before.status === 'deliveringQC') {
       update.status = 'pendingReview';
+    }
+    if (!before.sampleSentAt && (before.status === 'sampleSent' || before.status === 'deliveringQC')) {
+      update.sampleSentAt = now;
     }
     // legacy receivedBy/At = ฝั่งแรกที่รับ (ไม่ทับถ้ามีแล้ว) เพื่อให้ print/HomeQC ทำงานต่อ
     if (!before.receivedAt) {
       update.receivedBy = actor;
       update.receivedAt = now;
     }
-    const doc = await Petition.findOneAndUpdate(q, update, { new: true });
+    const doc = await Petition.findOneAndUpdate({ ...q, status: before.status, __v: before.__v == null ? { $exists: false } : before.__v }, { $set: update, $inc: { __v: 1 } }, { new: true });
+    if (!doc) return res.status(409).json({ error: { message: 'คำขอเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่' } });
     logAudit(doc, {
       event: 'received',
       fromStatus: before.status,
@@ -861,10 +963,10 @@ router.patch('/:id/receive', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // PATCH /api/petitions/:id/assign
-router.patch('/:id/assign', async (req, res) => {
+router.patch('/:id/assign', serializePetitionWrite(async (req, res) => {
   try {
     const { employeeId, name, department, position, assignedBy, machines } = req.body || {};
     if (!employeeId || !name) return badRequest(res, 'กรุณาเลือกเจ้าหน้าที่');
@@ -922,13 +1024,15 @@ router.patch('/:id/assign', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // PATCH /api/petitions/:id  (general update + approve/reject transitions)
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', serializePetitionWrite(async (req, res) => {
   try {
     const updates = { ...req.body };
-    const actor = updates.actor;
+    const managedFields = ['additionalSampleRequests', 'qcCompletedAt', 'qcCompletedBy', 'labCompletedAt', 'labCompletedBy', 'labApprovedAt', 'labApprovedBy', 'completedAt', 'qcReceivedAt', 'qcReceivedBy', 'labReceivedAt', 'labReceivedBy', 'receivedAt', 'receivedBy', 'sampleSentAt', '__v'];
+    if (Object.keys(updates).some(key => key.startsWith('$') || key.includes('.') || managedFields.includes(key))) return badRequest(res, 'ข้อมูลสถานะและรอบตัวอย่างต้องเปลี่ยนผ่านขั้นตอนที่กำหนด');
+    let actor = updates.actor;
     delete updates.actor;
     delete updates.petitionNo;
     delete updates._id;
@@ -954,6 +1058,10 @@ router.patch('/:id', async (req, res) => {
 
     // Approve transition: success → approved (conclusion = pass | accepted-oos)
     if (updates.status === 'approved') {
+      actor = await additionalActor(req, res, before, 'qc', true);
+      if (!actor) return;
+      const additionalError = await additionalCompletionError(before, ['qc', 'lab']);
+      if (additionalError) return res.status(409).json({ error: { message: additionalError } });
       if (before.status !== 'success') {
         return res.status(409).json({ error: { message: 'ออก Final Result ได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
@@ -987,6 +1095,8 @@ router.patch('/:id', async (req, res) => {
 
     // Reject transition: success → (requester=ปิดงาน | lab|qc|both=ส่งกลับทดสอบใหม่)
     if (updates.status === 'rejected') {
+      actor = await additionalActor(req, res, before, 'qc', true);
+      if (!actor) return;
       if (before.status !== 'success') {
         return res.status(409).json({ error: { message: 'ส่งกลับให้แก้ไขได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
@@ -1036,12 +1146,20 @@ router.patch('/:id', async (req, res) => {
     }
 
     // Generic update path (no terminal transition)
+    if (before.additionalSampleRequests?.length && (updates.items || updates.submittedBy || (updates.status && updates.status !== before.status))) return res.status(409).json({ error: { message: 'คำขอมีรอบตัวอย่างเพิ่ม ต้องใช้ขั้นตอนรับและตรวจผลตามรอบ' } });
     delete updates.revisionNote;
     // เลขที่ใบนำส่ง: ใช้ค่าที่กรอก ถ้าเว้นว่าง default = เลขคำขอ
     if (Array.isArray(updates.items)) {
-      updates.items = updates.items.map((it) => ({ ...it, submissionNo: it.submissionNo?.trim() || before.petitionNo }));
+      updates.items = normalizePetitionItems(updates.items, {
+        department: updates.submittedBy?.department ?? before.submittedBy?.department,
+        petitionNo: before.petitionNo,
+      });
+      const nextBody = { ...(before.toObject ? before.toObject() : before), ...updates };
+      const submissionError = validatePetitionSubmission(nextBody);
+      if (submissionError) return badRequest(res, submissionError);
     }
-    const doc = await Petition.findByIdAndUpdate(req.params.id, updates, { new: true });
+    const doc = await Petition.findOneAndUpdate({ _id: before._id, status: before.status, __v: before.__v == null ? { $exists: false } : before.__v }, { $set: updates, $inc: { __v: 1 } }, { new: true });
+    if (!doc) return res.status(409).json({ error: { message: 'คำขอเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่' } });
     if (before.status !== doc.status) {
       logAudit(doc, {
         event: 'statusChanged',
@@ -1062,10 +1180,10 @@ router.patch('/:id', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // POST /api/petitions/:id/review  → append a review entry & update status
-router.post('/:id/review', async (req, res) => {
+router.post('/:id/review', serializePetitionWrite(async (req, res) => {
   try {
     const { action, reviewedBy, note, specificGravities, status, items } = req.body || {};
     if (!action || !reviewedBy) return badRequest(res, 'ข้อมูลรีวิวไม่ครบ');
@@ -1074,6 +1192,7 @@ router.post('/:id/review', async (req, res) => {
     if ((doc.status === 'approved' || doc.status === 'rejected') && status && status !== doc.status) {
       return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะได้' } });
     }
+    if (doc.additionalSampleRequests?.length && (items || (status && status !== doc.status))) return res.status(409).json({ error: { message: 'คำขอมีรอบตัวอย่างเพิ่ม ต้องยืนยันผ่านขั้นตอนบันทึกผลและ Final Result' } });
     const prevStatus = doc.status;
     doc.reviewHistory.push({
       action,
@@ -1103,7 +1222,7 @@ router.post('/:id/review', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
-});
+}));
 
 // DELETE /api/petitions/:id
 router.delete('/:id', async (req, res) => {

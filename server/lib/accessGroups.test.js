@@ -1,6 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { findGroupForBackfill, findOrphanBackfillPaths } = require('./accessGroups');
+const {
+  DEFAULT_ACCESS_GROUPS,
+  PETITION_BACKFILL_PATHS,
+  findGroupForBackfill,
+  findOrphanBackfillPaths,
+} = require('./accessGroups');
 
 // Root cause regression guard for the "can't move Simple Method between groups"
 // bug: ensureGroups() used to force /simple-method (+ /machines) back into the
@@ -60,4 +65,17 @@ test('findGroupForBackfill prefers the anchor path owner and falls back to a gro
   ];
   assert.strictEqual(findGroupForBackfill(groups, 'samples', '/petition'), 'legacy-home');
   assert.strictEqual(findGroupForBackfill(groups, 'stock', '/missing-anchor'), 'stock');
+});
+
+test('default access groups leave lab send conditions for the others catch-all', () => {
+  assert.ok(Array.isArray(DEFAULT_ACCESS_GROUPS));
+  const owningGroup = DEFAULT_ACCESS_GROUPS
+    .filter((group) => group.id !== 'others')
+    .find((group) => (group.paths || []).includes('/lab-send-conditions'));
+
+  assert.strictEqual(owningGroup, undefined);
+});
+
+test('petition backfill does not claim lab send conditions', () => {
+  assert.deepStrictEqual(PETITION_BACKFILL_PATHS, ['/petition', '/petition/:id']);
 });

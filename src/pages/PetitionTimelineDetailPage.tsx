@@ -8,6 +8,8 @@ import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/L
 import PetitionPrintTemplate from "@/components/petition/PetitionPrintTemplate";
 import ResultReportPrintTemplate from "@/components/petition/ResultReportPrintTemplate";
 import SampleLabelPrintTemplate from "@/components/petition/SampleLabelPrintTemplate";
+import AdditionalSampleRequests from "@/components/petition/AdditionalSampleRequests";
+import { canPrintAdditionalSamples } from "@/lib/additionalSampleQr";
 import GoodsReceiptPrintTemplate, { GOODS_RECEIPT_CSS } from "@/components/warehouse/GoodsReceiptPrintTemplate";
 import GoodsReceiptView from "@/components/warehouse/GoodsReceiptView";
 import { Badge } from "@/components/ui/badge";
@@ -350,6 +352,12 @@ export default function PetitionTimelineDetailPage() {
   }
 
   if (!canViewPetition || !model) {
+    if (petition.additionalSampleRequests?.length && canPrintAdditionalSamples(petition, user)) {
+      return <AppLayout><div className="space-y-4">
+        <PageHeader title={petition.petitionNo} onBack={() => navigate('/petition')} />
+        <AdditionalSampleRequests petition={petition} />
+      </div></AppLayout>;
+    }
     return <AppLayout><div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">คุณไม่มีสิทธิ์ดูข้อมูล Timeline ของคำร้องนี้</div></AppLayout>;
   }
 
@@ -453,8 +461,8 @@ export default function PetitionTimelineDetailPage() {
     <style>{`@keyframes timeline-shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}</style>
     <PageHeader title="" onBack={() => navigate("/petition")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
 
-    <Card className="border-black-50 shadow-none"><CardContent className="grid gap-5 p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
-      <div className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
+    <Card className="border-black-50 shadow-none"><CardContent className="grid gap-4 p-4 sm:gap-5 sm:p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center justify-self-start rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400 sm:h-24 sm:w-24 xl:h-28 xl:w-28" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
       <div className="min-w-0 space-y-4">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-3">
@@ -478,6 +486,8 @@ export default function PetitionTimelineDetailPage() {
         </div>}
       </div>
     </CardContent></Card>
+
+    <AdditionalSampleRequests petition={petition} />
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">

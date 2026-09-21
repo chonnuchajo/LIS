@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StockQrScanner from "../StockQrScanner";
 
 const html5QrMock = vi.hoisted(() => {
   const start = vi.fn().mockResolvedValue(undefined);
+  const pause = vi.fn();
   const stop = vi.fn().mockResolvedValue(undefined);
   const applyVideoConstraints = vi.fn().mockResolvedValue(undefined);
   const getRunningTrackCapabilities = vi.fn().mockReturnValue({});
@@ -17,6 +18,7 @@ const html5QrMock = vi.hoisted(() => {
 
   return {
     start,
+    pause,
     stop,
     applyVideoConstraints,
     getRunningTrackCapabilities,
@@ -49,11 +51,15 @@ vi.mock("html5-qrcode", () => ({
 describe("StockQrScanner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
     html5QrMock.getRunningTrackCapabilities.mockReturnValue({});
     html5QrMock.getRunningTrackSettings.mockReturnValue({});
   });
 
-  it("starts QR scanning full-frame with high-resolution environment camera constraints", async () => {
+  it("starts QR scanning over the full frame with high-resolution environment constraints", async () => {
     render(
       <StockQrScanner
         open
@@ -65,15 +71,18 @@ describe("StockQrScanner", () => {
     await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
 
     expect(html5QrMock.start.mock.calls[0][1]).toMatchObject({
-      aspectRatio: 1.0,
+      fps: 15,
       disableFlip: false,
       videoConstraints: {
-        facingMode: { exact: "environment" },
+        facingMode: { ideal: "environment" },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
       },
     });
+    expect(html5QrMock.start.mock.calls[0][0]).toEqual({ facingMode: "environment" });
     expect(html5QrMock.start.mock.calls[0][1]).not.toHaveProperty("qrbox");
+    expect(html5QrMock.start.mock.calls[0][1]).not.toHaveProperty("aspectRatio");
   });
 
   it("keeps high-resolution constraints when falling back to a listed back camera", async () => {
@@ -97,11 +106,12 @@ describe("StockQrScanner", () => {
         deviceId: { exact: "back-camera" },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
       },
     });
   });
 
-  it("applies initial QR zoom when the camera supports zoom", async () => {
+  it("keeps camera zoom unchanged when QR scanner opens", async () => {
     html5QrMock.getRunningTrackCapabilities.mockReturnValue({ zoom: { min: 1, max: 4, step: 0.1 } });
     html5QrMock.getRunningTrackSettings.mockReturnValue({ zoom: 1 });
 
@@ -113,9 +123,37 @@ describe("StockQrScanner", () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 2 }] });
+    expect(await screen.findByText("1.0×")).toBeInTheDocument();
+
+    const zoomCalls = html5QrMock.applyVideoConstraints.mock.calls.filter(([constraints]) => (
+      constraints.advanced?.some((constraint: { zoom?: number }) => typeof constraint.zoom === "number")
+    ));
+    expect(zoomCalls).toHaveLength(0);
+  });
+
+  it("does not auto-adjust zoom after QR decode misses", async () => {
+    html5QrMock.getRunningTrackCapabilities.mockReturnValue({ zoom: { min: 1, max: 4, step: 0.1 } });
+    html5QrMock.getRunningTrackSettings.mockReturnValue({ zoom: 1 });
+
+    render(
+      <StockQrScanner
+        open
+        onClose={() => {}}
+        onScanned={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
+    expect(await screen.findByText("1.0×")).toBeInTheDocument();
+    html5QrMock.applyVideoConstraints.mockClear();
+
+    const decodeMissCallback = html5QrMock.start.mock.calls[0][3] as () => void;
+    act(() => {
+      for (let count = 0; count < 18; count += 1) decodeMissCallback();
     });
+
+    expect(html5QrMock.applyVideoConstraints).not.toHaveBeenCalled();
+    expect(screen.getByText("1.0×")).toBeInTheDocument();
   });
 
   it("zooms the camera with a two-finger pinch gesture without page panning", async () => {
@@ -130,7 +168,7 @@ describe("StockQrScanner", () => {
       />,
     );
 
-    expect(await screen.findByText("2.0×")).toBeInTheDocument();
+    expect(await screen.findByText("1.0×")).toBeInTheDocument();
     const cameraFrame = screen.getByTestId("stock-qr-camera-frame");
 
     expect(cameraFrame).toHaveClass("touch-none", "overscroll-contain");
@@ -149,8 +187,8 @@ describe("StockQrScanner", () => {
       ],
     });
 
-    expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 3 }] });
-    expect(screen.getByText("3.0×")).toBeInTheDocument();
+    expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 1.5 }] });
+    expect(screen.getByText("1.5×")).toBeInTheDocument();
   });
 
   it("reports both raw decoded QR text and parsed qrId", async () => {
@@ -168,7 +206,9 @@ describe("StockQrScanner", () => {
 
     await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
     const successCallback = html5QrMock.start.mock.calls[0][2] as (text: string) => void;
-    successCallback("https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan");
+    act(() => {
+      successCallback("https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan");
+    });
 
     expect(onDecoded).toHaveBeenCalledWith({
       raw: "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan",
@@ -191,6 +231,8 @@ describe("StockQrScanner", () => {
       />,
     );
 
+    await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
+
     fireEvent.change(screen.getByPlaceholderText("u_xxxxxxxx หรือ URL"), {
       target: { value: "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_ea3be3c6fb7b" },
     });
@@ -202,5 +244,26 @@ describe("StockQrScanner", () => {
       scanMode: "qr",
     });
     expect(onScanned).toHaveBeenCalledWith("u_ea3be3c6fb7b");
+  });
+
+  it("uses mobile-friendly manual input settings for phone and iPad keyboards", async () => {
+    render(
+      <StockQrScanner
+        open
+        onClose={() => {}}
+        onScanned={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
+    const input = screen.getByPlaceholderText("u_xxxxxxxx หรือ URL");
+
+    expect(input).toHaveAttribute("type", "url");
+    expect(input).toHaveAttribute("inputmode", "url");
+    expect(input).toHaveAttribute("enterkeyhint", "done");
+    expect(input).toHaveAttribute("autocapitalize", "none");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("autocorrect", "off");
+    expect(input).toHaveAttribute("spellcheck", "false");
   });
 });

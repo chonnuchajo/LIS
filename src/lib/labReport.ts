@@ -1,7 +1,7 @@
 import type { LabRequest } from "@/types/labRequest.types";
 import type { Petition, PetitionItem } from "@/types/petition.types";
-import { PETITION_DEPT_LABELS } from "@/types/petition.types";
 import type { ApprovalItemGroup } from "@/lib/qcApprovalRows";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 
 export interface LabReportRow {
   testItem: string;
@@ -34,6 +34,13 @@ export interface LabReportPage {
 
 const DASH = "-";
 const COMPANY_NAME = "บริษัท ไอ ซี พี ลัดดา จำกัด";
+const PHYSICAL_PARAMETER_NAME = "กายภาพ";
+const PHYSICAL_DESCRIPTION_LABEL = "ลักษณะ";
+const PHYSICAL_COLOR_LABEL = "สี";
+
+function cleanText(value?: string | null): string {
+  return value?.trim() || "";
+}
 
 export function buddhistDate(iso?: string | null): string {
   if (!iso) return "";
@@ -63,15 +70,15 @@ function labReportCriteriaText(standardText: string): string {
     .split(/\s*(?:·|\|)\s*/u)
     .map((part) =>
       part
-        .replace(/[^\d.,+\-–—<>≤≥=±%\s]/gu, " ")
-        .replace(/\s*([\-–—])\s*/g, "$1")
+        .replace(/[^\d.,+–—<>≤≥=±%\s-]/gu, " ")
+        .replace(/\s*([-–—])\s*/g, "$1")
         .replace(/\s+/g, " ")
         .trim(),
     )
     .filter((part) => /\d/.test(part));
 
   if (!numericParts.length) return raw;
-  if (/หัวหน้าตรวจสอบ|หัวหน้า/u.test(raw)) {
+  if (/เกณฑ์กรม|หัวหน้า/u.test(raw)) {
     return numericParts[numericParts.length - 1];
   }
   return numericParts.join(" · ");
@@ -99,6 +106,23 @@ function rowsForItem(group: ApprovalItemGroup | undefined): LabReportRow[] {
 const conditionText = (c?: string) =>
   c === "normal" ? "ปกติ" : c === "defective" ? "บกพร่อง" : DASH;
 
+function physicalFieldValue(rows: ApprovalItemGroup["params"][number]["rows"], label: string): string {
+  const row = rows.find((fieldRow) => fieldRow.label.split(" · ")[0]?.trim() === label);
+  const value = cleanText(row?.value);
+  return value && value !== DASH ? value : "";
+}
+
+function physicalDescription(group: ApprovalItemGroup | undefined): string {
+  for (const parameter of group?.params ?? []) {
+    if (parameter.parameterName.trim() !== PHYSICAL_PARAMETER_NAME) continue;
+    const description = physicalFieldValue(parameter.rows, PHYSICAL_DESCRIPTION_LABEL);
+    const color = physicalFieldValue(parameter.rows, PHYSICAL_COLOR_LABEL);
+    const text = [description, color].filter(Boolean).join(" ");
+    if (text) return text;
+  }
+  return "";
+}
+
 export function buildLabReportPages(
   petition: Petition,
   labRequests: LabRequest[],
@@ -114,13 +138,15 @@ export function buildLabReportPages(
   return (petition.items ?? []).map((item) => {
     const lr = labRequestForItem(item, labRequests);
     const requester = lr?.requester;
+    const group = groupBySeq.get(item.seq);
+    const requesterName = cleanText(requester?.fullName) || cleanText(petition.submittedBy?.name) || DASH;
     return {
       reportNo: lr?.labRequestNo || petition.petitionNo,
       reportDate: reportedDate || DASH,
       customer: {
-        name: lr?.reportCustomerName || requester?.fullName || petition.submittedBy?.name || DASH,
-        company: COMPANY_NAME,
-        department: requester?.department || PETITION_DEPT_LABELS[petition.dept] || DASH,
+        name: requesterName,
+        company: cleanText(lr?.reportCustomerName) || COMPANY_NAME,
+        department: requester?.department || petitionDepartmentLabel(petition) || DASH,
         email: requester?.email || DASH,
         phone: requester?.phone || DASH,
       },
@@ -134,9 +160,9 @@ export function buildLabReportPages(
         receivedDate: buddhistDate(petition.labReceivedAt || petition.receivedAt || petition.sampleSentAt) || DASH,
         testedDate: buddhistDate(petition.firstResultAt || petition.labCompletedAt) || DASH,
         reportedDate: reportedDate || DASH,
-        condition: conditionText(item.condition),
+        condition: physicalDescription(group) || conditionText(item.condition),
       },
-      rows: rowsForItem(groupBySeq.get(item.seq)),
+      rows: rowsForItem(group),
       analystName,
       labHeadName,
       remark: petition.conclusionNote || "",

@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { cn } from "@/lib/utils";
 import type { StockUnitItem } from "@/types/stock";
 
@@ -98,7 +99,7 @@ export default function PerformanceDropDialog({ qrId, units, onClose, onSaved }:
               <div className="rounded-xl border bg-muted/40 p-3">
                 <div className="font-medium">{firstUnit.itemName}</div>
                 <div className="mt-0.5 text-sm text-muted-foreground">
-                  เหลือ <span className="font-medium text-foreground">{firstUnit.volume?.remaining ?? "-"} {firstUnit.volume?.unit}</span>
+                  เหลือ <span className="font-medium text-foreground">{formatStockQuantityWithUnit(firstUnit.volume?.remaining, firstUnit.volume?.unit)}</span>
                   {" · "}{isWorking ? "working" : "คงคลัง"}
                   {firstUnit.lotNo ? ` · Lot ${firstUnit.lotNo}` : ""}
                 </div>

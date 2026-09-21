@@ -20,6 +20,7 @@ const IMPLIED_CHILD_PATHS: Record<string, string[]> = {
   "/qc-testing": ["/qc-testing/:id"],
   "/qc-approval": ["/qc-approval/:id"],
   "/lab-testing": ["/lab-testing/:id"],
+  "/lab-send-conditions": ["/mf-gap-medicines"],
   "/coa": ["/coa/:id"],
   "/daily-check": [
     "/daily-check/environment",
@@ -43,8 +44,8 @@ function normalizePath(path: string) {
 
 // A pathname that is itself a sidebar nav page is controlled on its own and must
 // never be auto-granted through a parent's implied sub-pages. This keeps e.g.
-// /petitions/assign (a nav page that matches /petitions/:id) out of the subtree
-// granted by /petitions.
+// /petition/assign (a nav page that matches /petition/:id) out of the subtree
+// granted by /petition.
 function isOwnNavPage(pathname: string) {
   return NAV_ITEMS.some((item) => pathMatches(item.path, pathname));
 }

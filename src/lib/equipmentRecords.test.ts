@@ -48,6 +48,19 @@ describe("filterEquipmentRecords", () => {
     expect(out[0].instrumentId).toBe("LD-044");
   });
 
+  it("filters by Daily Check period", () => {
+    const out = filterEquipmentRecords(
+      [
+        rec({ instrumentId: "LD-001", period: "morning" }),
+        rec({ instrumentId: "LD-002", period: "afternoon" }),
+      ],
+      { period: "afternoon" },
+    );
+
+    expect(out).toHaveLength(1);
+    expect(out[0].instrumentId).toBe("LD-002");
+  });
+
   it("combines room + status", () => {
     const out = filterEquipmentRecords(data, { room: "analysis", status: "normal" });
     expect(out).toHaveLength(1);

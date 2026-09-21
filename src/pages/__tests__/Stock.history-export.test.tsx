@@ -9,6 +9,7 @@ const apiMock = vi.hoisted(() => ({
   getStandards: vi.fn(),
   getStockUnits: vi.fn(),
   getSolvents: vi.fn(),
+  getGlassware: vi.fn(),
   exportMasterItems: vi.fn(),
   exportStockStandardHistory: vi.fn(),
   exportStockSolventHistory: vi.fn(),
@@ -86,6 +87,7 @@ describe("Stock history export", () => {
     apiMock.getStandards.mockResolvedValue([{ _id: "std1", code: "STD-001", name: "Pesticide Mix" }]);
     apiMock.getStockUnits.mockResolvedValue([]);
     apiMock.getSolvents.mockResolvedValue([{ _id: "sol1", name: "Methanol" }]);
+    apiMock.getGlassware.mockResolvedValue([]);
     apiMock.exportMasterItems.mockResolvedValue(new Blob(["xlsx"]));
     apiMock.exportStockStandardHistory.mockResolvedValue(new Blob(["xlsx"]));
     apiMock.exportStockSolventHistory.mockResolvedValue(new Blob(["doc"]));
@@ -96,6 +98,48 @@ describe("Stock history export", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("ranks standard codes after the default sort and keeps the existing filters", async () => {
+    accessibleTabsMock.defaultKey = "standard";
+    accessibleTabsMock.tabs = [{ key: "standard", label: "Standards" }];
+    const choices = [
+      { code: "867", name: "Contains" },
+      { code: "670", name: "Prefix" },
+      { code: "67", name: "Exact" },
+      { code: "1", name: "67 name" },
+      { code: "2", name: "Not a match" },
+    ];
+    apiMock.getStandards.mockResolvedValue(choices.map((choice) => ({
+      _id: choice.code, primary: {}, supplier: {}, working: {}, ...choice,
+    })));
+    renderStock();
+    const searchInput = await screen.findByPlaceholderText("ค้นหา code หรือชื่อ");
+    const codes = () => within(screen.getByRole("table")).getAllByRole("row").slice(1)
+      .map((row) => within(row).getAllByRole("cell")[0].textContent);
+    await waitFor(() => expect(codes()).toEqual(["1", "2", "67", "670", "867"]));
+    fireEvent.change(searchInput, { target: { value: "67" } });
+    expect(codes()).toEqual(["67", "670", "867", "1"]);
+    fireEvent.change(searchInput, { target: { value: "" } });
+    expect(codes()).toEqual(["1", "2", "67", "670", "867"]);
+  });
+
+  it.each(["solvent", "glassware"])("ranks %s names and restores source order", async (category) => {
+    accessibleTabsMock.defaultKey = category;
+    accessibleTabsMock.tabs = [{ key: category, label: category }];
+    const names = ["AA Methanol", "XMethanol", "Methanol Z", "Methanol A", "Methanol", "Water"];
+    const rows = names.map((name) => ({ _id: name, name, qty: 5, sizeLiter: 1, price: 0, pricePerPiece: 0, note: "" }));
+    apiMock.getSolvents.mockResolvedValue(rows);
+    apiMock.getGlassware.mockResolvedValue(rows);
+    renderStock();
+    const searchInput = await screen.findByPlaceholderText("ค้นหา");
+    const visibleNames = () => within(screen.getByRole("table")).getAllByRole("row").slice(1)
+      .map((row) => within(row).getAllByRole("cell")[0].textContent);
+    await waitFor(() => expect(visibleNames()).toEqual(names));
+    fireEvent.change(searchInput, { target: { value: "Methanol" } });
+    expect(visibleNames()).toEqual(["Methanol", "Methanol Z", "Methanol A", "XMethanol", "AA Methanol"]);
+    fireEvent.change(searchInput, { target: { value: "" } });
+    expect(visibleNames()).toEqual(names);
   });
 
   it("opens an export dialog with standard and solvent-specific controls", async () => {

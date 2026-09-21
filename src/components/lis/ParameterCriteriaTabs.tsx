@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pencil, Search } from "lucide-react";
 
 import type { ParameterItem, ParameterScope } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import {
   type AdvancedCriteriaMode,
   buildConditionalCriteriaRows,
@@ -22,8 +23,6 @@ import {
 } from "@/components/ui/table";
 
 export type ParameterCriteriaTab = "list" | AdvancedCriteriaMode;
-
-const ALL_PARAMETERS_VALUE = "__all__";
 
 type CriteriaSortKey =
   | "parameterOrder"
@@ -120,15 +119,35 @@ export function ParameterCriteriaTabs({
   canViewHeadCriteriaColumns = false,
   onEditField,
 }: ParameterCriteriaTabsProps) {
-  const [parameterFilter, setParameterFilter] = useState(ALL_PARAMETERS_VALUE);
+  const [parameterFilter, setParameterFilter] = useState("");
   const [sortKeyByTab, setSortKeyByTab] = useState<Record<Exclude<ParameterCriteriaTab, "list">, CriteriaSortKey>>({
     substance: "substanceAsc",
     conditional: "parameterOrder",
-    labelTolerance: "parameterOrder",
+    labelTolerance: "drugPercentAsc",
   });
   const [criteriaSearch, setCriteriaSearch] = useState("");
   const showHeadCriteriaColumns = canViewHeadCriteriaColumns === true;
-  const activeCriteriaTab = value === "list" ? "substance" : value;
+  const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
+  const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
+  const labelRows = useMemo(() => buildLabelToleranceCriteriaRows(parameters, scope), [parameters, scope]);
+  const criteriaTabOptions = useMemo(
+    () =>
+      [
+        { value: "substance" as const, label: "แยกตามสาร", rows: substanceRows },
+        { value: "conditional" as const, label: "เงื่อนไขพิเศษ", rows: conditionalRows },
+        { value: "labelTolerance" as const, label: "ตาม %สาร", rows: labelRows },
+      ].filter((tab) => tab.rows.length > 0),
+    [conditionalRows, labelRows, substanceRows],
+  );
+  const availableCriteriaTabValues = useMemo(
+    () => criteriaTabOptions.map((tab) => tab.value),
+    [criteriaTabOptions],
+  );
+  const isRequestedCriteriaTabAvailable = value !== "list" && availableCriteriaTabValues.includes(value);
+  const selectedTabValue: ParameterCriteriaTab = isRequestedCriteriaTabAvailable ? value : "list";
+  const activeCriteriaTab = isRequestedCriteriaTabAvailable
+    ? value
+    : criteriaTabOptions[0]?.value ?? "substance";
   const sortOptions =
     activeCriteriaTab === "substance"
       ? SUBSTANCE_SORT_OPTIONS
@@ -149,12 +168,32 @@ export function ParameterCriteriaTabs({
     scopedParameters.forEach((parameter, index) => order.set(parameter._id, index));
     return order;
   }, [scopedParameters]);
-  const activeParameterFilter = parameterOrder.has(parameterFilter) ? parameterFilter : ALL_PARAMETERS_VALUE;
-
-  const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
-  const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
-  const labelRows = useMemo(() => buildLabelToleranceCriteriaRows(parameters, scope), [parameters, scope]);
-  const normalizedCriteriaSearch = criteriaSearch.trim().toLowerCase();
+  const activeCriteriaRows =
+    activeCriteriaTab === "substance"
+      ? substanceRows
+      : activeCriteriaTab === "conditional"
+        ? conditionalRows
+        : labelRows;
+  const activeParameterIds = useMemo(
+    () => new Set(activeCriteriaRows.map((row) => row.parameterId)),
+    [activeCriteriaRows],
+  );
+  const parameterOptions = useMemo(
+    () => scopedParameters.filter((parameter) => activeParameterIds.has(parameter._id)),
+    [activeParameterIds, scopedParameters],
+  );
+  const parameterOptionIds = useMemo(
+    () => new Set(parameterOptions.map((parameter) => parameter._id)),
+    [parameterOptions],
+  );
+  const defaultParameterFilter = useMemo(
+    () => parameterOptions.find(isSpecificGravityParameter)?._id ?? parameterOptions[0]?._id ?? "",
+    [parameterOptions],
+  );
+  const activeParameterFilter = parameterOptionIds.has(parameterFilter) ? parameterFilter : defaultParameterFilter;
+  const selectedParameterName =
+    parameterOptions.find((parameter) => parameter._id === activeParameterFilter)?.name ?? "ยังไม่มี Parameter";
+  const normalizedCriteriaSearch = normalizeCriteriaSearchText(criteriaSearch);
   const visibleSubstanceRows = useMemo(
     () => filterAndSortRows(substanceRows, activeParameterFilter, normalizedCriteriaSearch, sortKey, parameterOrder),
     [activeParameterFilter, normalizedCriteriaSearch, parameterOrder, sortKey, substanceRows],
@@ -168,16 +207,33 @@ export function ParameterCriteriaTabs({
     [activeParameterFilter, labelRows, normalizedCriteriaSearch, parameterOrder, sortKey],
   );
 
+  useEffect(() => {
+    setParameterFilter(defaultParameterFilter);
+    setCriteriaSearch("");
+  }, [activeCriteriaTab, defaultParameterFilter]);
+
+  useEffect(() => {
+    if (value !== "list" && !availableCriteriaTabValues.includes(value)) {
+      onValueChange("list");
+    }
+  }, [availableCriteriaTabValues, onValueChange, value]);
+
+  const handleTabChange = (next: string) => {
+    setParameterFilter("");
+    setCriteriaSearch("");
+    onValueChange(next as ParameterCriteriaTab);
+  };
+
   return (
-    <Tabs value={value} onValueChange={(next) => onValueChange(next as ParameterCriteriaTab)}>
-      <TabsList className="mb-4 grid w-full grid-cols-2 lg:inline-grid lg:w-auto lg:grid-cols-4">
+    <Tabs value={selectedTabValue} onValueChange={handleTabChange}>
+      <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 lg:w-auto">
         <TabsTrigger value="list">ทั้งหมด</TabsTrigger>
-        <TabsTrigger value="substance">แยกตามสาร</TabsTrigger>
-        <TabsTrigger value="conditional">เงื่อนไขพิเศษ</TabsTrigger>
-        <TabsTrigger value="labelTolerance">ตาม %สาร</TabsTrigger>
+        {criteriaTabOptions.map((tab) => (
+          <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+        ))}
       </TabsList>
 
-      {value !== "list" ? (
+      {selectedTabValue !== "list" ? (
         <div className="mb-4 flex flex-col gap-3 rounded-md border bg-muted/20 p-3 sm:flex-row sm:items-end">
           <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground sm:min-w-[260px] sm:flex-1">
             ค้นหาเกณฑ์
@@ -187,7 +243,7 @@ export function ParameterCriteriaTabs({
                 aria-label="ค้นหาเกณฑ์"
                 value={criteriaSearch}
                 onChange={(event) => setCriteriaSearch(event.target.value)}
-                placeholder="ค้นหาสาร / Parameter / ค่าเกณฑ์..."
+                placeholder="ค้นหาสาร / ค่าเกณฑ์..."
                 className="h-9 bg-background pl-8"
               />
             </div>
@@ -200,8 +256,7 @@ export function ParameterCriteriaTabs({
               value={activeParameterFilter}
               onChange={(event) => setParameterFilter(event.target.value)}
             >
-              <option value={ALL_PARAMETERS_VALUE}>ทุก Parameter</option>
-              {scopedParameters.map((parameter) => (
+              {parameterOptions.map((parameter) => (
                 <option key={parameter._id} value={parameter._id}>
                   {parameter.name}
                 </option>
@@ -239,8 +294,8 @@ export function ParameterCriteriaTabs({
         <TableShell empty={visibleSubstanceRows.length === 0}>
           <Table className="min-w-[980px]">
             <TableHeader>
+              <ParameterTitleRow title={selectedParameterName} colSpan={7} />
               <TableRow>
-                <TableHead>Parameter</TableHead>
                 <TableHead>สาร</TableHead>
                 <TableHead>รหัสสินค้า</TableHead>
                 <TableHead>ขนาดบรรจุ</TableHead>
@@ -257,7 +312,6 @@ export function ParameterCriteriaTabs({
                   className="cursor-pointer"
                   onClick={() => onEditField("substance", row.parameterId, row.fieldIndex, row.ruleIndex)}
                 >
-                  <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.substance}</TableCell>
                   <TableCell>{row.itemNo || "-"}</TableCell>
                   <TableCell>{row.packSize || "-"}</TableCell>
@@ -295,8 +349,8 @@ export function ParameterCriteriaTabs({
         <TableShell empty={visibleConditionalRows.length === 0}>
           <Table className="min-w-[820px]">
             <TableHeader>
+              <ParameterTitleRow title={selectedParameterName} colSpan={5} />
               <TableRow>
-                <TableHead>Parameter</TableHead>
                 <TableHead>กฎที่</TableHead>
                 <TableHead>ชื่อกฎ</TableHead>
                 <TableHead>เงื่อนไข</TableHead>
@@ -307,7 +361,6 @@ export function ParameterCriteriaTabs({
             <TableBody>
               {visibleConditionalRows.map((row) => (
                 <TableRow key={row.rowId}>
-                  <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.ruleIndex == null ? "-" : row.ruleIndex + 1}</TableCell>
                   <TableCell>{row.ruleLabel}</TableCell>
                   <TableCell>{row.conditionsText}</TableCell>
@@ -329,8 +382,8 @@ export function ParameterCriteriaTabs({
         <TableShell empty={visibleLabelRows.length === 0}>
           <Table className={showHeadCriteriaColumns ? "min-w-[1100px]" : "min-w-[780px]"}>
             <TableHeader>
+              <ParameterTitleRow title={selectedParameterName} colSpan={showHeadCriteriaColumns ? 7 : 4} />
               <TableRow>
-                <TableHead>Parameter</TableHead>
                 <TableHead>%สาร</TableHead>
                 {showHeadCriteriaColumns ? <TableHead>เกณฑ์คลาดเคลื่อน (%,+-)</TableHead> : null}
                 <TableHead>เกณฑ์กลาง</TableHead>
@@ -348,14 +401,8 @@ export function ParameterCriteriaTabs({
               {visibleLabelRows.map((row) => (
                 <TableRow key={row.rowId}>
                   <TableCell>
-                    <div className="min-w-0 space-y-1">
-                      <div className="font-medium">{row.parameterName}</div>
-                      <div className="truncate text-xs text-muted-foreground">{row.selectorText}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium tabular-nums">{row.drugPercent}</span>
+                      <span className="font-medium tabular-nums">{row.selectorText}</span>
                       <EditButton
                         label={`แก้ไขเกณฑ์ %สาร ${row.fieldLabel}`}
                         onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}
@@ -382,6 +429,21 @@ export function ParameterCriteriaTabs({
   );
 }
 
+function isSpecificGravityParameter(parameter: ParameterOption) {
+  return [parameter.name, ...(parameter.valueFields ?? []).map((field) => field.label)]
+    .some((value) => normalizeCriteriaSearchText(value).includes("ถพ"));
+}
+
+function ParameterTitleRow({ title, colSpan }: { title: string; colSpan: number }) {
+  return (
+    <TableRow>
+      <TableHead colSpan={colSpan} className="bg-muted/40 text-sm font-semibold text-foreground">
+        {title}
+      </TableHead>
+    </TableRow>
+  );
+}
+
 function filterAndSortRows<T extends SortableCriteriaRow>(
   rows: T[],
   parameterFilter: string,
@@ -389,29 +451,45 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
   sortKey: CriteriaSortKey,
   parameterOrder: Map<string, number>,
 ) {
-  return rows
+  const filtered = rows
     .filter(
       (row) =>
-        (parameterFilter === ALL_PARAMETERS_VALUE || row.parameterId === parameterFilter) &&
+        Boolean(parameterFilter) &&
+        row.parameterId === parameterFilter &&
         matchesCriteriaSearch(row, searchQuery),
     )
     .slice()
     .sort(compareCriteriaRows(sortKey, parameterOrder));
+  return rankSearchResults(filtered, searchQuery, (row) => {
+    const searchable = row as unknown as Record<string, unknown>;
+    return {
+      primary: [normalizeCriteriaSearchText(row.itemNo || row.substance || searchable.ruleLabel || searchable.selectorText || row.parameterName)],
+      secondary: [row.searchText, ...SEARCHABLE_ROW_KEYS.map((key) => searchable[key])].map(normalizeCriteriaSearchText),
+    };
+  });
 }
 
 function matchesCriteriaSearch(row: SortableCriteriaRow, searchQuery: string) {
   if (!searchQuery) return true;
   const searchable = row as unknown as Record<string, unknown>;
-  const rowSearchText = String(searchable.searchText ?? "").toLowerCase();
+  const rowSearchText = normalizeCriteriaSearchText(searchable.searchText);
   if (rowSearchText.includes(searchQuery)) return true;
   return SEARCHABLE_ROW_KEYS.some((key) => {
     const value = searchable[key];
     if (value == null) return false;
     if (Array.isArray(value)) {
-      return value.some((item) => String(item).toLowerCase().includes(searchQuery));
+      return value.some((item) => normalizeCriteriaSearchText(item).includes(searchQuery));
     }
-    return String(value).toLowerCase().includes(searchQuery);
+    return normalizeCriteriaSearchText(value).includes(searchQuery);
   });
+}
+
+function normalizeCriteriaSearchText(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/%\s+/g, "%")
+    .trim();
 }
 
 function compareCriteriaRows<T extends SortableCriteriaRow>(
