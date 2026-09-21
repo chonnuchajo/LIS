@@ -142,6 +142,26 @@ function renderPage(initialEntry = "/coa") {
 }
 
 describe("CoaCenterPage", () => {
+  it("uses trade names from visible requests in the sample preview", async () => {
+    const document: CoaDocument = {
+      _id: "requested-trade-a", revision: 0, status: "requested", petitionId: "trade-a",
+      coaYear: new Date().getFullYear(), createdAt: new Date().toISOString(), selectedItemSeqs: [1],
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade Preview A", commonName: "GLYPHOSATE 48% SL" }],
+      resultSnapshots: [],
+    };
+    vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({ items: [document, {
+      ...document, _id: "requested-trade-b", petitionId: "trade-b",
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade Preview B", commonName: "GLYPHOSATE 48% SL" }],
+    }] });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+    await waitFor(() => expect(screen.getByText("PRODUCT :").closest("div")).toHaveTextContent("Trade Preview A (GLYPHOSATE 48% SL)"));
+
+    fireEvent.change(screen.getByPlaceholderText("ค้นหา COA / คำร้อง"), { target: { value: "Trade Preview B" } });
+    expect(screen.getByText("PRODUCT :").closest("div")).toHaveTextContent("Trade Preview B (GLYPHOSATE 48% SL)");
+    expect(screen.queryByText(/ผลิตภัณฑ์ตัวอย่าง A/)).not.toBeInTheDocument();
+  });
+
   it.each(["coaNo", "petitionNoSnapshot", "lotNo", "batchNo"])("ranks %s before names within the selected date scope", async (field) => {
     const makeDocument = (id: string, code: string): CoaDocument => ({
       _id: id, coaNo: id, petitionId: id, petitionNoSnapshot: id,
@@ -290,7 +310,7 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /แฟ้มปี 2569/ }));
 
     expect(await screen.findByText("00022026")).toBeInTheDocument();
-    const requestedRow = await screen.findByRole("row", { name: /P-2608-0004/ });
+    const requestedRow = (await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" })).closest("tr")!;
     expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
     expect(screen.queryByText("00012025")).not.toBeInTheDocument();
@@ -330,7 +350,7 @@ describe("CoaCenterPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "สถานะ ขอ COA" }));
 
-    const requestedRow = await screen.findByRole("row", { name: /P-2608-0004/ });
+    const requestedRow = (await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" })).closest("tr")!;
     expect(screen.getByRole("columnheader", { name: "คำสั่ง" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
     expect(within(requestedRow).queryByText("ขอ COA")).not.toBeInTheDocument();

@@ -1108,9 +1108,12 @@ export default function CoaCenterPage() {
 
           {showCreateActions && (
             <CoaSamplePreview
+              document={rows[0]}
               className="bg-card"
               title="ตัวอย่างการสร้างฟอร์ม COA 1 ใบ"
-              description="ตัวอย่างเอกสารที่แสดงเมื่ออยู่ในแท็บขอ COA"
+              description={rows[0]
+                ? "ตัวอย่างจากรายการแรกในตาราง โดย PRODUCT ดึงจากชื่อการค้า"
+                : "ตัวอย่างจากข้อมูลจำลอง ยังไม่มีรายการ COA ในตาราง"}
             />
           )}
 

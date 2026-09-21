@@ -1,6 +1,7 @@
 import CoaReportTemplate from "@/components/coa/CoaReportTemplate";
 import { buildCoaReportPages } from "@/lib/coaReport";
 import { cn } from "@/lib/utils";
+import type { CoaDocument } from "@/types/coa.types";
 
 const sampleCoaPage = buildCoaReportPages({
   _id: "sample-coa",
@@ -13,7 +14,7 @@ const sampleCoaPage = buildCoaReportPages({
   sampleSnapshots: [
     {
       itemSeq: 1,
-      sampleName: "ผลิตภัณฑ์ตัวอย่าง A",
+      sampleName: "ชื่อการค้าตัวอย่าง",
       commonName: "GLYPHOSATE 48% SL",
       batchNo: "B2608-001",
       lotNo: "L2608-001",
@@ -34,17 +35,20 @@ const sampleCoaPage = buildCoaReportPages({
 })[0];
 
 type CoaSamplePreviewProps = {
+  document?: CoaDocument;
   className?: string;
   title?: string;
   description?: string;
 };
 
 export default function CoaSamplePreview({
+  document,
   className,
   title = "ตัวอย่างฟอร์ม COA 1 ใบ",
-  description = "ตัวอย่าง COA ยาน้ำจากข้อมูลจำลอง ใช้แม่แบบเดียวกับเอกสารจริง",
+  description = document ? "ตัวอย่าง COA จากข้อมูลรายการ" : "ตัวอย่าง COA ยาน้ำจากข้อมูลจำลอง ใช้แม่แบบเดียวกับเอกสารจริง",
 }: CoaSamplePreviewProps) {
-  const sample = sampleCoaPage.samples[0];
+  const pages = document ? buildCoaReportPages(document) : [sampleCoaPage];
+  const sample = pages[0].samples[0];
 
   return (
     <section className={cn("rounded-lg border bg-card p-4 text-card-foreground shadow-sm", className)}>
@@ -56,20 +60,20 @@ export default function CoaSamplePreview({
       <div className="mb-4 grid gap-3 text-sm sm:grid-cols-3">
         <div className="rounded-md bg-muted p-3">
           <div className="font-semibold text-foreground">เลข COA</div>
-          <div className="mt-1 text-muted-foreground">{sampleCoaPage.coaNo}</div>
+          <div className="mt-1 text-muted-foreground">{pages[0].coaNo}</div>
         </div>
         <div className="rounded-md bg-muted p-3">
-          <div className="font-semibold text-foreground">สินค้า</div>
-          <div className="mt-1 text-muted-foreground">{sample.commonName}</div>
+          <div className="font-semibold text-foreground">ชื่อการค้า</div>
+          <div className="mt-1 text-muted-foreground">{sample?.sampleName?.trim() || "-"}</div>
         </div>
         <div className="rounded-md bg-muted p-3">
           <div className="font-semibold text-foreground">Batch</div>
-          <div className="mt-1 text-muted-foreground">{sample.batchNo}</div>
+          <div className="mt-1 text-muted-foreground">{sample?.batchNo || "-"}</div>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border bg-muted p-4">
-        <CoaReportTemplate pages={[sampleCoaPage]} />
+        <CoaReportTemplate pages={pages} />
       </div>
     </section>
   );
