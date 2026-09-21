@@ -9,6 +9,7 @@ const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
+const { buildCoaFormOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const {
   actorFromBody,
@@ -408,8 +409,9 @@ function sortCoaRows(items = []) {
   });
 }
 
-async function freezeSnapshots(petitionId, selectedItemSeqs) {
+async function loadCoaSource(petitionId, selectedItemSeqs) {
   const petition = await assertLabApprovedPetition(petitionId);
+  selectedItemsFromPetition(petition, selectedItemSeqs);
   const labRequests = await LabRequest.find({ petitionId: petition._id }).lean();
   const labSeqs = labSeqSet(labRequests);
   if (labSeqs.size) {
@@ -424,7 +426,15 @@ async function freezeSnapshots(petitionId, selectedItemSeqs) {
   const parameters = parameterIds.length
     ? await Parameter.find({ _id: { $in: parameterIds } }).lean()
     : [];
-  return buildCoaSnapshots({ petition, labRequests, parameters, qcResults, selectedItemSeqs });
+  return { petition, labRequests, parameters, qcResults, selectedItemSeqs };
+}
+
+async function freezeSnapshots(petitionId, selectedItemSeqs, formSelections) {
+  const source = await loadCoaSource(petitionId, selectedItemSeqs);
+  const snapshots = buildCoaSnapshots(source);
+  return formSelections === undefined
+    ? snapshots
+    : applyCoaFormSelections(snapshots, buildCoaFormOptions(source), formSelections);
 }
 
 async function createCoaDocument(payload, session) {
@@ -561,13 +571,23 @@ router.get('/eligible-petitions', async (_req, res) => {
   }
 });
 
+router.get('/source-data/:petitionId', async (req, res) => {
+  try {
+    const selectedItemSeqs = String(req.query.itemSeqs || '').split(',').filter(Boolean).map(Number);
+    const source = await loadCoaSource(req.params.petitionId, selectedItemSeqs);
+    res.json({ results: buildCoaFormOptions(source) });
+  } catch (error) {
+    res.status(errorStatus(error)).json({ error: error.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const actor = await actorFromRequest(req.body);
     const petition = await assertLabApprovedPetition(req.body.petitionId);
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
     const selectedItemSeqs = selectedItems.map((item) => item.seq);
-    const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs);
+    const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs, req.body.formSelections);
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
         petitionId: petition._id,
@@ -611,7 +631,7 @@ router.patch('/:id', async (req, res) => {
       const petition = await assertLabApprovedPetition(doc.petitionId);
       doc.selectedItemSeqs = selectedItemsFromPetition(petition, req.body.selectedItemSeqs)
         .map((item) => item.seq);
-      const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs);
+      const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, req.body.formSelections ?? doc.formSelections);
       doc.set(snapshots);
     }
     if (typeof req.body.remark === 'string') doc.remark = req.body.remark;
@@ -632,7 +652,7 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs);
+    const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
@@ -658,7 +678,7 @@ router.post('/:id/approve', async (req, res) => {
     assertCanTransition(doc.status, 'approve', actor);
     await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
-    const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs) : {};
+    const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections) : {};
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -745,6 +765,7 @@ router.post('/:id/revise', async (req, res) => {
         sampleSnapshots: source.sampleSnapshots,
         resultSnapshots: source.resultSnapshots,
         trendSnapshots: source.trendSnapshots,
+        formSelections: source.formSelections,
         sourceCoaId: source._id,
         remark: source.remark,
         createdBy: actor,

@@ -567,6 +567,7 @@ export default function CoaCenterPage() {
   const { user } = useAuth();
   const demoCoaEnabled = DEV_MODE && searchParams.get("demoCoa") === "bromadiolone";
   const [createOpen, setCreateOpen] = useState(false);
+  const [createRequest, setCreateRequest] = useState<CoaDocument | null>(null);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<CoaTab>("today");
   const [activeWorkflowStage, setActiveWorkflowStage] = useState<CoaWorkflowStage>(() => (demoCoaEnabled ? "requested" : "all"));
@@ -646,6 +647,7 @@ export default function CoaCenterPage() {
       setActiveWorkflowStage("inProgress");
       return;
     }
+    setCreateRequest(doc);
     setCreateOpen(true);
   }
 
@@ -1508,7 +1510,7 @@ export default function CoaCenterPage() {
       >
         <CoaReportTemplate pages={previewPages} />
       </PrintPreviewDialog>
-      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
+      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />
     </AppLayout>
   );
 }

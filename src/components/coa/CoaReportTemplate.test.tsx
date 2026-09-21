@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import CoaReportTemplate, { COA_REPORT_CSS } from "./CoaReportTemplate";
 import type { CoaReportPage } from "@/lib/coaReport";
@@ -51,7 +51,7 @@ describe("CoaReportTemplate", () => {
       template: "liquid",
       coaNo: "00062026",
       revision: 0,
-      issueDate: "20/08/2569",
+      issueDate: "August 20, 2026",
       petitionNo: "P-2608-0006",
       customer: {},
       samples: [{
@@ -70,18 +70,37 @@ describe("CoaReportTemplate", () => {
         densityResult: "1.120",
         waxBlockSizeResult: "-",
         dateOfAnalysis: "20/08/2026",
-        rows: [],
+        rows: [
+          { itemSeq: 1, testItem: "Appearance", criteria: "Clear liquid", result: "Conform" },
+          { itemSeq: 1, testItem: "Density at 30°C (g/cm³)", criteria: "1.100 - 1.150", result: "1.120" },
+        ],
       }],
       remark: "",
       approvedBy: "QC Head",
       approvedAt: "20/08/2569",
     };
 
-    render(<CoaReportTemplate pages={[page]} />);
+    const { rerender } = render(<CoaReportTemplate pages={[page]} />);
 
     expect(screen.getByText("CERTIFICATE OF ANALYSIS")).toBeInTheDocument();
     expect(screen.getByText("CERTIFICATE OF ANALYSIS").closest("section")).toHaveClass("coa-liquid-page");
-    expect(COA_REPORT_CSS).toContain(".coa-liquid-page { background: #fff3b0; }");
+    expect(COA_REPORT_CSS).not.toContain("#fff3b0");
+    expect(COA_REPORT_CSS).toContain(".coa-liquid-page .coa-special-title { font-size: 20pt; }");
+    const section = screen.getByText("CERTIFICATE OF ANALYSIS").closest("section")!;
+    expect(window.getComputedStyle(section).backgroundColor).toBe("rgb(255, 255, 255)");
+    expect(window.getComputedStyle(section).fontSize).toBe("18pt");
+    expect(window.getComputedStyle(screen.getByText("CERTIFICATE OF ANALYSIS")).fontSize).toBe("20pt");
+    expect(COA_REPORT_CSS).toContain(".coa-liquid-page .coa-special-table th { font-weight: 400 !important; }");
+    expect(screen.getByText("August 20, 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Month DATE, ค.ศ.")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["TEST ITEM", "Specification", "Result"]);
+    expect(screen.getByText("Clear liquid")).toBeInTheDocument();
+    expect(screen.getByText("Conform")).toBeInTheDocument();
+    expect(screen.queryByText("1.100 - 1.150")).not.toBeInTheDocument();
+    const densityCells = within(screen.getByText("Density at 30°C (g/cm³)").closest("tr")!).getAllByRole("cell");
+    expect(densityCells).toHaveLength(2);
+    expect(densityCells[0]).toHaveAttribute("colspan", "2");
+    expect(densityCells[1]).toHaveTextContent("1.120");
     expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent("PRODUCT : Trade Liquid (Glyphosate 48% SL)");
     expect(screen.getByText("%AI content (W/V)")).toBeInTheDocument();
     expect(screen.getByText("48% ± 2.40")).toBeInTheDocument();
@@ -89,6 +108,25 @@ describe("CoaReportTemplate", () => {
     expect(screen.getByText("LOT-888 / B-888")).toBeInTheDocument();
     expect(screen.getByText("1.120")).toBeInTheDocument();
     expect(screen.getByText("20/08/2026")).toBeInTheDocument();
+    expect(screen.getByText("(สิริพิชญ์ สงสมพันธ์)")).toBeInTheDocument();
+    expect(screen.getByText("Asst. Quality Control Manager")).toBeInTheDocument();
+
+    rerender(<CoaReportTemplate pages={[{
+      ...page,
+      samples: [{ ...page.samples[0], rows: [{ itemSeq: 1, testItem: "Appearance", result: "Not conform" }] }],
+    }]} />);
+    expect(screen.getByText("Not conform")).toBeInTheDocument();
+    expect(screen.queryByText("Conform")).not.toBeInTheDocument();
+
+    rerender(<CoaReportTemplate pages={[{
+      ...page,
+      issueDate: "-",
+      samples: [{ ...page.samples[0], rows: [] }],
+    }]} />);
+    const appearanceCells = within(screen.getByText("Appearance").closest("tr")!).getAllByRole("cell");
+    expect(appearanceCells[1]).toBeEmptyDOMElement();
+    expect(appearanceCells[2]).toBeEmptyDOMElement();
+    expect(screen.queryByText("August 20, 2026")).not.toBeInTheDocument();
   });
 
   it("renders the BROMADIOLONE 0.005% wax block COA form", () => {
