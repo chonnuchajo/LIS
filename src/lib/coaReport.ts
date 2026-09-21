@@ -78,7 +78,10 @@ function isBromadiolone0005CommonName(commonName?: string): boolean {
 }
 
 function productLabel(sample: CoaSampleSnapshot): string {
-  return sample.sampleName?.trim() || "-";
+  const tradeName = sample.sampleName?.trim();
+  const commonName = sample.commonName?.trim();
+  if (tradeName && commonName) return `${tradeName} (${commonName})`;
+  return tradeName || commonName || "-";
 }
 
 function batchLabel(sample: CoaSampleSnapshot): string {
