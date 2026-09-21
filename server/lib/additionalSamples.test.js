@@ -15,10 +15,13 @@ test('request validates received side, open petition, reason, unique selected it
   assert.equal(validateAdditionalSampleInput({ ...petition, additionalSampleRequests: [{ ...round, side: 'lab' }] }, input), null);
 });
 
-test('weights match sample count and supported gram values while legacy requests remain valid', () => {
+test('weights match sample count and accept positive integer grams while legacy requests remain valid', () => {
   assert.equal(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 2, weights: [100, 500] }] }), null);
+  for (const weights of [[1, 125], [200, 1001]]) {
+    assert.equal(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 2, weights }] }), null);
+  }
   assert.equal(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 500 }] }), null);
-  for (const weights of [null, '500', [], [100], [100, 250, 500], [100, 0], [100, -500], [100, 1.5], [100, 1001], [100, '500'], [100, null], [100, Infinity]]) {
+  for (const weights of [null, '500', [], [100], [100, 250, 500], [100, 0], [100, -500], [100, 1.5], [100, '500'], [100, null], [100, Infinity], [100, NaN], [100, true], [100, Number.MAX_SAFE_INTEGER + 1]]) {
     assert.ok(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 2, weights }] }), JSON.stringify(weights));
   }
 });

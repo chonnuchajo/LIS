@@ -6,7 +6,7 @@ import { pendingAdditionalSample } from '@/lib/additionalSamples';
 import type { AdditionalSampleRequest, Petition, PetitionItem } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { NativeSelect } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -37,8 +37,8 @@ export default function AdditionalSampleRequestDialog({ petition, side, items, o
     const selected = items.filter((item) => weights[item.seq] !== undefined)
       .map((item) => ({ itemSeq: item.seq, quantity: weights[item.seq].length, weights: weights[item.seq].map(Number) }));
     if (!selected.length) { setError('กรุณาเลือกรายการอย่างน้อย 1 รายการ'); return; }
-    if (selected.some((item) => item.quantity < 1 || item.quantity > 1000 || item.weights.some((weight) => ![100, 250, 500].includes(weight)))) {
-      setError('กรุณาเลือกน้ำหนัก 100, 250 หรือ 500 กรัมให้ครบทุกตัวอย่าง (ไม่เกิน 1000 ตัวอย่างต่อรายการ)');
+    if (selected.some((item) => item.quantity < 1 || item.quantity > 1000 || item.weights.some((weight) => !Number.isSafeInteger(weight) || weight < 1))) {
+      setError('กรุณาระบุน้ำหนักเป็นจำนวนเต็มมากกว่า 0 กรัมให้ครบทุกตัวอย่าง (ไม่เกิน 1000 ตัวอย่างต่อรายการ)');
       return;
     }
     sending.current = true;
@@ -93,11 +93,9 @@ export default function AdditionalSampleRequestDialog({ petition, side, items, o
                     <div key={index} className="flex items-end gap-2">
                       <div className="min-w-0 flex-1 space-y-1">
                         <Label htmlFor={`sample-weight-${item.seq}-${index}`}>น้ำหนักตัวอย่างที่ {index + 1}</Label>
-                        <NativeSelect id={`sample-weight-${item.seq}-${index}`} aria-label={`น้ำหนักตัวอย่างที่ ${index + 1} รายการที่ ${item.seq}`} value={weight}
+                        <Input id={`sample-weight-${item.seq}-${index}`} type="number" min="1" step="1" inputMode="numeric" placeholder="กรอกน้ำหนัก (กรัม)" aria-label={`น้ำหนักตัวอย่างที่ ${index + 1} รายการที่ ${item.seq}`} value={weight}
                           onChange={(event) => setWeights((previous) => ({ ...previous, [item.seq]: previous[item.seq].map((value, weightIndex) => weightIndex === index ? event.target.value : value) }))}>
-                          <option value="" disabled>เลือกน้ำหนัก</option>
-                          {[100, 250, 500].map((value) => <option key={value} value={value}>{value} กรัม</option>)}
-                        </NativeSelect>
+                        </Input>
                       </div>
                       <Button type="button" variant="ghost" size="icon" aria-label={`ลบตัวอย่างที่ ${index + 1} รายการที่ ${item.seq}`} disabled={weights[item.seq].length === 1}
                         onClick={() => setWeights((previous) => ({ ...previous, [item.seq]: previous[item.seq].filter((_, weightIndex) => weightIndex !== index) }))}>
