@@ -68,24 +68,28 @@ test('request creates a unique round with archived failed results and leaves LAB
   const saved = { petitionId, itemSeq: 1, parameterId, values: { value: 12 }, sampleRoundId: '' };
   context.mock.method(QCTestResult, 'find', () => ({ lean: async () => [saved] }));
   context.mock.method(Parameter, 'find', () => ({ lean: async () => [{ _id: parameterId, scope: 'qc', valueFields: [{ label: 'value', type: 'number', standardOperator: 'lte', standardValue: 10 }] }] }));
-  const res = await invoke(additional, '/:id/additional-samples', 'post', { side: 'qc', reason: 'ผลไม่ผ่าน', items: [{ itemSeq: 1, quantity: 2, weights: [100, 500] }] });
+  const res = await invoke(additional, '/:id/additional-samples', 'post', { side: 'qc', reason: 'ผลไม่ผ่าน', items: [{ itemSeq: 1, quantity: 2, weights: [125, 1001] }] });
   assert.equal(res.statusCode, 201, JSON.stringify(res.body));
   const created = state.additionalSampleRequests[0];
-  assert.deepEqual(created.items, [{ itemSeq: 1, quantity: 2, weights: [100, 500] }]);
+  assert.deepEqual(created.items, [{ itemSeq: 1, quantity: 2, weights: [125, 1001] }]);
   const persisted = new Petition({ ...state, additionalSampleRequests: [created] });
   assert.ifError(persisted.additionalSampleRequests[0].items[0].validateSync());
-  assert.deepEqual(persisted.additionalSampleRequests[0].items[0].weights.toObject(), [100, 500]);
+  assert.deepEqual(persisted.additionalSampleRequests[0].items[0].weights.toObject(), [125, 1001]);
   assert.match(created.qrCode, /^LIS-EXTRA-[0-9a-f-]{36}$/);
   assert.notEqual(created.qrCode, state.petitionNo);
   assert.deepEqual(created.previousResults, [saved]);
   assert.equal(state.qcCompletedAt, null);
   assert.deepEqual(state.labCompletedAt, labCompletedAt);
   assert.equal(notifications.at(-1).metadata.type, 'additionalSampleRequested');
-  assert.deepEqual(notifications.at(-1).metadata.items[0].weights, [100, 500]);
+  assert.deepEqual(notifications.at(-1).metadata.items[0].weights, [125, 1001]);
 });
 
-test('schema rejects mismatched or unsupported weights but accepts legacy requests', () => {
-  for (const weights of [null, [], [100], [100, 0], [100, 200], [100, 500, 500]]) {
+test('schema accepts positive integer grams and legacy requests but rejects invalid weights', () => {
+  for (const weights of [[1, 125], [200, 1001]]) {
+    const document = new Petition({ additionalSampleRequests: [{ items: [{ itemSeq: 1, quantity: 2, weights }] }] });
+    assert.ifError(document.additionalSampleRequests[0].items[0].validateSync());
+  }
+  for (const weights of [null, [], [100], [100, 0], [100, -200], [100, 1.5], [100, null], [100, Infinity], [100, NaN], [100, Number.MAX_SAFE_INTEGER + 1], [100, 500, 500]]) {
     const document = new Petition({ additionalSampleRequests: [{ items: [{ itemSeq: 1, quantity: 2, weights }] }] });
     assert.ok(document.additionalSampleRequests[0].items[0].validateSync(), JSON.stringify(weights));
   }
