@@ -64,6 +64,12 @@ test('additional descriptions include round, side, reason and summed quantities 
   }
 });
 
+test('additional descriptions include each selected sample weight', () => {
+  const desc = describeEvent(additionalPetition, { ...additionalEvent(), metadata: { ...additionalEvent().metadata, items: [{ itemSeq: 1, quantity: 2, weights: [100, 500] }] } });
+  assert.ok(desc);
+  assert.match(desc.text, /รายการ 1: 2 ตัวอย่าง \(100, 500 กรัม\)/);
+});
+
 test('additional request without department still describes personal bell delivery', () => {
   const desc = describeEvent({ submittedBy: { employeeId: 'E100' } }, additionalEvent());
   assert.ok(desc);

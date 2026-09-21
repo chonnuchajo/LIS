@@ -210,7 +210,7 @@ export interface AdditionalSampleRequest {
   qrCode: string;
   side: 'qc' | 'lab';
   reason: string;
-  items: { itemSeq: number; quantity: number }[];
+  items: { itemSeq: number; quantity: number; weights?: number[] }[];
   requestedAt: string;
   requestedBy: { name: string; email?: string; employeeId?: string };
   status: 'requested' | 'sent' | 'received';

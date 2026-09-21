@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import FitToBox from '@/components/petition/FitToBox';
 import { expandItemsBySampleQuantity } from '@/lib/petitionPrintItems';
+import { additionalSampleWeights } from '@/lib/additionalSamples';
 import type { AdditionalSampleRequest, Petition } from '@/types/petition.types';
 
 // sampleName กับ commonName ของงานผลิตมักเป็นค่าเดียวกัน — ถ้าต่อกันดื้อๆ ชื่อจะซ้ำสองรอบ
@@ -186,7 +187,7 @@ function LabelCard({
           ) : null}
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          {additionalSampleRequest && <p className="font-bold">ตัวอย่างเพิ่ม · {additionalSampleRequest.side.toUpperCase()} · รอบ {(petition.additionalSampleRequests ?? []).findIndex((request) => request._id === additionalSampleRequest._id) + 1} · ชุดที่ {copyIndex + 1}/{item.sampleQuantity}</p>}
+          {additionalSampleRequest && <p className="font-bold">ตัวอย่างเพิ่ม · {additionalSampleRequest.side.toUpperCase()} · รอบ {(petition.additionalSampleRequests ?? []).findIndex((request) => request._id === additionalSampleRequest._id) + 1} · ตัวอย่างที่ {copyIndex + 1}/{item.sampleQuantity}</p>}
           <div className="grid min-h-[7mm] grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
             <div
               data-testid="sample-label-header-title"
@@ -253,7 +254,8 @@ export default function SampleLabelPrintTemplate({ petition, additionalSampleReq
   const yearShort = currentBuddhistYearShort();
   const items = additionalSampleRequest ? additionalSampleRequest.items.flatMap((selected) => {
     const item = petition.items.find((entry) => entry.seq === selected.itemSeq);
-    return item ? [{ ...item, sampleQuantity: selected.quantity }] : [];
+    const weights = additionalSampleWeights(selected);
+    return item ? [{ ...item, sampleQuantity: weights.length, labelQuantities: weights.map((weight) => `${weight} g`) }] : [];
   }) : petition.items;
   const printRows = expandItemsBySampleQuantity(items);
   return (

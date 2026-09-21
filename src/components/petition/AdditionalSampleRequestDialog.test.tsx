@@ -20,7 +20,10 @@ const showDialog = (beforeSubmit = vi.fn().mockResolvedValue(undefined), data = 
   render(<AdditionalSampleRequestDialog petition={data} side="qc" items={data.items} open onOpenChange={onOpenChange} beforeSubmit={beforeSubmit} onRequested={onRequested} />);
   return { beforeSubmit, onRequested, onOpenChange };
 };
-const selectItem = () => fireEvent.click(screen.getByRole('checkbox', { name: /ตัวอย่าง A/ }));
+const selectItem = () => {
+  fireEvent.click(screen.getByRole('checkbox', { name: /ตัวอย่าง A/ }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' }), { target: { value: '100' } });
+};
 const enterReason = () => fireEvent.change(screen.getByLabelText('เหตุผลที่ขอตัวอย่างเพิ่ม'), { target: { value: ' ค่าสูงกว่าเกณฑ์ ' } });
 const submit = () => fireEvent.click(screen.getByRole('button', { name: 'ส่งคำขอ' }));
 
@@ -28,7 +31,7 @@ describe('AdditionalSampleRequestDialog', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(cleanup);
 
-  it('requires a reason, selection and positive quantity before posting', async () => {
+  it('requires a reason, selection and valid weight before posting', async () => {
     showDialog();
     submit();
     expect(await screen.findByRole('alert')).toHaveTextContent('กรุณาระบุเหตุผล');
@@ -36,9 +39,20 @@ describe('AdditionalSampleRequestDialog', () => {
     submit();
     expect(await screen.findByRole('alert')).toHaveTextContent('เลือกรายการ');
     selectItem();
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'จำนวนรายการที่ 1' }), { target: { value: '0' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' }), { target: { value: '' } });
     submit();
-    expect(await screen.findByRole('alert')).toHaveTextContent('จำนวนเต็ม 1–1000');
+    expect(await screen.findByRole('alert')).toHaveTextContent('เลือกน้ำหนัก');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('requires an explicit weight selection for every added sample', async () => {
+    showDialog();
+    enterReason();
+    selectItem();
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มตัวอย่างรายการที่ 1' }));
+    expect(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 2 รายการที่ 1' })).toHaveValue('');
+    submit();
+    expect(await screen.findByRole('alert')).toHaveTextContent('เลือกน้ำหนัก');
     expect(api.post).not.toHaveBeenCalled();
   });
 
@@ -50,13 +64,14 @@ describe('AdditionalSampleRequestDialog', () => {
     const handlers = showDialog(beforeSubmit);
     enterReason();
     selectItem();
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'จำนวนรายการที่ 1' }), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มตัวอย่างรายการที่ 1' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 2 รายการที่ 1' }), { target: { value: '500' } });
     submit();
     expect(screen.getByRole('button', { name: /กำลังส่ง/ })).toBeDisabled();
     expect(api.post).not.toHaveBeenCalled();
     finish();
     await waitFor(() => expect(handlers.onRequested).toHaveBeenCalledWith(updated));
-    expect(api.post).toHaveBeenCalledWith('/petitions/petition-1/additional-samples', { side: 'qc', reason: 'ค่าสูงกว่าเกณฑ์', items: [{ itemSeq: 1, quantity: 2 }] });
+    expect(api.post).toHaveBeenCalledWith('/petitions/petition-1/additional-samples', { side: 'qc', reason: 'ค่าสูงกว่าเกณฑ์', items: [{ itemSeq: 1, quantity: 2, weights: [100, 500] }] });
     expect(handlers.onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -65,10 +80,12 @@ describe('AdditionalSampleRequestDialog', () => {
     const handlers = showDialog();
     enterReason();
     selectItem();
+    fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' }), { target: { value: '500' } });
     submit();
     expect(await screen.findByRole('alert')).toHaveTextContent('เครือข่ายขัดข้อง');
     expect(screen.getByLabelText('เหตุผลที่ขอตัวอย่างเพิ่ม')).toHaveValue(' ค่าสูงกว่าเกณฑ์ ');
     expect(screen.getByRole('checkbox', { name: /ตัวอย่าง A/ })).toBeChecked();
+    expect(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' })).toHaveValue('500');
     expect(handlers.onRequested).not.toHaveBeenCalled();
     expect(handlers.onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'ส่งคำขอ' })).toBeEnabled();
@@ -105,18 +122,33 @@ describe('AdditionalSampleRequestDialog', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
-  it.each(['1.5', '1001', '-1', ''])('rejects an invalid quantity %s before posting', async (quantity) => {
+  it.each(['1.5', '1001', '-1', ''])('rejects an invalid weight %s before posting', async (weight) => {
     showDialog();
     enterReason();
     selectItem();
-    const input = screen.getByRole('spinbutton', { name: 'จำนวนรายการที่ 1' });
-    fireEvent.change(input, { target: { value: quantity } });
+    const input = screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' });
+    fireEvent.change(input, { target: { value: weight } });
     submit();
-    expect(await screen.findByRole('alert')).toHaveTextContent('จำนวนเต็ม 1–1000');
-    expect(input).toHaveAttribute('min', '1');
-    expect(input).toHaveAttribute('max', '1000');
-    expect(input).toHaveAttribute('step', '1');
+    expect(await screen.findByRole('alert')).toHaveTextContent('เลือกน้ำหนัก');
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('keeps weights independent across items and removes only the selected sample', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { data: petition } });
+    showDialog();
+    enterReason();
+    selectItem();
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มตัวอย่างรายการที่ 1' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 2 รายการที่ 1' }), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /ตัวอย่าง B/ }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 2' }), { target: { value: '250' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ลบตัวอย่างที่ 1 รายการที่ 1' }));
+    expect(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' })).toHaveValue('500');
+    expect(screen.getByRole('button', { name: 'ลบตัวอย่างที่ 1 รายการที่ 1' })).toBeDisabled();
+    submit();
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/petitions/petition-1/additional-samples', {
+      side: 'qc', reason: 'ค่าสูงกว่าเกณฑ์', items: [{ itemSeq: 1, quantity: 1, weights: [500] }, { itemSeq: 2, quantity: 1, weights: [250] }],
+    }));
   });
 
   it('rejects reasons longer than 2000 characters without losing the draft', async () => {

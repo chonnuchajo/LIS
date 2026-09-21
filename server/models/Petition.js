@@ -179,7 +179,18 @@ const PetitionSchema = new mongoose.Schema(
         qrCode: { type: String, required: true },
         side: { type: String, enum: ['qc', 'lab'], required: true },
         reason: { type: String, required: true, maxlength: 2000 },
-        items: { type: [new mongoose.Schema({ itemSeq: { type: Number, required: true }, quantity: { type: Number, required: true, min: 1, max: 1000 } }, { _id: false })], required: true },
+        items: { type: [new mongoose.Schema({
+          itemSeq: { type: Number, required: true },
+          quantity: { type: Number, required: true, min: 1, max: 1000, validate: Number.isInteger },
+          weights: {
+            type: [{ type: Number, enum: [100, 250, 500] }],
+            default: undefined,
+            validate: {
+              validator: function (weights) { return weights === undefined || (Array.isArray(weights) && weights.length === this.quantity); },
+              message: 'กรุณาเลือกน้ำหนักให้ครบทุกตัวอย่าง',
+            },
+          },
+        }, { _id: false })], required: true },
         requestedAt: { type: Date, required: true },
         requestedBy: { name: String, email: String, employeeId: String },
         status: { type: String, enum: ['requested', 'sent', 'received'], default: 'requested' },

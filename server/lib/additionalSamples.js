@@ -20,6 +20,7 @@ function validateAdditionalSampleInput(petition, input) {
     if (!source) return 'ไม่พบรายการตัวอย่างในคำขอ';
     if (input.side === 'lab' && !isResearchAndDevelopmentDepartment(petition.submittedBy?.department) && !shouldSendItemToLab(source)) return 'รายการนี้ไม่ได้ส่ง LAB';
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 1000) return 'จำนวนตัวอย่างต้องเป็นจำนวนเต็ม 1–1000';
+    if (item.weights !== undefined && (!Array.isArray(item.weights) || item.weights.length !== item.quantity || item.weights.some(weight => ![100, 250, 500].includes(weight)))) return 'กรุณาเลือกน้ำหนัก 100, 250 หรือ 500 กรัมให้ครบทุกตัวอย่าง';
     seen.add(item.itemSeq);
   }
   return null;
