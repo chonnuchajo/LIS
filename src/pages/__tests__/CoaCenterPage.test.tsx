@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import CoaCenterPage from "../CoaCenterPage";
+import type { CoaDocument } from "@/types/coa.types";
 
 vi.mock("@/components/lis/AppLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -141,6 +142,58 @@ function renderPage(initialEntry = "/coa") {
 }
 
 describe("CoaCenterPage", () => {
+  it.each(["coaNo", "petitionNoSnapshot", "lotNo", "batchNo"])("ranks %s before names within the selected date scope", async (field) => {
+    const makeDocument = (id: string, code: string): CoaDocument => ({
+      _id: id, coaNo: id, petitionId: id, petitionNoSnapshot: id,
+      coaYear: new Date().getFullYear(), revision: 0, status: "draft", selectedItemSeqs: [1],
+      customerSnapshot: { name: id === "name" ? "AB" : "Customer" },
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade", commonName: "Common",
+        ...(field === "lotNo" || field === "batchNo" ? { [field]: code } : {}),
+      }],
+      resultSnapshots: [], createdAt: new Date().toISOString(),
+      ...(field === "coaNo" || field === "petitionNoSnapshot" ? { [field]: code } : {}),
+    });
+    const documents = [
+      makeDocument("name", "other"), makeDocument("later", "XXAB"), makeDocument("earlier", "XAB"),
+      makeDocument("prefix", "AB1"), makeDocument("exact", "AB"),
+    ];
+    vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({ items: [
+      ...documents,
+      { ...makeDocument("old", "AB"), createdAt: new Date(Date.now() - 86400000).toISOString() },
+    ] });
+    const { container } = renderPage();
+    const input = await screen.findByPlaceholderText("ค้นหา COA / คำร้อง");
+    await screen.findByRole("row", { name: /prefix/ });
+    const rowText = () => Array.from(container.querySelectorAll("tbody tr"), (row) => row.textContent ?? "");
+    const original = rowText();
+    expect(original).toHaveLength(5);
+    fireEvent.change(input, { target: { value: "ab" } });
+    expect(rowText()).toHaveLength(5);
+    ["exact", "prefix", "earlier", "later", "name"].forEach((id, index) => {
+      expect(rowText()[index]).toContain(id);
+    });
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(rowText()).toEqual(original);
+  });
+
+  it("uses sample names as primary fields when document and lot codes are absent", async () => {
+    const base: CoaDocument = {
+      _id: "customer", petitionId: "petition", coaYear: new Date().getFullYear(), revision: 0,
+      status: "draft", selectedItemSeqs: [1], resultSnapshots: [],
+      customerSnapshot: { name: "AB" }, sampleSnapshots: [{ itemSeq: 1, sampleName: "Other trade" }],
+      createdAt: new Date().toISOString(),
+    };
+    vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({ items: [base, {
+      ...base, _id: "sample", customerSnapshot: { name: "Other customer" },
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "AB" }],
+    }] });
+    const { container } = renderPage();
+    await screen.findByText("Other customer");
+    fireEvent.change(screen.getByPlaceholderText("ค้นหา COA / คำร้อง"), { target: { value: "AB" } });
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(container.querySelector("tbody tr")).toHaveTextContent("Other customer");
+  });
+
   it("renders COA list and create action", async () => {
     const { container } = renderPage();
 

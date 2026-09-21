@@ -4,6 +4,7 @@ import {
   findStandardBottleBySearch,
   requisitionUser,
   standardMatchesRequisitionSearch,
+  standardRequisitionSearchScore,
   sumWeights,
   validateWeights,
 } from "./standardRequisition";
@@ -77,5 +78,20 @@ describe("standard requisition search", () => {
   it("ยังค้นหาด้วยชื่อและ code ของ standard ได้เหมือนเดิม", () => {
     expect(standardMatchesRequisitionSearch({ code: "67", name: "Metalaxyl" }, units, "Metal")).toBe(true);
     expect(standardMatchesRequisitionSearch({ code: "67", name: "Metalaxyl" }, units, "67")).toBe(true);
+  });
+
+  it("ranks code and bottle aliases ahead of names with keyboard fallbacks", () => {
+    const standard = { code: "67", name: "Metalaxyl" };
+    const nameMatch = { code: "OTHER", name: "676902" };
+    for (const query of ["676902", "ุึุตจ/", "๖๗๖๙๐๒"]) {
+      expect(standardRequisitionSearchScore(standard, units, query)).toBeGreaterThan(
+        standardRequisitionSearchScore(nameMatch, [], query),
+      );
+    }
+    expect(standardRequisitionSearchScore(standard, units, "67")).toBe(6);
+    expect(standardRequisitionSearchScore(standard, units, "qr-working-1")).toBe(6);
+    expect(standardRequisitionSearchScore(standard, units, "LOT-B")).toBe(6);
+    expect(standardRequisitionSearchScore(standard, units, "missing")).toBe(0);
+    expect(standardRequisitionSearchScore(standard, units, " ")).toBe(0);
   });
 });

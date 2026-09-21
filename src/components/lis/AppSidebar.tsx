@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import { normalizeFavorites } from "@/lib/favorites";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { useFavorites } from "@/hooks/useFavorites";
 import NavItemContextMenu from "./NavItemContextMenu";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
+import { DEV_MODE } from "@/config/dev";
 
 type RoleOption = {
   id: string;
@@ -376,11 +378,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           )}
           {allSections.map((section, sIdx) => {
             const q = menuQuery.trim().toLowerCase();
-            const visibleItems = section.items.filter(
+            const visibleItems = rankSearchResults(section.items.filter(
               (item) =>
-                userCanAccessPath(effectiveUser, item.path, navGroups) &&
+                ((DEV_MODE && item.path === "/validation") || userCanAccessPath(effectiveUser, item.path, navGroups)) &&
                 (q === "" || item.label.toLowerCase().includes(q)),
-            );
+            ), q, (item) => ({ primary: [item.label] }));
             if (visibleItems.length === 0) return null;
 
             const isGroupCollapsed = !collapsed && !!collapsedGroups[section.id];
@@ -426,6 +428,8 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                   const link = (
                     <Link
                       to={targetPath}
+                      aria-label={item.label}
+                      aria-current={isActive ? "page" : undefined}
                       onClick={(e) => {
                         persistNavScroll();
                         // Let the browser handle modifier/middle clicks natively
@@ -480,7 +484,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               (s) =>
                 s.items.filter(
                   (item) =>
-                    userCanAccessPath(effectiveUser, item.path, navGroups) &&
+                    ((DEV_MODE && item.path === "/validation") || userCanAccessPath(effectiveUser, item.path, navGroups)) &&
                     item.label.toLowerCase().includes(menuQuery.trim().toLowerCase()),
                 ).length === 0,
             ) && (

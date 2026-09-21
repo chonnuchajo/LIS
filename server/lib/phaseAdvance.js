@@ -1,16 +1,29 @@
 const Petition = require("../models/Petition");
 const PetitionAuditLog = require("../models/PetitionAuditLog");
+const { pendingAdditionalSamples, requiredSampleRoundId } = require("./additionalSamples");
 
 // When a triggersPhase2 field is filled, schedule the petition's Phase 2 unlock.
 // - Timer fields wait timerDurationSec from the time the trigger was filled.
 // - Non-timer fields (e.g. a "done" enum/checkbox) unlock Phase 2 immediately.
-async function scheduleOrUnlockPhase2({ petitionId, parameter, field, fieldLabel, value, itemSeq }) {
+async function scheduleOrUnlockPhase2({ petitionId, parameter, field, fieldLabel, value, itemSeq, sampleRoundId = "" }) {
   if (!field || !field.triggersPhase2) return;
   if (value === null || value === undefined || value === "") return;
 
   const petition = await Petition.findById(petitionId);
-  if (!petition) return;
-  if (petition.currentPhase === 2) return;
+  const roundId = String(sampleRoundId || "");
+  if (!petition) {
+    if (roundId) throw new Error("ไม่พบคำขอของรอบตัวอย่างเพิ่ม");
+    return;
+  }
+  const side = parameter.scope === "lab" ? "lab" : "qc";
+  if (pendingAdditionalSamples(petition, side).length || requiredSampleRoundId(petition, side, itemSeq) !== roundId) {
+    throw new Error("รอบตัวอย่างเปลี่ยนแปลงหรือยังไม่ได้รับ กรุณาโหลดคำขอใหม่");
+  }
+  const target = roundId
+    ? petition.additionalSampleRequests.find(round => String(round._id) === roundId && round.status === "received" && round.side === side)
+    : petition;
+  if (!target) throw new Error("ไม่พบรอบตัวอย่างเพิ่มที่รับแล้วของฝ่ายนี้");
+  if (target.currentPhase === 2) return;
 
   let dueAt;
   if (field.type === "timer" && field.timerDurationSec > 0) {
@@ -21,10 +34,14 @@ async function scheduleOrUnlockPhase2({ petitionId, parameter, field, fieldLabel
 
   // If a trigger was already scheduled, keep the earliest due time
   // (whichever trigger completes first wins).
-  if (petition.phase2DueAt && petition.phase2DueAt < dueAt) return;
+  if (target.phase2DueAt && target.phase2DueAt < dueAt) return;
 
-  petition.phase2DueAt = dueAt;
-  petition.phase2TriggeredBy = {
+  if (roundId) {
+    target.currentPhase = 1;
+    target.phase2UnlockedAt = null;
+  }
+  target.phase2DueAt = dueAt;
+  target.phase2TriggeredBy = {
     parameterId: String(parameter._id),
     parameterName: parameter.name,
     fieldLabel,
@@ -38,20 +55,31 @@ async function scheduleOrUnlockPhase2({ petitionId, parameter, field, fieldLabel
 // Phase 2 the next time it's read after phase2DueAt elapses. Avoids cron.
 async function maybeAdvancePhase(petition, actor = "system") {
   if (!petition) return petition;
-  if (petition.currentPhase !== 1) return petition;
-  if (!petition.phase2DueAt) return petition;
-  if (petition.phase2DueAt > new Date()) return petition;
+  const now = new Date();
+  const advanceOriginal = petition.currentPhase === 1 && petition.phase2DueAt && petition.phase2DueAt <= now;
+  const rounds = (petition.additionalSampleRequests || []).filter(round =>
+    round.status === "received" && (round.currentPhase ?? 1) === 1 && round.phase2DueAt && round.phase2DueAt <= now &&
+    !pendingAdditionalSamples(petition, round.side).length &&
+    round.items.some(item => requiredSampleRoundId(petition, round.side, item.itemSeq) === String(round._id))
+  );
+  if (!advanceOriginal && !rounds.length) return petition;
 
   const beforeStatus = petition.status;
-  petition.currentPhase = 2;
-  petition.phase2UnlockedAt = new Date();
-  if (petition.status === "success") {
-    petition.status = "inProgress";
-    petition.completedAt = null;
+  if (advanceOriginal) {
+    petition.currentPhase = 2;
+    petition.phase2UnlockedAt = now;
+    if (petition.status === "success") {
+      petition.status = "inProgress";
+      petition.completedAt = null;
+    }
+  }
+  for (const round of rounds) {
+    round.currentPhase = 2;
+    round.phase2UnlockedAt = now;
   }
   await petition.save();
 
-  PetitionAuditLog.create({
+  if (advanceOriginal) PetitionAuditLog.create({
     petitionId: petition._id,
     petitionNo: petition.petitionNo,
     event: "statusChanged",
@@ -61,6 +89,17 @@ async function maybeAdvancePhase(petition, actor = "system") {
     note: "เริ่ม Phase 2 (ตรวจซ้ำหลัง trigger)",
     metadata: { phaseAdvance: { from: 1, to: 2 } },
   }).catch((err) => console.error("[audit-log] phase advance:", err.message));
+  for (const round of rounds) {
+    await PetitionAuditLog.create({
+      petitionId: petition._id,
+      petitionNo: petition.petitionNo,
+      event: "updated",
+      toStatus: petition.status,
+      actor,
+      note: `เริ่ม Phase 2 ของตัวอย่างเพิ่ม ${round.side.toUpperCase()}`,
+      metadata: { additionalSampleId: String(round._id), side: round.side, phaseAdvance: { from: 1, to: 2 } },
+    });
+  }
 
   return petition;
 }

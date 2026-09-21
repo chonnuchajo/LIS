@@ -599,7 +599,8 @@ router.post('/printers-config/:id/test', async (req, res) => {
 // POST /api/print/pdf — { docType, html } → PDF blob for browser preview/download
 router.post('/pdf', async (req, res) => {
   const { docType, html } = req.body || {};
-  if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
+  const isValidation = docType === 'method-validation';
+  if (!isValidation && !ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
   if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
 
   let browser;
@@ -627,18 +628,27 @@ router.post('/pdf', async (req, res) => {
       return r.abort();
     });
 
+    const reportHeader = isValidation ? html.match(/<header class="document-running">([\s\S]*?)<\/header>/)?.[1] : null;
+    const validationHeaderStyle = '<style>body{margin:0}table{border-collapse:collapse;width:100%;font:9px/1.5 Tahoma,Arial,sans-serif;color:#111}td{border:1px solid #111;padding:4px;vertical-align:middle}img{width:75px;max-width:100%}</style>';
+    const printableHtml = reportHeader ? html.replace(/<header class="document-running">[\s\S]*?<\/header>/, '').replace('</head>', '<style>@page{margin:42mm 15mm 15mm}</style></head>') : html;
     const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body>${html}</body></html>`;
+</head><body>${printableHtml}</body></html>`;
     await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
-    const department = await resolveRequestDepartment(req);
-    const paperSize = await choosePaperSizeForDocType(docType, department);
+    // Validation downloads are always A4 and do not use physical printer settings.
+    const department = isValidation ? '' : await resolveRequestDepartment(req);
+    const paperSize = isValidation ? 'A4' : await choosePaperSizeForDocType(docType, department);
     const pdf = await page.pdf({
       ...paperSpec(paperSize).pdf,
       printBackground: true,
       preferCSSPageSize: true,
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      ...(isValidation ? {
+        displayHeaderFooter: true,
+        headerTemplate: reportHeader ? `${validationHeaderStyle}<div style="width:100%;margin:8mm 15mm 0">${reportHeader}</div>` : '<span></span>',
+        footerTemplate: '<div style="width:100%;padding:0 15mm;text-align:right;font:9px Arial,sans-serif;color:#64748b">Page <span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+      } : {}),
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="lis-${docType}.pdf"`);

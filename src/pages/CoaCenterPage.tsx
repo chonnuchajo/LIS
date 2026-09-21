@@ -22,6 +22,7 @@ import { buildCoaReportPages } from "@/lib/coaReport";
 import { buildCoaRequestTrend, formatCoaTrendPercent } from "@/lib/coaTrend";
 import { canPrintCoa } from "@/lib/coaStatus";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
+import { rankSearchResults } from "@/lib/searchRanking";
 import type { CoaDocument, CoaSampleSnapshot } from "@/types/coa.types";
 
 type CoaTab = "today" | "all";
@@ -785,7 +786,7 @@ export default function CoaCenterPage() {
       : visibleItems.filter((doc) => workflowStageFor(doc) === activeWorkflowStage);
     if (activeTab === "all" && !openAllYear) return [];
     if (!query) return scopedItems;
-    return scopedItems.filter((doc) => [
+    return rankSearchResults(scopedItems.filter((doc) => [
       doc.petitionNoSnapshot,
       doc.coaNo,
       workflowStageLabels[workflowStageFor(doc)],
@@ -793,7 +794,18 @@ export default function CoaCenterPage() {
       joinValues(doc.sampleSnapshots?.map((sample) => sample.sampleName)),
       joinValues(doc.sampleSnapshots?.map((sample) => sample.commonName)),
       joinValues(doc.sampleSnapshots?.map(lotLabel)),
-    ].join(" ").toLowerCase().includes(query));
+    ].join(" ").toLowerCase().includes(query)), query, (doc) => {
+      const samples = doc.sampleSnapshots ?? [];
+      const codes = [doc.coaNo, doc.petitionNoSnapshot, ...samples.flatMap((sample) => [sample.lotNo, sample.batchNo])];
+      return {
+        primary: codes.some((code) => code?.trim()) ? codes : samples.map((sample) => sample.sampleName || sample.commonName),
+        secondary: [
+          workflowStageLabels[workflowStageFor(doc)],
+          customerName(doc),
+          ...samples.flatMap((sample) => [sample.sampleName, sample.commonName, lotLabel(sample)]),
+        ],
+      };
+    });
   }, [activeTab, activeWorkflowStage, openAllYear, openedAllYearItems, search, yearItems]);
   const alertScopeItems = useMemo(() => {
     if (activeTab === "all") return openAllYear ? openedAllYearItems : items;

@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import FitToBox from '@/components/petition/FitToBox';
 import { expandItemsBySampleQuantity } from '@/lib/petitionPrintItems';
-import type { Petition } from '@/types/petition.types';
+import type { AdditionalSampleRequest, Petition } from '@/types/petition.types';
 
 // sampleName กับ commonName ของงานผลิตมักเป็นค่าเดียวกัน — ถ้าต่อกันดื้อๆ ชื่อจะซ้ำสองรอบ
 // แล้วดันบรรทัดล้นกรอบฉลาก 50mm จนบรรทัดท้าย (F-LAB) ถูกตัดทิ้ง
@@ -143,14 +143,16 @@ function LabelCard({
   item,
   yearShort,
   copyIndex,
+  additionalSampleRequest,
 }: {
   petition: Petition;
   item: Petition['items'][number];
   yearShort: string;
   copyIndex: number;
+  additionalSampleRequest?: AdditionalSampleRequest;
 }) {
   const sampledByName = petition.submittedBy?.name || item.labelSampledBy || '';
-  const qrValue = getQrValue(petition, item);
+  const qrValue = additionalSampleRequest?.qrCode || getQrValue(petition, item);
   const labelQuantity = labelQuantityForCopy(item, copyIndex);
   return (
     <div
@@ -184,6 +186,7 @@ function LabelCard({
           ) : null}
         </div>
         <div className="min-w-0 flex-1 space-y-1">
+          {additionalSampleRequest && <p className="font-bold">ตัวอย่างเพิ่ม · {additionalSampleRequest.side.toUpperCase()} · รอบ {(petition.additionalSampleRequests ?? []).findIndex((request) => request._id === additionalSampleRequest._id) + 1} · ชุดที่ {copyIndex + 1}/{item.sampleQuantity}</p>}
           <div className="grid min-h-[7mm] grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
             <div
               data-testid="sample-label-header-title"
@@ -235,7 +238,7 @@ function LabelCard({
       </div>
 
       <div className="space-y-1">
-        <Field label="หมายเหตุ" value={item.labelRemark} />
+        <Field label="หมายเหตุ" value={additionalSampleRequest?.reason || item.labelRemark} />
       </div>
 
       <div className="mt-1 text-[7.5px] font-semibold">F-LAB-01-10 Rev : 01 01/04/67</div>
@@ -246,9 +249,13 @@ function LabelCard({
   );
 }
 
-export default function SampleLabelPrintTemplate({ petition }: { petition: Petition }) {
+export default function SampleLabelPrintTemplate({ petition, additionalSampleRequest }: { petition: Petition; additionalSampleRequest?: AdditionalSampleRequest }) {
   const yearShort = currentBuddhistYearShort();
-  const printRows = expandItemsBySampleQuantity(petition.items);
+  const items = additionalSampleRequest ? additionalSampleRequest.items.flatMap((selected) => {
+    const item = petition.items.find((entry) => entry.seq === selected.itemSeq);
+    return item ? [{ ...item, sampleQuantity: selected.quantity }] : [];
+  }) : petition.items;
+  const printRows = expandItemsBySampleQuantity(items);
   return (
     <>
       <style>{`
@@ -302,7 +309,7 @@ export default function SampleLabelPrintTemplate({ petition }: { petition: Petit
       <div className="sample-label-root" style={{ fontFamily: 'inherit' }}>
         {printRows.map(({ item, copyIndex }) => (
           <div key={`${item.seq}-${copyIndex}`} className="label-page">
-            <LabelCard petition={petition} item={item} yearShort={yearShort} copyIndex={copyIndex} />
+            <LabelCard petition={petition} item={item} yearShort={yearShort} copyIndex={copyIndex} additionalSampleRequest={additionalSampleRequest} />
           </div>
         ))}
       </div>

@@ -46,6 +46,7 @@ import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { rankSearchResults } from '@/lib/searchRanking';
 import { requestPetitionNotificationsRefresh } from '@/lib/petitionFlowWatcher';
 import { cn } from '@/lib/utils';
 import {
@@ -510,7 +511,7 @@ export default function PetitionAssignPage() {
     const source = activeTab === 'phase2' ? phase2Petitions : normalPetitions;
     const query = search.trim().toLowerCase();
     if (!query) return source;
-    return source.filter((petition) =>
+    const matches = source.filter((petition) =>
       [
         petition.petitionNo,
         petition.submittedBy?.name,
@@ -520,6 +521,13 @@ export default function PetitionAssignPage() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query)),
     );
+    return rankSearchResults(matches, search, (petition) => {
+      const itemNos = (petition.items ?? []).map((item) => item.itemNo).filter((itemNo) => itemNo?.trim());
+      return {
+        primary: itemNos.length ? itemNos : [petition.petitionNo],
+        secondary: [petition.petitionNo, petition.submittedBy?.name, petitionDepartmentLabel(petition), petition.assignedTo?.name],
+      };
+    });
   }, [activeTab, normalPetitions, phase2Petitions, search]);
 
   async function assignPetition(petition: Petition, employeeIdOverride?: string): Promise<boolean> {
@@ -1356,11 +1364,15 @@ function SingleMachinePicker({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return machines;
-    return machines.filter((m) =>
+    const matches = machines.filter((m) =>
       [m.code, m.name, m.location, m.model, m.manufacturer]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
+    return rankSearchResults(matches, query, (machine) => ({
+      primary: [machine.code],
+      secondary: [machine.name, machine.location, machine.model, machine.manufacturer],
+    }));
   }, [machines, query]);
 
   const selected = useMemo(

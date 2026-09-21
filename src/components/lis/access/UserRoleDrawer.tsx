@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { UserCircle, Link2 } from "lucide-react";
+import { rankSearchResults } from "@/lib/searchRanking";
 import type { AppUser, Role, EmployeeDirectoryEntry, UserStatus } from "./types";
 
 interface UserRoleDrawerProps {
@@ -58,7 +59,10 @@ export default function UserRoleDrawer({
           e.employeeId.toLowerCase().includes(q) ||
           e.department.toLowerCase().includes(q))
       : directory;
-    return matched.slice(0, 50);
+    return rankSearchResults(matched, q, (employee) => ({
+      primary: [employee.employeeId || employee.name],
+      secondary: [employee.name, employee.department],
+    })).slice(0, 50);
   }, [directory, empSearch]);
 
   const save = () => {

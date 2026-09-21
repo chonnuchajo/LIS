@@ -1,7 +1,7 @@
 // Types + audience metadata for the LINE group registry (server: models/LineGroup.js).
 // Keep AUDIENCES in sync with server/models/LineGroup.js AUDIENCES.
 
-export type LineAudience = "qc" | "lab" | "production" | "rm" | "fg" | "all";
+export type LineAudience = "qc" | "lab" | "production" | "rm" | "fg" | "rd" | "all";
 
 export interface LineAudienceMeta {
   value: LineAudience;
@@ -17,6 +17,7 @@ export const LINE_AUDIENCES: LineAudienceMeta[] = [
   { value: "production", label: "แผนกผลิต", description: "แจ้งกลับผู้ยื่น (แผนกผลิต) เมื่อผลออก/ปิดงาน" },
   { value: "rm", label: "แผนก RM", description: "แจ้งกลับผู้ยื่น (วัตถุดิบ) เมื่อผลออก/ปิดงาน" },
   { value: "fg", label: "แผนก FG", description: "แจ้งกลับผู้ยื่น (สินค้าสำเร็จรูป) เมื่อผลออก/ปิดงาน" },
+  { value: "rd", label: "แผนก R&D", description: "แจ้งขอตัวอย่างเพิ่มและยืนยันรับตัวอย่างเพิ่มให้ฝ่ายวิจัยและพัฒนา" },
 ];
 
 export const lineAudienceLabel = (value: string): string =>
