@@ -196,8 +196,8 @@ describe("PetitionTimelineDetailPage", () => {
       <Routes><Route path="/petition/:id" element={<PetitionTimelineDetailPage />} /></Routes>
     </MemoryRouter>);
     expect(await screen.findByText('รอนำส่ง')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'พิมพ์ใบนำส่งตัวอย่างเพิ่ม' }));
-    expect(screen.getByText('ใบนำส่งตัวอย่างเพิ่ม')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'พิมพ์ใบนำส่งตัวอย่างเพิ่ม' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'พิมพ์ฉลากตัวอย่างเพิ่ม' }));
     expect(screen.getByRole('img', { name: 'QR ' + qrCode })).toBeInTheDocument();
     expect(screen.queryByLabelText('Parameter ที่ต้องตรวจสอบ')).not.toBeInTheDocument();
   });
@@ -209,7 +209,7 @@ describe("PetitionTimelineDetailPage", () => {
     }];
     renderDetail();
     expect(await screen.findByRole('heading', { name: 'P-2607-001' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'พิมพ์ใบนำส่งตัวอย่างเพิ่ม' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'พิมพ์ใบนำส่งตัวอย่างเพิ่ม' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'พิมพ์ฉลากตัวอย่างเพิ่ม' })).toBeInTheDocument();
   });
 

@@ -610,12 +610,17 @@ describe('PetitionListPage action cues', () => {
     expect(screen.getByText('ส่งตรวจคุณภาพ')).toBeInTheDocument();
   });
 
-  it('submits selected six-month FG stock and switches to quality alerts', async () => {
+  it.each(['FG260301-001', 'FG260301-002', 'FG260301-006'])('sends six-month FG stock to Lab for batch %s and switches to quality alerts', async (batchNo) => {
+    const stock = await mocks.getSixMonthMedicineStock();
+    mocks.getSixMonthMedicineStock.mockResolvedValueOnce({
+      ...stock,
+      items: stock.items.map((item) => item.itemNo === 'F-TEST-001' ? { ...item, lotNo: batchNo } : item),
+    });
     renderPage({}, '/petition');
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
 
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'เลือก F-TEST-001 FG260301-001' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: `เลือก F-TEST-001 ${batchNo}` }));
     fireEvent.click(screen.getByRole('button', { name: 'ส่งตรวจคุณภาพ (1)' }));
 
     await waitFor(() => {
@@ -628,7 +633,8 @@ describe('PetitionListPage action cues', () => {
       items: [expect.objectContaining({
         itemNo: 'F-TEST-001',
         sampleName: 'ยาทดสอบ FG',
-        batchNo: 'FG260301-001',
+        batchNo,
+        sendToLab: true,
       })],
     }));
   });
@@ -644,8 +650,8 @@ describe('PetitionListPage action cues', () => {
     await waitFor(() => expect(mocks.createPetition).toHaveBeenCalledTimes(1));
     expect(mocks.createPetition).toHaveBeenCalledWith(expect.objectContaining({
       items: [
-        expect.objectContaining({ itemNo: 'F-TEST-001', batchNo: 'FG260301-001' }),
-        expect.objectContaining({ itemNo: 'R-TEST-002', batchNo: 'RM260201-002' }),
+        expect.objectContaining({ itemNo: 'F-TEST-001', batchNo: 'FG260301-001', sendToLab: true }),
+        expect.objectContaining({ itemNo: 'R-TEST-002', batchNo: 'RM260201-002', sendToLab: false }),
       ],
     }));
     expect(await screen.findByText('ยาทดสอบ FG +1 รายการ')).toBeInTheDocument();

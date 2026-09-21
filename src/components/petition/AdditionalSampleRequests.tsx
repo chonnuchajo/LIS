@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { canPrintAdditionalSamples } from '@/lib/additionalSampleQr';
+import { additionalSampleWeights } from '@/lib/additionalSamples';
 import { normalizeRoles } from '@/lib/roles';
 import type { Petition, QCTestResult } from '@/types/petition.types';
-import AdditionalSamplePrintTemplate from './AdditionalSamplePrintTemplate';
 import SampleLabelPrintTemplate from './SampleLabelPrintTemplate';
 
 const statusLabels = { requested: 'รอนำส่ง', sent: 'นำส่งแล้ว รอรับ', received: 'รับแล้ว' };
@@ -26,11 +26,11 @@ function displayValue(value: unknown): string {
 
 export default function AdditionalSampleRequests({ petition }: { petition: Petition }) {
   const { user } = useAuth();
-  const [printTarget, setPrintTarget] = useState<{ id: string; labels: boolean } | null>(null);
+  const [printTarget, setPrintTarget] = useState<string | null>(null);
   const requests = petition.additionalSampleRequests ?? [];
   const canPrint = canPrintAdditionalSamples(petition, user);
   const canSeeResults = normalizeRoles(user).some((role) => ['admin', 'qc-head', 'qc-staff', 'lab-head', 'lab-analyze'].includes(role));
-  const selected = requests.find((request) => request._id === printTarget?.id);
+  const selected = requests.find((request) => request._id === printTarget);
   if (!requests.length) return null;
 
   return (
@@ -46,7 +46,7 @@ export default function AdditionalSampleRequests({ petition }: { petition: Petit
             <p className="text-sm whitespace-pre-wrap break-words">เหตุผล: {request.reason}</p>
             <ul className="space-y-1 text-sm">
               {request.items.map((selectedItem) => <li key={selectedItem.itemSeq} className="break-words">
-                {petition.items.find((item) => item.seq === selectedItem.itemSeq)?.sampleName || `รายการ ${selectedItem.itemSeq}`} · จำนวน {selectedItem.quantity}
+                {petition.items.find((item) => item.seq === selectedItem.itemSeq)?.sampleName || `รายการ ${selectedItem.itemSeq}`} · {additionalSampleWeights(selectedItem).length} ตัวอย่าง · น้ำหนัก {additionalSampleWeights(selectedItem).map((weight) => `${weight} กรัม`).join(', ')}
               </li>)}
             </ul>
             <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
@@ -54,11 +54,10 @@ export default function AdditionalSampleRequests({ petition }: { petition: Petit
               <p>นำส่งเมื่อ: {timestamp(request.sentAt)}</p>
               <p>รับเมื่อ: {timestamp(request.receivedAt)}{request.receivedBy?.name && ` · ${request.receivedBy.name}`}</p>
             </div>
-            {request.status !== 'received' && <p className="text-sm text-muted-foreground">ใช้ QR บนใบนำส่งรอบเพิ่มนี้เท่านั้น ไม่ใช้ QR เดิมรับแทน</p>}
+            {request.status !== 'received' && <p className="text-sm text-muted-foreground">ใช้ QR บนฉลากตัวอย่างเพิ่มรอบนี้เท่านั้น ไม่ใช้ QR เดิมรับแทน</p>}
             {canPrint && request.qrCode && (
               <div className="flex flex-wrap gap-2">
-                <Button variant="default" size="sm" onClick={() => setPrintTarget({ id: request._id, labels: false })}><Printer className="h-4 w-4" />พิมพ์ใบนำส่งตัวอย่างเพิ่ม</Button>
-                <Button variant="outline" size="sm" onClick={() => setPrintTarget({ id: request._id, labels: true })}><Printer className="h-4 w-4" />พิมพ์ฉลากตัวอย่างเพิ่ม</Button>
+                <Button variant="default" size="sm" onClick={() => setPrintTarget(request._id)}><Printer className="h-4 w-4" />พิมพ์ฉลากตัวอย่างเพิ่ม</Button>
               </div>
             )}
             {canSeeResults && !!request.previousResults?.length && (
@@ -84,8 +83,8 @@ export default function AdditionalSampleRequests({ petition }: { petition: Petit
           </section>
         ))}
       </CardContent>
-      {canPrint && selected && <PrintPreviewDialog open onOpenChange={(open) => { if (!open) setPrintTarget(null); }} docType={printTarget?.labels ? 'sample-label' : 'service-request'}>
-        {printTarget?.labels ? <SampleLabelPrintTemplate petition={petition} additionalSampleRequest={selected} /> : <AdditionalSamplePrintTemplate petition={petition} request={selected} />}
+      {canPrint && selected && <PrintPreviewDialog open onOpenChange={(open) => { if (!open) setPrintTarget(null); }} docType="sample-label">
+        <SampleLabelPrintTemplate petition={petition} additionalSampleRequest={selected} />
       </PrintPreviewDialog>}
     </Card>
   );

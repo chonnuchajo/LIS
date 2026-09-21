@@ -1,6 +1,36 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { parseCommand, extractPetitionNo } = require('./line');
+const line = require('../lib/line');
+const lineNotify = require('../lib/lineNotify');
+const testHandler = require('./line').stack.find((layer) => layer.route?.path === '/test').route.stack[0].handle;
+
+for (const [label, results, expectedStatus, expectedSent] of [
+  ['success', [{ ok: true }, { ok: true }], 200, 2],
+  ['forbidden', [{ ok: false, status: 403, error: 'check messages:send and routing' }], 502, 0],
+  ['partial success', [{ ok: true }, { ok: false, status: 403, error: 'check messages:send and routing' }], 502, 1],
+  ['not configured', [{ ok: false, skipped: true, error: 'LINEMA_API_KEY not set' }], 503, 0],
+]) {
+  test(`POST /line/test: reports actual delivery results (${label})`, async (context) => {
+    const groupIds = results.map((result, index) => `C${index}`);
+    context.mock.method(lineNotify, 'resolveGroupIds', async () => groupIds);
+    const push = context.mock.method(line, 'pushToGroup', async (groupId) => results[groupIds.indexOf(groupId)]);
+    const response = {
+      statusCode: 200,
+      status(code) { this.statusCode = code; return this; },
+      json(body) { this.body = body; return this; },
+    };
+
+    await testHandler({ body: { audience: 'qc', message: 'hello' } }, response);
+
+    assert.strictEqual(response.statusCode, expectedStatus);
+    assert.strictEqual(response.body.sent, expectedSent);
+    assert.deepStrictEqual(response.body.results, results);
+    assert.strictEqual(push.mock.callCount(), groupIds.length);
+    const failure = results.find((result) => !result.ok);
+    if (failure) assert.ok(response.body.error.message.includes(failure.error));
+  });
+}
 
 test('extractPetitionNo: pulls & normalizes a petition no from free text', () => {
   assert.strictEqual(extractPetitionNo('ขอสถานะ P-2606-0018 หน่อย'), 'P-2606-0018');

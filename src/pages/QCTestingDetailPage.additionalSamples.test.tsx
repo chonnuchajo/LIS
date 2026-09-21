@@ -85,11 +85,13 @@ describe.each(['qc', 'lab'] as const)('%s additional sample integration', (side)
     fireEvent.click(await screen.findByRole('button', { name: 'ขอตัวอย่างเพิ่ม' }));
     fireEvent.change(screen.getByLabelText('เหตุผลที่ขอตัวอย่างเพิ่ม'), { target: { value: 'ค่าสูงกว่าเกณฑ์' } });
     fireEvent.click(screen.getByRole('checkbox', { name: /ตัวอย่าง A/ }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'น้ำหนักตัวอย่างที่ 1 รายการที่ 1' }), { target: { value: '500' } });
     fireEvent.click(screen.getByRole('button', { name: 'ส่งคำขอ' }));
     await waitFor(() => expect(api.saveQCResult).toHaveBeenCalled());
     expect(api.post).not.toHaveBeenCalled();
     finish(state.results[0]);
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('รอรับตัวอย่างเพิ่ม'));
+    expect(api.post).toHaveBeenCalledWith('/petitions/petition-1/additional-samples', expect.objectContaining({ items: [{ itemSeq: 1, quantity: 1, weights: [500] }] }));
     expect(input).toBeDisabled();
     expect(api.completePetitionTrack).not.toHaveBeenCalled();
   });
