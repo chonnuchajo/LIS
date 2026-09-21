@@ -3,6 +3,23 @@ import { buildCoaReportPages } from "./coaReport";
 import type { CoaDocument } from "@/types/coa.types";
 
 describe("buildCoaReportPages", () => {
+  it.each([
+    ["  Trade A  ", "Trade A"],
+    [undefined, "-"],
+    ["", "-"],
+    ["   ", "-"],
+  ])("uses only the trade name %s for PRODUCT", (sampleName, expected) => {
+    const doc = {
+      sampleSnapshots: [{ itemSeq: 1, sampleName, commonName: "Glyphosate 48% SL" }],
+    } as CoaDocument;
+
+    const [page] = buildCoaReportPages(doc);
+
+    expect(page.samples[0].product).toBe(expected);
+    expect(page.samples[0].commonName).toBe("Glyphosate 48% SL");
+    expect(page.template).toBe("liquid");
+  });
+
   it.each(["%AI", "% AI", "AI content", "active ingredient"])("reads the configured %s result", (testItem) => {
     const doc = {
       sampleSnapshots: [{ itemSeq: 1, commonName: "Glyphosate 48% SL" }],
@@ -58,7 +75,7 @@ describe("buildCoaReportPages", () => {
     const pages = buildCoaReportPages(doc);
 
     expect(pages[0].template).toBe("grWpSp");
-    expect(pages[0].samples[0].product).toBe("Trade Herbicide (Glyphosate 48% SL GR)");
+    expect(pages[0].samples[0].product).toBe("Trade Herbicide");
     expect(pages[0].samples[0].manufacturingDate).toBe("15/08/2026");
     expect(pages[0].samples[0].expiredDate).toBe("15/08/2028");
     expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
@@ -140,7 +157,7 @@ describe("buildCoaReportPages", () => {
 
       expect(pages[0].template).toBe("liquid");
       expect(pages[0].issueDate).toBe("August 20, 2026");
-      expect(pages[0].samples[0].product).toBe(`Trade Liquid (${commonName.trim()})`);
+      expect(pages[0].samples[0].product).toBe("Trade Liquid");
       expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
       expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
       expect(pages[0].samples[0].densityResult).toBe("1.120");
@@ -234,7 +251,7 @@ describe("buildCoaReportPages", () => {
     const pages = buildCoaReportPages(doc);
 
     expect(pages[0].template).toBe("bromadiolone0005");
-    expect(pages[0].samples[0].product).toBe("Red Wax Block (BROMADIOLONE 0.005%)");
+    expect(pages[0].samples[0].product).toBe("Red Wax Block");
     expect(pages[0].samples[0].batchLabel).toBe("LOT-008 / B-008");
     expect(pages[0].samples[0].aiContentResult).toBe("0.0051%");
     expect(pages[0].samples[0].aiContentCriteria).toBe("0.005% ± 0.00125");

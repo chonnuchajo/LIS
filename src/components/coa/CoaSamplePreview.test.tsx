@@ -17,7 +17,7 @@ describe("CoaSamplePreview", () => {
     expect(window.getComputedStyle(heading).fontSize).toBe("20pt");
     expect(report.getByText("NO. 00012026")).toBeInTheDocument();
     expect(report.getByText("August 26, 2026")).toBeInTheDocument();
-    expect(report.getByText("PRODUCT :").closest("div")).toHaveTextContent("Trade name (GLYPHOSATE 48% SL)");
+    expect(report.getByText("PRODUCT :").closest("div")).toHaveTextContent(/^PRODUCT : Trade name$/);
     expect(report.getByText("MANUFACTURER :").closest("div")).toHaveTextContent("I C P Ladda Company Limited, Thailand");
     expect(report.getByText("MANUFACTURING DATE :").closest("div")).toHaveTextContent("01/08/2026");
     expect(report.getByText("EXPIRED DATE :").closest("div")).toHaveTextContent("01/08/2028");
