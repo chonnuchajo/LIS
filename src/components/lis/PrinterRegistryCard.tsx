@@ -26,7 +26,7 @@ import {
 type Draft = {
   label: string;
   cupsPrinterUrl: string;
-  department: string;
+  departments: string[];
   paperSize: PaperSize;
   docTypes: PrintDocType[];
 };
@@ -47,7 +47,7 @@ function docOptionsForKind(kind: PrinterKind) {
 
 function emptyDraft(kind: PrinterKind): Draft {
   const firstDoc = docOptionsForKind(kind)[0];
-  return { label: "", cupsPrinterUrl: "", department: "", paperSize: firstDoc?.defaultPaper ?? "A4", docTypes: [] };
+  return { label: "", cupsPrinterUrl: "", departments: [""], paperSize: firstDoc?.defaultPaper ?? "A4", docTypes: [] };
 }
 
 function draftFromConfig(config: PrinterConfig): Draft {
@@ -55,7 +55,9 @@ function draftFromConfig(config: PrinterConfig): Draft {
   return {
     label: config.label ?? "",
     cupsPrinterUrl: config.cupsPrinterUrl ?? "",
-    department: assignment?.department ?? "",
+    departments: config.assignments?.length
+      ? Array.from(new Set(config.assignments.map((item) => normalizeDepartment(item.department))))
+      : [""],
     paperSize: assignment?.paperSize ?? docOptionsForKind(config.kind)[0]?.defaultPaper ?? "A4",
     docTypes: assignment?.docTypes ?? [],
   };
@@ -63,7 +65,9 @@ function draftFromConfig(config: PrinterConfig): Draft {
 
 function assignmentFromDraft(draft: Draft): PrinterAssignment[] {
   if (draft.docTypes.length === 0) return [];
-  return [{ department: normalizeDepartment(draft.department), paperSize: draft.paperSize, docTypes: draft.docTypes }];
+  return draft.departments.map((department) => ({
+    department, paperSize: draft.paperSize, docTypes: draft.docTypes,
+  }));
 }
 
 function printerName(config: PrinterConfig): string {
@@ -127,23 +131,27 @@ function AssignmentFields({
 
   return (
     <div className="rounded-md border bg-muted/20 p-3 space-y-3">
-      <div className="space-y-1">
-        <Label className="text-xs" htmlFor={departmentId}>แผนกประจำเครื่อง</Label>
-        <select
-          id={departmentId}
-          aria-label="แผนกประจำเครื่อง"
-          value={draft.department}
-          onChange={(event) => onChange({ department: event.target.value })}
-          disabled={disabled}
-          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="">ทุกแผนก</option>
-          {departmentOptions.map((department) => (
-            <option key={department} value={department}>{department}</option>
+      <fieldset className="space-y-2" aria-describedby={`${departmentId}-hint`}>
+        <legend className="text-xs font-medium">แผนกประจำเครื่อง</legend>
+        <div className="grid max-h-48 gap-2 overflow-y-auto p-1 sm:grid-cols-2">
+          {Array.from(new Set(["", ...departmentOptions.map(normalizeDepartment), ...draft.departments])).map((department) => (
+            <label key={department} className="flex items-start gap-2 rounded-md border bg-background/60 p-2 text-sm">
+              <Checkbox
+                aria-label={department || "ทุกแผนก"}
+                checked={draft.departments.includes(department)}
+                onCheckedChange={(checked) => onChange({
+                  departments: checked === true
+                    ? department === "" ? [""] : [...draft.departments.filter(Boolean), department]
+                    : draft.departments.filter((value) => value !== department),
+                })}
+                disabled={disabled}
+              />
+              <span className="leading-tight">{department || "ทุกแผนก"}</span>
+            </label>
           ))}
-        </select>
-        <p className="text-xs text-muted-foreground">เลือกทุกแผนกเป็นค่า fallback หรือเลือกแผนกเฉพาะเพื่อให้ระบบใช้เมื่อผู้พิมพ์อยู่แผนกนั้น</p>
-      </div>
+        </div>
+        <p id={`${departmentId}-hint`} className="text-xs text-muted-foreground">เลือกได้มากกว่า 1 แผนก หรือเลือกทุกแผนกเพื่อใช้เมื่อไม่มีเครื่องพิมพ์เฉพาะแผนก</p>
+      </fieldset>
 
       <div className="space-y-1">
         <Label className="text-xs" htmlFor={paperId}>ขนาดกระดาษ</Label>
@@ -217,6 +225,10 @@ export default function PrinterRegistryCard({
     const err = validatePrinterUrl(draft.cupsPrinterUrl);
     if (err) {
       toast.error(err);
+      return false;
+    }
+    if (draft.departments.length === 0) {
+      toast.error("ต้องเลือกแผนกอย่างน้อย 1 รายการ หรือเลือกทุกแผนก");
       return false;
     }
     if (draft.docTypes.length === 0) {
@@ -394,7 +406,7 @@ export default function PrinterRegistryCard({
           }
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           {addingMeta && (
             <>
               <DialogHeader>

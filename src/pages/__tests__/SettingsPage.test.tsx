@@ -195,10 +195,12 @@ describe("SettingsPage", () => {
     expect(await screen.findByRole("dialog", { name: "เพิ่มเครื่องพิมพ์ Sticker (ฉลาก)" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("ชื่อเรียก"), { target: { value: "Zebra QC" } });
     fireEvent.change(screen.getByLabelText("Printer IP / URL"), { target: { value: "192.168.1.51" } });
-    expect(screen.getByRole("combobox", { name: "แผนกประจำเครื่อง" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "QC" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("แผนกประจำเครื่อง"), { target: { value: "QC" } });
+    expect(screen.getByRole("group", { name: "แผนกประจำเครื่อง" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "QC" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "QC" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Lab/วิเคราะห์" }));
+    expect(screen.getByRole("checkbox", { name: "ทุกแผนก" })).not.toBeChecked();
     fireEvent.change(screen.getByLabelText("ขนาดกระดาษ"), { target: { value: "label-65x25" } });
     fireEvent.click(screen.getByLabelText("ป้ายนำส่งตัวอย่าง"));
     fireEvent.click(screen.getByLabelText("ฉลากขวด Stock"));
@@ -211,6 +213,11 @@ describe("SettingsPage", () => {
       assignments: [
         {
           department: "QC",
+          paperSize: "label-65x25",
+          docTypes: ["sample-label", "stock-label"],
+        },
+        {
+          department: "Lab/วิเคราะห์",
           paperSize: "label-65x25",
           docTypes: ["sample-label", "stock-label"],
         },
@@ -236,9 +243,9 @@ describe("SettingsPage", () => {
     renderPage();
 
     fireEvent.click(await screen.findAllByRole("button", { name: /เพิ่มเครื่องพิมพ์/ }).then((buttons) => buttons[1]));
-    expect(await screen.findByRole("option", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "IT" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Old Access Department" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "IT" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Old Access Department" })).not.toBeInTheDocument();
   });
 
   it("edits printer department, paper size, and document assignment", async () => {
@@ -262,7 +269,7 @@ describe("SettingsPage", () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "แก้ไข" }));
-    fireEvent.change(screen.getByLabelText("แผนกประจำเครื่อง"), { target: { value: "Lab/วิเคราะห์" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Lab/วิเคราะห์" }));
     fireEvent.change(screen.getByLabelText("ขนาดกระดาษ"), {
       target: { value: "label-65x25" },
     });
