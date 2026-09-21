@@ -81,6 +81,7 @@ mountApi('/dashboard-layout', require('./routes/dashboardLayout'));
 mountApi('/user-favorites', require('./routes/userFavorites')); // รายการโปรดบน sidebar ต่อ user
 mountApi('/print', require('./routes/print'));
 mountApi('/ai', require('./routes/ai'));
+mountApi('/validation-ai', require('./routes/validationAi'));
 mountApi('/line', require('./routes/line')); // LINE webhook + group registry
 mountApi('/dev', require('./routes/dev')); // dev-only helpers (gated by ALLOW_DEV_STATUS)
 

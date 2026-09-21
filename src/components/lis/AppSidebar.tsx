@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, Search,
+  ChevronDown, ChevronLeft, ChevronRight, Search, ShieldCheck,
 } from "lucide-react";
 import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import { normalizeFavorites } from "@/lib/favorites";
@@ -17,6 +17,7 @@ import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
+import { DEV_MODE } from "@/config/dev";
 
 type RoleOption = {
   id: string;
@@ -375,11 +376,19 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               </div>
             </div>
           )}
+          {(DEV_MODE || userCanAccessPath(effectiveUser, "/validation", navGroups)) &&
+            "validation".includes(menuQuery.trim().toLowerCase()) && (
+            <Link to="/validation" title="Validation" aria-label="Validation" aria-current={location.pathname === "/validation" ? "page" : undefined}
+              onClick={() => { persistNavScroll(); onNavigate?.(); }}
+              className={cn("mb-3 flex items-center rounded-lg text-sm font-medium", collapsed ? "h-10 justify-center" : "gap-3 px-3 py-2.5", location.pathname === "/validation" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
+              <ShieldCheck className="h-5 w-5 shrink-0" />{!collapsed && "Validation"}
+            </Link>
+          )}
           {allSections.map((section, sIdx) => {
             const q = menuQuery.trim().toLowerCase();
             const visibleItems = rankSearchResults(section.items.filter(
               (item) =>
-                userCanAccessPath(effectiveUser, item.path, navGroups) &&
+                item.path !== "/validation" && userCanAccessPath(effectiveUser, item.path, navGroups) &&
                 (q === "" || item.label.toLowerCase().includes(q)),
             ), q, (item) => ({ primary: [item.label] }));
             if (visibleItems.length === 0) return null;
@@ -477,6 +486,8 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           })}
           {!collapsed &&
             menuQuery.trim() !== "" &&
+            !((DEV_MODE || userCanAccessPath(effectiveUser, "/validation", navGroups)) &&
+              "validation".includes(menuQuery.trim().toLowerCase())) &&
             allSections.every(
               (s) =>
                 s.items.filter(

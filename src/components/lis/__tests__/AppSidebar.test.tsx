@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 import AppSidebar from "../AppSidebar";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+const devConfig = vi.hoisted(() => ({ DEV_MODE: false }));
+vi.mock("@/config/dev", () => devConfig);
 
 const ADMIN_USER = {
   email: "admin@example.com",
@@ -60,6 +62,7 @@ function getSidebarNav(container: HTMLElement) {
 
 describe("AppSidebar", () => {
   beforeEach(() => {
+    devConfig.DEV_MODE = false;
     sessionStorage.clear();
     localStorage.clear();
     getUserFavorites.mockResolvedValue({ email: "admin@example.com", paths: [] });
@@ -69,6 +72,24 @@ describe("AppSidebar", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("แสดง Validation ใต้ช่องค้นหาใน drawer โหมดพัฒนาแม้ไม่มีผู้ใช้", async () => {
+    devConfig.DEV_MODE = true;
+    vi.mocked(useAuth).mockReturnValue({ user: null } as ReturnType<typeof useAuth>);
+    const { container } = renderSidebar({ variant: "drawer" });
+    const search = screen.getByPlaceholderText("ค้นหาเมนู...");
+    const link = screen.getByRole("link", { name: "Validation" });
+    expect(search.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(getSidebarNav(container).querySelector("a")).toBe(link);
+    fireEvent.change(search, { target: { value: "Validation" } });
+    expect(screen.queryByText(/ไม่พบเมนู/)).not.toBeInTheDocument();
+  });
+
+  it("ไม่เปิดเมนู Validation ให้ผู้ไม่มีสิทธิ์ในระบบจริง", () => {
+    vi.mocked(useAuth).mockReturnValue({ user: null } as ReturnType<typeof useAuth>);
+    renderSidebar({ variant: "drawer" });
+    expect(screen.queryByRole("link", { name: "Validation" })).not.toBeInTheDocument();
   });
 
   it("restores the desktop nav scroll position after remounting during route changes", () => {
@@ -150,7 +171,8 @@ describe("AppSidebar", () => {
     expect(headings[0]).toBe("รายการโปรด");
 
     const links = Array.from(nav.querySelectorAll("a")).map((el) => el.getAttribute("href"));
-    expect(links.slice(0, 2)).toEqual(["/stock", "/petition"]);
+    expect(links.slice(0, 3)).toEqual(["/validation", "/stock", "/petition"]);
+    expect(links.filter(path => path === "/validation")).toHaveLength(1);
   });
 
   it("ไม่แสดงรายการโปรดที่ชี้ path ซึ่งไม่มีใน NAV_ITEMS", async () => {
