@@ -17,6 +17,7 @@ const ROLE_AUDIENCE: Record<string, string> = {
 
 // department มาจาก HR/Microsoft จึงสะกดได้หลายแบบ — match แบบหลวมทั้งไทยและอังกฤษ
 const DEPT_PATTERNS: Array<[RegExp, string]> = [
+  [/\br\s*&?\s*d\b|research\s*and\s*development/i, "rd"],
   [/\brm\b|วัตถุดิบ/i, "rm"],
   [/\bfg\b|สำเร็จรูป/i, "fg"],
   [/production|ผลิต/i, "production"],

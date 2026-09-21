@@ -12,6 +12,7 @@ import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { additionalSamplePayload, extractScannedCode, fetchPetitionByScannedCode, getScannedAdditionalSample, type AdditionalSampleRequest } from '@/lib/additionalSampleQr';
 
 const READER_ID = 'lab-accept-qr-reader';
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
@@ -23,32 +24,6 @@ const labReceivableItems = (petition: Petition) =>
 
 type Phase = 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
 
-function extractScannedCode(raw: string): string {
-  const text = raw.trim();
-  if (!text) return '';
-  try {
-    const payload = JSON.parse(text) as { id?: unknown; petitionId?: unknown; petitionNo?: unknown; sampleId?: unknown };
-    const value = payload.id ?? payload.petitionId ?? payload.petitionNo ?? payload.sampleId;
-    if (value) return String(value).trim();
-  } catch { /* not JSON */ }
-  try {
-    const url = new URL(text);
-    const parts = url.pathname.split('/').filter(Boolean);
-    return decodeURIComponent(parts[parts.length - 1] || text).trim();
-  } catch {
-    return text;
-  }
-}
-
-async function fetchPetitionByScannedCode(code: string): Promise<Petition> {
-  try {
-    const res = await api.get<Petition>(`/petitions/scan/${encodeURIComponent(code)}`);
-    return res.data.data;
-  } catch {
-    const res = await api.get<Petition>(`/petitions/${encodeURIComponent(code)}`);
-    return res.data.data;
-  }
-}
 
 interface Props {
   open: boolean;
@@ -66,12 +41,18 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
   const [phase, setPhase] = useState<Phase>('scanning');
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
+  const [additionalRequest, setAdditionalRequest] = useState<AdditionalSampleRequest | null>(null);
+  const scanBusy = useRef(false);
+  const receiveBusy = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [manualCode, setManualCode] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     if (open) {
+      scanBusy.current = false;
+      receiveBusy.current = false;
+      setAdditionalRequest(null);
       setPhase('scanning');
       setPetition(null);
       setPendingId('');
@@ -82,11 +63,17 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
 
   const fetchAndCheck = useCallback(async (rawCode: string) => {
     const code = extractScannedCode(rawCode);
-    if (!code) return;
+    if (!code || scanBusy.current) return;
+    scanBusy.current = true;
     setPendingId(code);
     setPhase('loading');
     try {
       const found = await fetchPetitionByScannedCode(code);
+      const request = getScannedAdditionalSample(found, code, 'lab');
+      if (request && !normalizeRoles(user).some((role) => ['admin', 'lab-head', 'lab-analyze'].includes(role))) {
+        throw new Error('คุณไม่มีสิทธิ์รับตัวอย่างฝั่ง LAB');
+      }
+      setAdditionalRequest(request ?? null);
 
       // Must have at least one lab item
       if (labReceivableItems(found).length === 0) {
@@ -108,14 +95,14 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
       }
 
       // Already completed
-      if (found.status === 'success') {
+      if (!request && found.status === 'success') {
         setErrorMsg(`คำร้องนี้ทดสอบเสร็จสิ้นแล้ว`);
         setPhase('error');
         return;
       }
 
       // Already received by Lab — navigate directly (status อาจ pendingReview จากฝั่ง QC รับก่อน)
-      if (found.labReceivedAt) {
+      if (!request && found.labReceivedAt) {
         onAccepted();
         navigate(`/lab-testing/${found._id}`);
         return;
@@ -125,7 +112,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
       setPendingId(found._id);
       setPhase('confirming');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'ไม่พบข้อมูลคำร้อง';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (err instanceof Error ? err.message : 'ไม่พบข้อมูลคำร้อง');
       setErrorMsg(msg);
       setPhase('error');
     }
@@ -188,12 +175,14 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
 
   async function confirmAccept() {
     const id = petition?._id || pendingId;
-    if (!id) return;
+    if (!id || receiveBusy.current || phase !== 'confirming') return;
+    receiveBusy.current = true;
     setPhase('loading');
     try {
       const received = await api.patch<Petition>(`/petitions/${id}/receive`, {
         actor: user?.name || user?.email,
         side: 'lab',
+        ...additionalSamplePayload(additionalRequest),
       });
       const updated = received.data.data;
       setPetition(updated);
@@ -208,6 +197,9 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
   }
 
   function rescan() {
+    scanBusy.current = false;
+    receiveBusy.current = false;
+    setAdditionalRequest(null);
     setPetition(null);
     setPendingId('');
     setErrorMsg('');
@@ -300,6 +292,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
                 </Badge>
               </div>
               <div className="text-sm space-y-1 text-muted-foreground">
+                {additionalRequest && <p className="font-semibold text-foreground">ตัวอย่างเพิ่ม · LAB · {additionalRequest.reason}</p>}
                 <p>แผนก: <span className="text-foreground">{petitionDepartmentLabel(petition)}</span></p>
                 <p>รายการ Lab: <span className="text-foreground">{labItemCount} รายการ</span></p>
                 {petition.assignedTo && (

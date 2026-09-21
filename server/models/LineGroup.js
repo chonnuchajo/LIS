@@ -12,7 +12,7 @@ const mongoose = require('mongoose');
 //   rm          → แผนก RM (วัตถุดิบ)
 //   fg          → แผนก FG (สินค้าสำเร็จรูป)
 //   all         → รับทุกเหตุการณ์ (กลุ่มรวม/แอดมิน)
-const AUDIENCES = ['qc', 'lab', 'production', 'rm', 'fg', 'all'];
+const AUDIENCES = ['qc', 'lab', 'production', 'rm', 'fg', 'rd', 'all'];
 
 const LineGroupSchema = new mongoose.Schema(
   {

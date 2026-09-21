@@ -36,6 +36,7 @@ import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import ResultReportPrintTemplate from '@/components/petition/ResultReportPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
+import AdditionalSampleRequests from '@/components/petition/AdditionalSampleRequests';
 import LabResultReportTemplate, { LAB_REPORT_CSS } from '@/components/petition/LabResultReportTemplate';
 import {
   usePetition,
@@ -496,6 +497,8 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                   </span>
                 </div>
                 <PetitionStatusTimeline petition={data} />
+
+                <AdditionalSampleRequests petition={data} />
 
                 <DevStatusStepper petitionId={data._id} status={data.status} onChanged={refresh} />
 

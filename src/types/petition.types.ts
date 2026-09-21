@@ -205,6 +205,25 @@ export interface ProductionWorkflow {
 }
 
 // ===== Petition (discriminated by dept) =====
+export interface AdditionalSampleRequest {
+  _id: string;
+  qrCode: string;
+  side: 'qc' | 'lab';
+  reason: string;
+  items: { itemSeq: number; quantity: number }[];
+  requestedAt: string;
+  requestedBy: { name: string; email?: string; employeeId?: string };
+  status: 'requested' | 'sent' | 'received';
+  sentAt?: string;
+  receivedAt?: string;
+  receivedBy?: { name: string };
+  previousResults?: unknown[];
+  currentPhase?: PetitionPhase;
+  phase2DueAt?: string | null;
+  phase2UnlockedAt?: string | null;
+  phase2TriggeredBy?: PhaseTriggerInfo | null;
+}
+
 interface PetitionBase {
   _id: string;
   petitionNo: string;
@@ -213,6 +232,9 @@ interface PetitionBase {
   submittedBy: PetitionSubmitter;
   deliveredBy?: PetitionDeliverer;
   items: PetitionItem[];
+  additionalSampleRequests?: AdditionalSampleRequest[];
+  scannedAdditionalSampleId?: string;
+  scannedAdditionalSampleCode?: string;
   priority?: 0 | 1;
   cause?: string;
   reviewHistory?: ReviewEntry[];
@@ -270,6 +292,7 @@ export type Petition = ProductionPetition | RmPetition | FgPetition;
 // ===== QC Test Results =====
 export interface QCTestResult {
   _id?: string;
+  sampleRoundId?: string;
   petitionId: string;
   petitionNo?: string;
   itemSeq: number;
@@ -290,6 +313,7 @@ export interface QCTestResult {
 }
 
 export interface SaveQCResultPayload {
+  sampleRoundId?: string;
   petitionId: string;
   petitionNo?: string;
   itemSeq: number;

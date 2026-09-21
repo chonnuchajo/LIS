@@ -19,6 +19,91 @@ const petition = {
   submittedBy: { name: 'สมชาย', employeeId: 'E100', department: 'Production' },
 };
 
+const sampleLog = (type = 'additionalSampleRequested', roundId = 'round-1', side = 'lab') => ({
+  _id: 'audit-round-1', petitionId: 'p1', event: 'updated', toStatus: 'inProgress',
+  actor: 'ผู้ตรวจจากเซิร์ฟเวอร์', createdAt: '2026-09-19T03:00:00.000Z',
+  metadata: {
+    type, side, additionalSampleId: roundId, reason: 'ผลไม่ผ่าน',
+    items: [{ itemSeq: 1, quantity: 2 }, { itemSeq: 2, quantity: 3 }],
+    actor: 'ไม่ใช่ผู้ตรวจ', createdAt: '2000-01-01T00:00:00.000Z',
+  },
+});
+
+test('additional request/receipt reaches department OR exact requester, never unrelated assignee', () => {
+  for (const department of ['R&D', 'FG']) {
+    const source = { ...petition, submittedBy: { ...petition.submittedBy, department }, assignedTo: { employeeId: 'E200' } };
+    for (const type of ['additionalSampleRequested', 'additionalSampleReceived']) {
+      const desc = bellDescribe(source, sampleLog(type));
+      assert.ok(desc);
+      const audience = department === 'R&D' ? 'rd' : 'fg';
+      assert.deepStrictEqual(desc.audiences, [audience]);
+      assert.strictEqual(isRelevant(desc, source, { employeeId: 'E100', audiences: [] }), true);
+      assert.strictEqual(isRelevant(desc, source, { employeeId: 'E999', audiences: [audience] }), true);
+      for (const other of ['production', 'rm', 'qc', 'lab', audience === 'rd' ? 'fg' : 'rd']) {
+        assert.strictEqual(isRelevant(desc, source, { employeeId: 'E200', audiences: [other] }), false);
+      }
+      assert.strictEqual(isRelevant(desc, source, { employeeId: 'E10', name: 'สมชาย', audiences: [] }), false);
+    }
+  }
+});
+
+test('additional bell reaches requester when both department sources are missing', () => {
+  const source = { _id: 'p1', submittedBy: { employeeId: 'E100' } };
+  const desc = bellDescribe(source, sampleLog());
+  assert.ok(desc);
+  assert.strictEqual(isRelevant(desc, source, { employeeId: ' E100 ', audiences: [] }), true);
+  assert.strictEqual(isRelevant(desc, source, { audiences: [] }), false);
+});
+
+test('additional sent bell only reaches requesting side, not generic job owners', () => {
+  const source = { ...petition, assignedTo: { employeeId: 'E200' } };
+  for (const side of ['qc', 'lab']) {
+    const desc = bellDescribe(source, sampleLog('additionalSampleSent', 'round-1', side));
+    assert.ok(desc);
+    assert.strictEqual(isRelevant(desc, source, { employeeId: 'E999', audiences: [side] }), true);
+    assert.strictEqual(isRelevant(desc, source, { employeeId: 'E100', audiences: ['production'] }), false);
+    assert.strictEqual(isRelevant(desc, source, { employeeId: 'E200', audiences: [side === 'lab' ? 'qc' : 'lab'] }), false);
+  }
+});
+
+test('additional bell preserves petition link/server timestamp and uses audit actor, not metadata', () => {
+  const log = sampleLog();
+  const desc = bellDescribe(petition, log);
+  assert.ok(desc);
+  const notification = toNotification(petition, log, desc);
+  assert.strictEqual(notification.title, 'ขอตัวอย่างเพิ่ม ' + petition.petitionNo);
+  assert.match(notification.message, /LAB/);
+  assert.match(notification.message, /ผลไม่ผ่าน/);
+  assert.match(notification.message, /รวม 5/);
+  assert.match(notification.message, /ผู้ตรวจจากเซิร์ฟเวอร์/);
+  assert.doesNotMatch(notification.message, /ไม่ใช่ผู้ตรวจ/);
+  assert.strictEqual(notification.link, '/petition/p1');
+  assert.strictEqual(notification.createdAt, log.createdAt);
+});
+
+test('additional duplicate rounds collapse per petition, side and event type', () => {
+  const seen = new Set();
+  const first = sampleLog();
+  assert.strictEqual(isCollapsibleDuplicate(first, seen), false);
+  assert.strictEqual(isCollapsibleDuplicate({ ...first, _id: 'audit-duplicate' }, seen), true);
+  assert.strictEqual(isCollapsibleDuplicate(sampleLog('additionalSampleRequested', 'round-2'), seen), false);
+  assert.strictEqual(isCollapsibleDuplicate(sampleLog('additionalSampleRequested', 'round-1', 'qc'), seen), false);
+  assert.strictEqual(isCollapsibleDuplicate(sampleLog('additionalSampleSent'), seen), false);
+  assert.strictEqual(isCollapsibleDuplicate(sampleLog('additionalSampleReceived'), seen), false);
+  assert.strictEqual(isCollapsibleDuplicate({ ...first, petitionId: 'p2' }, seen), false);
+  assert.strictEqual(isCollapsibleDuplicate(sampleLog('additionalSampleRequested', ''), seen), false);
+  assert.strictEqual(isCollapsibleDuplicate({ petitionId: 'p1', event: 'resultEntered' }, seen), false);
+});
+
+test('additional bell ID deduplicates same round across polls, preserving later rounds and stages', () => {
+  const notificationId = (log) => toNotification(petition, log, bellDescribe(petition, log)).id;
+  const first = sampleLog();
+  assert.strictEqual(notificationId(first), notificationId({ ...first, _id: 'second-audit-id' }));
+  assert.notStrictEqual(notificationId(first), notificationId(sampleLog('additionalSampleRequested', 'round-2')));
+  assert.notStrictEqual(notificationId(first), notificationId(sampleLog('additionalSampleSent')));
+  assert.notStrictEqual(notificationId(first), notificationId(sampleLog('additionalSampleReceived')));
+});
+
 test('bellDescribe: created ใช้ถ้อยคำร่วมกับ LINE และแตกบรรทัดแรกเป็น title', () => {
   const d = bellDescribe(petition, { event: 'created' });
   assert.deepStrictEqual(d.audiences, ['qc']);
