@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, Search, ShieldCheck,
+  ChevronDown, ChevronLeft, ChevronRight, Search,
 } from "lucide-react";
 import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import { normalizeFavorites } from "@/lib/favorites";
@@ -376,19 +376,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               </div>
             </div>
           )}
-          {(DEV_MODE || userCanAccessPath(effectiveUser, "/validation", navGroups)) &&
-            "validation".includes(menuQuery.trim().toLowerCase()) && (
-            <Link to="/validation" title="Validation" aria-label="Validation" aria-current={location.pathname === "/validation" ? "page" : undefined}
-              onClick={() => { persistNavScroll(); onNavigate?.(); }}
-              className={cn("mb-3 flex items-center rounded-lg text-sm font-medium", collapsed ? "h-10 justify-center" : "gap-3 px-3 py-2.5", location.pathname === "/validation" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
-              <ShieldCheck className="h-5 w-5 shrink-0" />{!collapsed && "Validation"}
-            </Link>
-          )}
           {allSections.map((section, sIdx) => {
             const q = menuQuery.trim().toLowerCase();
             const visibleItems = rankSearchResults(section.items.filter(
               (item) =>
-                item.path !== "/validation" && userCanAccessPath(effectiveUser, item.path, navGroups) &&
+                ((DEV_MODE && item.path === "/validation") || userCanAccessPath(effectiveUser, item.path, navGroups)) &&
                 (q === "" || item.label.toLowerCase().includes(q)),
             ), q, (item) => ({ primary: [item.label] }));
             if (visibleItems.length === 0) return null;
@@ -436,6 +428,8 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                   const link = (
                     <Link
                       to={targetPath}
+                      aria-label={item.label}
+                      aria-current={isActive ? "page" : undefined}
                       onClick={(e) => {
                         persistNavScroll();
                         // Let the browser handle modifier/middle clicks natively
@@ -486,13 +480,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           })}
           {!collapsed &&
             menuQuery.trim() !== "" &&
-            !((DEV_MODE || userCanAccessPath(effectiveUser, "/validation", navGroups)) &&
-              "validation".includes(menuQuery.trim().toLowerCase())) &&
             allSections.every(
               (s) =>
                 s.items.filter(
                   (item) =>
-                    userCanAccessPath(effectiveUser, item.path, navGroups) &&
+                    ((DEV_MODE && item.path === "/validation") || userCanAccessPath(effectiveUser, item.path, navGroups)) &&
                     item.label.toLowerCase().includes(menuQuery.trim().toLowerCase()),
                 ).length === 0,
             ) && (
