@@ -1,14 +1,3 @@
-// Thin LINE Messaging API client — push/reply + webhook signature verification.
-// No DB access, no domain knowledge (see lineNotify.js for that). Node 18+ global
-// fetch and crypto only; no new npm deps.
-//
-// Setup (server/.env):
-//   LINE_CHANNEL_ACCESS_TOKEN=...   # Messaging API → channel access token (long-lived)
-//   LINE_CHANNEL_SECRET=...         # Messaging API → channel secret (for webhook signature)
-//
-// When LINE_CHANNEL_ACCESS_TOKEN is absent the client is a safe no-op: calls log a
-// warning and resolve `{ ok:false, skipped:true }` instead of throwing — so dev boxes
-// without LINE credentials run normally.
 const crypto = require('crypto');
 
 const LINE_API = 'https://api.line.me/v2/bot';
@@ -19,8 +8,20 @@ function accessToken() {
 function channelSecret() {
   return String(process.env.LINE_CHANNEL_SECRET || '').trim();
 }
+function linemaConfig() {
+  const apiKey = String(process.env.LINEMA_API_KEY || '').trim();
+  if (!/^lin_[a-fA-F0-9]{40}$/.test(apiKey)) return null;
+  try {
+    const url = new URL(String(process.env.LINEMA_BASE_URL || '').trim() || String(process.env.LINE_PUSH_URL || '').trim());
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return null;
+    url.pathname = `${url.pathname.replace(/\/+$/, '').replace(/\/api\/v1$/, '')}/api/v1`;
+    return { baseUrl: url.href, apiKey };
+  } catch {
+    return null;
+  }
+}
 function isConfigured() {
-  return accessToken().length > 0;
+  return !!linemaConfig();
 }
 // Optional: forward every inbound webhook payload to another handler (e.g. an n8n
 // workflow) so existing integrations keep working while LIS is the primary webhook.
@@ -74,17 +75,18 @@ function toMessages(input) {
     .slice(0, 5);
 }
 
-async function callLineApi(endpoint, payload) {
-  if (!isConfigured()) {
+async function callLineApi(endpoint, payload, baseUrl = LINE_API, token = accessToken()) {
+  if (!token) {
     console.warn(`[line] skipped ${endpoint} — LINE_CHANNEL_ACCESS_TOKEN not set`);
     return { ok: false, skipped: true };
   }
   try {
-    const resp = await fetch(`${LINE_API}${endpoint}`, {
+    const resp = await fetch(`${baseUrl}${endpoint}`, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken()}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
     });
@@ -105,7 +107,17 @@ async function pushToGroup(groupId, messages) {
   if (!groupId) return { ok: false, error: 'no groupId' };
   const msgs = toMessages(messages);
   if (!msgs.length) return { ok: false, error: 'no messages' };
-  return callLineApi('/message/push', { to: groupId, messages: msgs });
+  const config = linemaConfig();
+  if (!config) {
+    const error = 'ต้องตั้ง LINEMA_BASE_URL (หรือ LINE_PUSH_URL) เป็น HTTPS และ LINEMA_API_KEY ให้ถูกต้อง';
+    console.warn(`[line] skipped push — ${error}`);
+    return { ok: false, skipped: true, error };
+  }
+  const result = await callLineApi('/messages', { to: groupId, messages: msgs }, config.baseUrl, config.apiKey);
+  if (result.status === 403) {
+    return { ...result, error: 'Linema ตอบ 403: ตรวจสิทธิ์ messages:send และ routing ของแอปกับแชทปลายทาง' };
+  }
+  return result;
 }
 
 // Reply to an incoming webhook event using its (single-use, ~30s) replyToken.

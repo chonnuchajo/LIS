@@ -407,7 +407,15 @@ router.post('/test', async (req, res) => {
       return res.status(404).json({ error: { message: 'ไม่พบกลุ่มที่ผูกไว้สำหรับผู้รับนี้' } });
     }
     const results = await Promise.all(groupIds.map((id) => line.pushToGroup(id, message)));
-    res.json({ sent: groupIds.length, results });
+    const sent = results.filter((result) => result.ok).length;
+    const failure = results.find((result) => !result.ok);
+    if (failure) {
+      const reason = failure.error || `HTTP ${failure.status || 'unknown'}`;
+      return res.status(failure.skipped ? 503 : 502).json({
+        sent, results, error: { message: `ส่ง LINE สำเร็จ ${sent}/${groupIds.length} กลุ่ม — ${reason}` },
+      });
+    }
+    res.json({ sent, results });
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }

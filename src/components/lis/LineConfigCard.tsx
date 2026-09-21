@@ -69,11 +69,11 @@ const LineConfigCard = () => {
           {health &&
             (configured ? (
               <Badge variant="green-soft" className="ml-1 gap-1">
-                <CheckCircle2 className="w-3 h-3" /> เชื่อมต่อแล้ว
+                <CheckCircle2 className="w-3 h-3" /> ตั้งค่า Linema แล้ว
               </Badge>
             ) : (
               <Badge variant="yellow-soft" className="ml-1 gap-1">
-                <AlertTriangle className="w-3 h-3" /> ยังไม่ตั้ง token
+                <AlertTriangle className="w-3 h-3" /> ยังไม่ตั้งค่า Linema
               </Badge>
             ))}
         </CardTitle>
@@ -81,10 +81,13 @@ const LineConfigCard = () => {
       <CardContent className="space-y-5">
         {!configured && (
           <p className="rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2 text-xs text-yellow-800">
-            ยังไม่ได้ตั้ง <code>LINE_CHANNEL_ACCESS_TOKEN</code> ใน <code>server/.env</code> —
-            ผูกกลุ่มไว้ก่อนได้ แต่ระบบจะยังไม่ส่งข้อความจริงจนกว่าจะตั้ง token แล้วรีสตาร์ท backend
+            ตั้ง <code>LINEMA_BASE_URL</code> (หรือ <code>LINE_PUSH_URL</code>) เป็น HTTPS และ <code>LINEMA_API_KEY</code> ใน <code>server/.env</code> ให้ถูกต้อง —
+            ผูกกลุ่มไว้ก่อนได้ แต่ระบบจะยังไม่ส่งข้อความจริงจนกว่าจะตั้งค่าแล้วรีสตาร์ท backend
           </p>
         )}
+        <p className="text-xs text-muted-foreground">
+          API key ต้องมีสิทธิ์ <code>messages:send</code> และผูก routing ของแอป LIS กับแชทปลายทางใน Linema มิฉะนั้นจะส่งไม่สำเร็จ (403)
+        </p>
 
         {/* What gets sent */}
         <div>
