@@ -15,21 +15,25 @@ export type CoaPerson = { name?: string; email?: string; role?: string };
 
 export type CoaFormSelection = {
   itemSeq: number;
-  aiKey: string;
-  appearanceKey: string;
-  appearanceSource: string;
-  appearanceSpecification: string;
-  appearanceResult: "Conform" | "Not conform" | "";
-  densityKey: string;
+  resultKeys?: string[];
+  aiKey?: string;
+  appearanceKey?: string;
+  appearanceSource?: string;
+  appearanceSpecification?: string;
+  appearanceResult?: "Conform" | "Not conform" | "";
+  densityKey?: string;
 };
 
 export type CoaSourceResult = {
   key: string;
   itemSeq: number;
-  kind: "ai" | "appearance" | "density";
+  kind: "ai" | "appearance" | "density" | "result";
   label: string;
   result: string;
   suggestedEnglish?: string;
+  testItem?: string;
+  criteria?: string;
+  unit?: string;
 };
 
 export type CoaSampleSnapshot = {

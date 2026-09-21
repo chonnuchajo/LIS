@@ -1,9 +1,28 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import CoaReportTemplate, { COA_REPORT_CSS } from "./CoaReportTemplate";
-import type { CoaReportPage } from "@/lib/coaReport";
+import { buildCoaReportPages, type CoaReportPage } from "@/lib/coaReport";
 
 describe("CoaReportTemplate", () => {
+  it.each(["GLYPHOSATE 48% SL", "Product 2% GR", "BROMADIOLONE 0.005%", "Other product"])(
+    "renders only selected parameter results in the existing %s form",
+    (commonName) => {
+      const pages = buildCoaReportPages({
+        _id: "selected", revision: 0, status: "draft", petitionId: "p1", selectedItemSeqs: [1],
+        sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade A", commonName, batchNo: "B1" }],
+        resultSnapshots: [{ itemSeq: 1, testItem: "pH", result: "7.1", criteria: "6 - 8", unit: "pH" }],
+        formSelections: [{ itemSeq: 1, resultKeys: ["ph"] }],
+      });
+      render(<CoaReportTemplate pages={pages} />);
+      expect(screen.getByText("pH")).toBeInTheDocument();
+      expect(screen.getByText("6 - 8")).toBeInTheDocument();
+      expect(screen.getByText("7.1 pH")).toBeInTheDocument();
+      expect(screen.queryByText("Appearance")).not.toBeInTheDocument();
+      expect(screen.queryByText("Conform")).not.toBeInTheDocument();
+      expect(screen.queryByText(/%AI content/)).not.toBeInTheDocument();
+    },
+  );
+
   it("renders the special GR/WP/SP COA form", () => {
     const page: CoaReportPage = {
       template: "grWpSp",

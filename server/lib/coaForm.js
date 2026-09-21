@@ -64,6 +64,53 @@ function buildCoaFormOptions({ parameters, qcResults, selectedItemSeqs }) {
   return options;
 }
 
+function buildCoaParameterOptions({ parameters, qcResults, selectedItemSeqs, petition }) {
+  const parametersById = new Map(parameters.map((parameter) => [String(parameter._id), parameter]));
+  const selected = new Set(selectedItemSeqs.map(Number));
+  const options = [];
+  for (const result of qcResults) {
+    const itemSeq = Number(result.itemSeq);
+    const parameter = parametersById.get(String(result.parameterId));
+    if (!selected.has(itemSeq) || !parameter) continue;
+    const commonName = petition?.items?.find((item) => Number(item.seq) === itemSeq)?.commonName;
+    for (const [rowIndex, row] of visibleResultEntries(result).entries()) {
+      const phase = row === result.valuesPhase2 ? 2 : 1;
+      const entryIndex = phase === 2 ? 0 : rowIndex;
+      for (const field of parameter.valueFields || []) {
+        if (!['text', 'number', 'float', 'integer', 'enum', 'reference'].includes(field.type)
+          || /^__|__(note|source|provenance)$/.test(field.label)
+          || (phase === 1 && field.phase === 'after') || (phase === 2 && field.phase === 'before')) continue;
+        const values = field.multiple && Array.isArray(row?.[field.label]) ? row[field.label] : [row?.[field.label]];
+        for (const [valueIndex, value] of values.entries()) {
+          if (!['string', 'number'].includes(typeof value) || !String(value).trim()) continue;
+          const text = String(value).trim();
+          if (['number', 'float', 'integer'].includes(field.type)
+            && !Number.isFinite(Number(text.replace(/%$/, '').replace(/,/g, '').trim()))) continue;
+          const testItem = parameter.name === field.label ? field.label : `${parameter.name} - ${field.label}`;
+          let criteria = '';
+          if (isAiContentTestItem(testItem) && field.unit === '%') {
+            criteria = aiToleranceCriteriaForCommonName(commonName) || '';
+          } else if (!field.substanceMode && !field.conditionalMode && !field.labelToleranceMode) {
+            const comparator = { lt: '<', lte: '≤', eq: '=', gte: '≥', gt: '>' }[field.standardOperator];
+            if (comparator && field.standardValue != null) criteria = `${comparator} ${field.standardValue}`;
+            if (field.standardValue != null && field.standardValue2 != null) {
+              if (field.standardOperator === 'between') criteria = `${field.standardValue} - ${field.standardValue2}`;
+              if (field.standardOperator === 'tolerance') criteria = `${field.standardValue} ± ${field.standardValue2}`;
+            }
+            if (field.type === 'enum') criteria = (field.expectedValues || []).join(', ');
+          }
+          options.push({
+            key: JSON.stringify(['field', String(result._id || result.parameterId), itemSeq, phase, entryIndex, field.label, valueIndex]),
+            itemSeq, kind: 'result', testItem, result: text, criteria, unit: field.unit || '',
+            label: `${testItem} / ขั้นที่ ${phase} ชุดที่ ${entryIndex + 1}${field.multiple ? ` ค่าที่ ${valueIndex + 1}` : ''}`,
+          });
+        }
+      }
+    }
+  }
+  return options;
+}
+
 function applyCoaFormSelections(snapshots, options, selections) {
   if (!Array.isArray(selections) || selections.length !== snapshots.sampleSnapshots.length
     || new Set(selections.map((selection) => selection?.itemSeq)).size !== selections.length) {
@@ -74,6 +121,20 @@ function applyCoaFormSelections(snapshots, options, selections) {
   for (const sample of snapshots.sampleSnapshots) {
     const selection = selections.find((entry) => entry?.itemSeq === sample.itemSeq);
     if (!selection || !sample.commonName?.trim()) throw new Error('ไม่พบชื่อสามัญหรือข้อมูลตัวอย่างที่เลือก');
+    if (selection.resultKeys !== undefined) {
+      const keys = selection.resultKeys;
+      if (!Array.isArray(keys) || keys.length === 0 || new Set(keys).size !== keys.length
+        || keys.some((key) => typeof key !== 'string' || !key.trim())) {
+        throw new Error('ต้องเลือกผลพารามิเตอร์อย่างน้อยหนึ่งค่าต่อตัวอย่างและไม่ซ้ำกัน');
+      }
+      for (const key of keys) {
+        const option = options.find((entry) => entry.itemSeq === sample.itemSeq && entry.kind === 'result' && entry.key === key);
+        if (!option) throw new Error('ผลพารามิเตอร์ที่เลือกไม่ถูกต้อง กรุณาโหลดข้อมูลใหม่');
+        results.push({ itemSeq: sample.itemSeq, testItem: option.testItem, result: option.result, criteria: option.criteria, unit: option.unit });
+      }
+      formSelections.push({ itemSeq: sample.itemSeq, resultKeys: [...keys] });
+      continue;
+    }
     const find = (kind, key) => options.find((option) => option.itemSeq === sample.itemSeq && option.kind === kind && option.key === key);
     const ai = find('ai', selection.aiKey);
     const appearance = find('appearance', selection.appearanceKey);
@@ -94,16 +155,19 @@ function applyCoaFormSelections(snapshots, options, selections) {
     );
     if (density) results.push({ itemSeq: sample.itemSeq, testItem: 'Density at 30°C (g/cm³)', result: density.result, criteria: '', unit: 'g/cm³' });
   }
-  results.push(...snapshots.resultSnapshots.filter((row) => /date\s*of\s*analysis|wax\s*block\s*size/i.test(row.testItem || '')));
+  results.push(...snapshots.resultSnapshots.filter((row) =>
+    !formSelections.some((selection) => selection.itemSeq === row.itemSeq && selection.resultKeys)
+    && /date\s*of\s*analysis|wax\s*block\s*size/i.test(row.testItem || '')));
   return {
     ...snapshots,
     formSelections,
     resultSnapshots: results,
     trendSnapshots: snapshots.trendSnapshots.map((trend) => {
       const ai = results.find((row) => row.itemSeq === trend.itemSeq && isAiContentTestItem(row.testItem));
-      return { ...trend, aiResultText: ai.result, aiResultPercent: Number.parseFloat(ai.result.replace(/,/g, '')) };
+      const aiPercent = ai ? Number.parseFloat(ai.result.replace(/,/g, '')) : NaN;
+      return { ...trend, aiResultText: ai?.result, aiResultPercent: Number.isFinite(aiPercent) ? aiPercent : undefined };
     }),
   };
 }
 
-module.exports = { buildCoaFormOptions, applyCoaFormSelections };
+module.exports = { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections };

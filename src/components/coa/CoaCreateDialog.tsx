@@ -6,8 +6,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
 import type { CoaDocument, CoaFormSelection, EligibleCoaPetition } from "@/types/coa.types";
@@ -57,19 +55,15 @@ export default function CoaCreateDialog({
     queryFn: () => api.getCoaSourceData(petitionId, selectedSeqs),
     enabled: open && Boolean(selectedPetition) && selectedSeqs.length > 0 && !reusableActiveCoa,
   });
-  const sourceResults = source.data?.results ?? [];
+  const sourceResults = source.data?.results.filter((result) => result.kind === "result") ?? [];
   const canCreate = !isFetching && !source.isFetching && !source.isError && !loadError
     && selectedItems.length > 0 && selectedItems.length === selectedSeqs.length
     && selectedItems.every((item) => {
       const selection = selections[item.seq];
       if (!selection || !item.commonName?.trim()) return false;
       const options = sourceResults.filter((result) => result.itemSeq === item.seq);
-      return options.some((result) => result.kind === "ai" && result.key === selection.aiKey)
-        && options.some((result) => result.kind === "appearance" && result.key === selection.appearanceKey && result.result === selection.appearanceSource)
-        && (!selection.densityKey || options.some((result) => result.kind === "density" && result.key === selection.densityKey))
-        && /^[\x20-\x7E]{1,300}$/.test(selection.appearanceSpecification.trim())
-        && /[a-z]/i.test(selection.appearanceSpecification)
-        && ["Conform", "Not conform"].includes(selection.appearanceResult);
+      const resultKeys = selection.resultKeys ?? [];
+      return resultKeys.length > 0 && resultKeys.every((key) => options.some((result) => result.key === key));
     });
   const reusableActiveCoaFields = useMemo(() => {
     if (!reusableActiveCoa) return "ชื่อสามัญ/Batch/วันที่ผลิตนี้";
@@ -130,18 +124,25 @@ export default function CoaCreateDialog({
     setSelections((current) => ({
       ...current,
       [itemSeq]: {
-        itemSeq, aiKey: "", appearanceKey: "", appearanceSource: "", appearanceSpecification: "", appearanceResult: "", densityKey: "",
+        itemSeq, resultKeys: [],
         ...current[itemSeq], ...update,
       },
     }));
   }
 
+  function toggleResult(itemSeq: number, key: string) {
+    const selected = selections[itemSeq]?.resultKeys ?? [];
+    updateSelection(itemSeq, {
+      resultKeys: selected.includes(key) ? selected.filter((value) => value !== key) : [...selected, key],
+    });
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!create.isPending && !submitExisting.isPending) onOpenChange(nextOpen); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>สร้าง COA</DialogTitle>
-          <DialogDescription>เลือกชื่อสามัญและผลจากพารามิเตอร์ตรวจสอบของคำร้องที่อนุมัติผล Lab แล้ว</DialogDescription>
+          <DialogDescription>เลือกผลพารามิเตอร์ที่ต้องการใส่ใน COA ระบบดึงค่าที่บันทึกไว้ให้อัตโนมัติ แล้วส่งไปแท็บดำเนินการแล้ว</DialogDescription>
         </DialogHeader>
         {isFetching && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดคำร้อง...</p>}
         {loadError && <div role="alert" className="text-sm text-destructive">โหลดคำร้องไม่สำเร็จ <Button variant="outline" onClick={() => refetch()}>ลองใหม่</Button></div>}
@@ -156,12 +157,13 @@ export default function CoaCreateDialog({
             </AlertDescription>
           </Alert>
         )}
-        <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="max-h-80 overflow-auto rounded-md border bg-muted/50">
             {petitions.map((petition) => (
               <button
                 key={petition._id}
                 type="button"
+                disabled={create.isPending || submitExisting.isPending}
                 className={`block w-full border-b px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${petition._id === petitionId ? "bg-primary-50 text-foreground" : "text-foreground"}`}
                 onClick={() => {
                   setPetitionId(petition._id);
@@ -176,9 +178,9 @@ export default function CoaCreateDialog({
           </div>
           <div className="max-h-80 overflow-auto rounded-md border bg-card">
             {!selectedPetition && <div className="p-6 text-center text-sm text-muted-foreground">เลือกคำร้องที่อนุมัติผล Lab แล้ว</div>}
-            {selectedPetition?.items.map((item) => (
+        {selectedPetition?.items.map((item) => (
               <label key={item.seq} className="flex items-start gap-3 border-b p-3 text-sm hover:bg-accent">
-                <Checkbox checked={selectedSeqs.includes(item.seq)} onCheckedChange={() => toggleSeq(item.seq)} />
+                <Checkbox checked={selectedSeqs.includes(item.seq)} disabled={create.isPending || submitExisting.isPending} onCheckedChange={() => toggleSeq(item.seq)} />
                   <span>
                     <span className="block font-medium text-foreground">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
                     <span className="block text-foreground">ชื่อสามัญ: {item.commonName || "ยังไม่ระบุชื่อสามัญ"}</span>
@@ -201,51 +203,28 @@ export default function CoaCreateDialog({
             {!source.isFetching && !source.isError && selectedItems.map((item) => {
               const options = sourceResults.filter((result) => result.itemSeq === item.seq);
               const selection = selections[item.seq];
-              const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+              const selectedResultKeys = new Set(selection?.resultKeys ?? []);
               return (
                 <section key={item.seq} className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
                   <h3 className="text-base font-semibold">{item.commonName || "ยังไม่ระบุชื่อสามัญ"} · {item.batchNo || item.lotNo || "-"}</h3>
-                  {(!options.some((option) => option.kind === "ai") || !options.some((option) => option.kind === "appearance")) && (
-                    <p role="alert" className="text-sm text-destructive">ยังไม่มีผล %AI หรือผลกายภาพครบ กรุณาตรวจข้อมูลพารามิเตอร์ของตัวอย่างนี้</p>
+                  {options.length === 0 ? (
+                    <p role="alert" className="text-sm text-destructive">ไม่พบค่าพารามิเตอร์ที่ใช้ใน COA ของตัวอย่างนี้</p>
+                  ) : (
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-semibold text-foreground">เลือกข้อมูลจากค่าพารามิเตอร์</legend>
+                      {options.map((option) => (
+                        <label key={option.key} className="flex items-start gap-3 rounded-md border p-3 text-sm hover:bg-accent">
+                          <Checkbox checked={selectedResultKeys.has(option.key)} onCheckedChange={() => toggleResult(item.seq, option.key)} />
+                          <span className="min-w-0">
+                            <span className="block font-medium text-foreground">{option.label}</span>
+                            <span className="block break-words text-muted-foreground">ผล: {option.result}{option.unit && !option.result.endsWith(option.unit) ? ` ${option.unit}` : ""}</span>
+                            {option.criteria && <span className="block text-xs text-muted-foreground">เกณฑ์: {option.criteria}</span>}
+                          </span>
+                        </label>
+                      ))}
+                      <p className="text-xs text-muted-foreground">เลือกอย่างน้อยหนึ่งค่าต่อตัวอย่าง ระบบจะดึงผลที่เลือกไปใส่ใน COA อัตโนมัติ</p>
+                    </fieldset>
                   )}
-                  <div className="space-y-1">
-                    <Label htmlFor={"coa-ai-" + item.seq}>ผล %AI จากพารามิเตอร์</Label>
-                    <select id={"coa-ai-" + item.seq} className={selectClass} value={selection?.aiKey || ""} onChange={(event) => updateSelection(item.seq, { aiKey: event.target.value })}>
-                      <option value="">เลือกผล %AI</option>
-                      {options.filter((option) => option.kind === "ai").map((option) => <option key={option.key} value={option.key}>{option.label}: {option.result}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={"coa-appearance-" + item.seq}>ผลกายภาพจากพารามิเตอร์</Label>
-                    <select id={"coa-appearance-" + item.seq} className={selectClass} value={selection?.appearanceKey || ""} onChange={(event) => {
-                      const chosen = options.find((option) => option.key === event.target.value && option.kind === "appearance");
-                      updateSelection(item.seq, { appearanceKey: chosen?.key || "", appearanceSource: chosen?.result || "", appearanceSpecification: chosen?.suggestedEnglish || "", appearanceResult: "" });
-                    }}>
-                      <option value="">เลือกผลกายภาพ</option>
-                      {options.filter((option) => option.kind === "appearance").map((option) => <option key={option.key} value={option.key}>{option.label}: {option.result}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={"coa-specification-" + item.seq}>Specification ภาษาอังกฤษ</Label>
-                    <Input id={"coa-specification-" + item.seq} maxLength={300} value={selection?.appearanceSpecification || ""} onChange={(event) => updateSelection(item.seq, { appearanceSpecification: event.target.value })} placeholder="Clear liquid, orange" aria-describedby={"coa-specification-help-" + item.seq} />
-                    <p id={"coa-specification-help-" + item.seq} className="text-xs text-muted-foreground">ตรวจคำแปลให้ตรงผลกายภาพก่อนสร้าง COA หากไม่มีคำแปลแนะนำ ให้กรอกภาษาอังกฤษเอง</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={"coa-appearance-result-" + item.seq}>ยืนยันผลกายภาพ</Label>
-                    <select id={"coa-appearance-result-" + item.seq} className={selectClass} value={selection?.appearanceResult || ""} onChange={(event) => updateSelection(item.seq, { appearanceResult: event.target.value as CoaFormSelection["appearanceResult"] })}>
-                      <option value="">เลือกผลยืนยัน</option>
-                      <option value="Conform">Conform (ตรงตาม Specification)</option>
-                      <option value="Not conform">Not conform (ไม่ตรงตาม Specification)</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={"coa-density-" + item.seq}>ผล Density จากพารามิเตอร์</Label>
-                    <select id={"coa-density-" + item.seq} className={selectClass} value={selection?.densityKey || ""} onChange={(event) => updateSelection(item.seq, { densityKey: event.target.value })}>
-                      <option value="">ไม่ระบุผล Density</option>
-                      {options.filter((option) => option.kind === "density").map((option) => <option key={option.key} value={option.key}>{option.label}: {option.result}</option>)}
-                    </select>
-                    <p className="text-xs text-muted-foreground">แสดงเฉพาะผล Density ไม่แสดงช่วงค่าคลาดเคลื่อน</p>
-                  </div>
                 </section>
               );
             })}

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildCoaSnapshots } = require('./coaLifecycle');
-const { buildCoaFormOptions, applyCoaFormSelections } = require('./coaForm');
+const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('./coaForm');
 
 const source = {
   petition: { petitionNo: 'P-1', items: [{ seq: 1, commonName: 'Glyphosate 48% SL' }] },
@@ -29,6 +29,58 @@ const selection = {
   appearanceResult: 'Conform',
   densityKey: options.find((option) => option.kind === 'density').key,
 };
+
+test('offers all saved configured fields without exposing photos, files or internal values', () => {
+  const fields = buildCoaParameterOptions(source);
+  assert.equal(fields.length, 7);
+  assert.ok(fields.every((field) => field.kind === 'result' && field.itemSeq === 1));
+  assert.ok(fields.some((field) => field.testItem.includes('อุณหภูมิ') && field.result === '30' && field.unit === 'C'));
+  assert.ok(fields.some((field) => field.testItem === 'กายภาพ - สี' && field.result === 'สีส้ม'));
+  assert.equal(JSON.stringify(fields).includes('private'), false);
+  assert.equal(fields.find((field) => field.result === '48.3').criteria, '48% ± 2.40');
+});
+
+test('freezes only chosen database fields without requiring AI or inventing a physical verdict', () => {
+  const fields = buildCoaParameterOptions(source);
+  const color = fields.find((field) => field.testItem === 'กายภาพ - สี');
+  const selected = [{ itemSeq: 1, resultKeys: [color.key], result: 'Conform' }];
+  const result = applyCoaFormSelections(snapshots, fields, selected);
+  assert.deepEqual(result.resultSnapshots, [{ itemSeq: 1, testItem: 'กายภาพ - สี', result: 'สีส้ม', criteria: '', unit: '' }]);
+  assert.deepEqual(result.formSelections, [{ itemSeq: 1, resultKeys: [color.key] }]);
+  assert.equal(result.trendSnapshots[0].aiResultPercent, undefined);
+  for (const resultKeys of [null, [], [color.key, color.key], ['not-a-source'], [1]]) {
+    assert.throws(() => applyCoaFormSelections(snapshots, fields, [{ itemSeq: 1, resultKeys }]));
+  }
+  assert.throws(() => applyCoaFormSelections(snapshots, [{ ...color, itemSeq: 2 }], selected));
+});
+
+test('supports repeated fields, zero values and phase-specific fields with stable keys', () => {
+  const changed = structuredClone(source);
+  changed.parameters = [{ _id: 'repeat', name: 'Other test', valueFields: [
+    { label: 'Value', type: 'number', unit: 'mg', multiple: true, phase: 'both', standardOperator: 'between', standardValue: 0, standardValue2: 10 },
+    { label: 'Before', type: 'text', phase: 'before' }, { label: 'After', type: 'text', phase: 'after' },
+    { label: 'File', type: 'file' }, { label: '__note', type: 'text' },
+  ] }];
+  changed.qcResults = [{ itemSeq: 1, parameterId: 'repeat', entries: [{ Value: [0, 2], Before: 'before', After: 'hidden', File: 'private', __note: 'private' }], valuesPhase2: { Value: [3], Before: 'hidden', After: 'after' } }];
+  const fields = buildCoaParameterOptions(changed);
+  assert.deepEqual(fields.map((field) => field.result), ['0', '2', 'before', '3', 'after']);
+  assert.equal(fields[0].criteria, '0 - 10');
+  const phase2Key = fields.find((field) => field.result === '3').key;
+  changed.qcResults[0].entries.push({ Value: [4] });
+  assert.equal(buildCoaParameterOptions(changed).find((field) => field.result === '3').key, phase2Key);
+});
+
+test('persists generic selection keys while keeping legacy form validation', () => {
+  const CoaDocument = require('../models/CoaDocument');
+  const base = { petitionId: '507f1f77bcf86cd799439031', status: 'draft' };
+  const document = new CoaDocument({ ...base, formSelections: [{ itemSeq: 1, resultKeys: ['field-key'] }] });
+  assert.equal(document.validateSync(), undefined);
+  assert.deepEqual(document.toObject().formSelections, [{ itemSeq: 1, resultKeys: ['field-key'] }]);
+  assert.equal(new CoaDocument({ ...base, formSelections: [selection] }).validateSync(), undefined);
+  for (const formSelection of [{ itemSeq: 1 }, { itemSeq: 1, resultKeys: [] }, { itemSeq: 1, resultKeys: null }]) {
+    assert.ok(new CoaDocument({ ...base, formSelections: [formSelection] }).validateSync());
+  }
+});
 
 test('offers only selected, configured AI, physical and density values with safe English suggestions', () => {
   assert.equal(options.length, 5);

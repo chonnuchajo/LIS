@@ -653,14 +653,12 @@ export default function CoaCenterPage() {
 
   function handleCreated(doc: CoaDocument) {
     syncCoaDocument(doc);
-    if (workflowStageFor(doc) === "pendingApproval") {
-      setActiveTab("today");
-      setActiveYear(documentYear(doc));
-      setActiveWorkflowStage("pendingApproval");
-      setOpenAllYear(null);
-      return;
-    }
-    navigate(`/coa/${doc._id}`);
+    setActiveTab("today");
+    setActiveYear(documentYear(doc));
+    setActiveWorkflowStage(workflowStageFor(doc) === "pendingApproval" ? "pendingApproval" : "inProgress");
+    setOpenAllYear(null);
+    setSearch("");
+    setCreateRequest(null);
   }
 
   function handleEdit(doc: CoaDocument) {

@@ -9,7 +9,7 @@ const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
-const { buildCoaFormOptions, applyCoaFormSelections } = require('../lib/coaForm');
+const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const {
   actorFromBody,
@@ -434,7 +434,7 @@ async function freezeSnapshots(petitionId, selectedItemSeqs, formSelections) {
   const snapshots = buildCoaSnapshots(source);
   return formSelections === undefined
     ? snapshots
-    : applyCoaFormSelections(snapshots, buildCoaFormOptions(source), formSelections);
+    : applyCoaFormSelections(snapshots, [...buildCoaFormOptions(source), ...buildCoaParameterOptions(source)], formSelections);
 }
 
 async function createCoaDocument(payload, session) {
@@ -575,7 +575,7 @@ router.get('/source-data/:petitionId', async (req, res) => {
   try {
     const selectedItemSeqs = String(req.query.itemSeqs || '').split(',').filter(Boolean).map(Number);
     const source = await loadCoaSource(req.params.petitionId, selectedItemSeqs);
-    res.json({ results: buildCoaFormOptions(source) });
+    res.json({ results: [...buildCoaFormOptions(source), ...buildCoaParameterOptions(source)] });
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
   }

@@ -601,6 +601,26 @@ test('source selection survives create, submit and revision without accepting st
     CoaDocument.findById = () => ({ then: (resolve) => resolve(document), lean: async () => document });
     const sources = await invoke('/source-data/:petitionId', 'get', { params: { petitionId }, query: { itemSeqs: '1' } });
     assert.equal(sources.statusCode, 200);
+    const selectedField = sources.body.results.find((row) => row.kind === 'result' && row.testItem === 'กายภาพ - สี');
+    const genericSelections = [{ itemSeq: 1, resultKeys: [selectedField.key] }];
+    const genericCreated = await invoke('/', 'post', {
+      body: { petitionId, selectedItemSeqs: [1], formSelections: genericSelections, _user: actor },
+    });
+    assert.equal(genericCreated.statusCode, 201);
+    assert.equal(genericCreated.body.status, 'draft');
+    assert.deepEqual(genericCreated.body.formSelections, genericSelections);
+    assert.deepEqual(genericCreated.body.resultSnapshots, [{ itemSeq: 1, testItem: 'กายภาพ - สี', result: 'สีส้ม', criteria: '', unit: '' }]);
+    const genericSubmitted = await invoke('/:id/submit', 'post', { params: { id: document._id }, body: { _user: actor } });
+    assert.equal(genericSubmitted.statusCode, 200);
+    assert.deepEqual(document.resultSnapshots, genericCreated.body.resultSnapshots);
+    document.status = 'approved';
+    const genericRevised = await invoke('/:id/revise', 'post', { params: { id: document._id }, body: { _user: actor } });
+    assert.equal(genericRevised.statusCode, 201);
+    assert.deepEqual(document.formSelections, genericSelections);
+    const invalidSelection = await invoke('/', 'post', {
+      body: { petitionId, selectedItemSeqs: [1], formSelections: [{ itemSeq: 1, resultKeys: ['missing'] }], _user: actor },
+    });
+    assert.equal(invalidSelection.statusCode, 400);
     const formSelections = [{
       itemSeq: 1, aiKey: sources.body.results.find((row) => row.result === '48.3%').key,
       appearanceKey: sources.body.results.find((row) => row.kind === 'appearance').key,

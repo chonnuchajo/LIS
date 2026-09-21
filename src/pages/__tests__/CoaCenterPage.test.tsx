@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import CoaCenterPage from "../CoaCenterPage";
 import type { CoaDocument } from "@/types/coa.types";
@@ -142,6 +142,36 @@ function renderPage(initialEntry = "/coa") {
 }
 
 describe("CoaCenterPage", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns a created draft to the in-progress tab and clears the request search", async () => {
+    vi.mocked(api.getEligibleCoaPetitions).mockResolvedValueOnce({ items: [{
+      _id: "p5", petitionNo: "P-2608-0004",
+      items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001" }],
+    }] });
+    vi.mocked(api.getCoaSourceData).mockResolvedValueOnce({ results: [{
+      itemSeq: 1, kind: "result", key: "ph", label: "pH", result: "7.1",
+    }] });
+    const createdDoc: CoaDocument = {
+      _id: "new-draft", revision: 0, status: "draft", petitionId: "p5", selectedItemSeqs: [1],
+      coaYear: new Date().getFullYear(), createdAt: new Date().toISOString(),
+      petitionNoSnapshot: "P-2608-0004", sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL" }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "pH", result: "7.1" }],
+      formSelections: [{ itemSeq: 1, resultKeys: ["ph"] }],
+    };
+    vi.mocked(api.createCoaDocument).mockResolvedValueOnce(createdDoc);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+    fireEvent.change(screen.getByPlaceholderText("ค้นหา COA / คำร้อง"), { target: { value: "P-2608-0004" } });
+    fireEvent.click(await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /pH/ }));
+    fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByPlaceholderText("ค้นหา COA / คำร้อง")).toHaveValue("");
+    expect(screen.getByRole("row", { name: /Trade E/ })).toBeInTheDocument();
+  });
+
   it.each(["coaNo", "petitionNoSnapshot", "lotNo", "batchNo"])("ranks %s before names within the selected date scope", async (field) => {
     const makeDocument = (id: string, code: string): CoaDocument => ({
       _id: id, coaNo: id, petitionId: id, petitionNoSnapshot: id,

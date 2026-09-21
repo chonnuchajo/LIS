@@ -5,6 +5,7 @@ export type CoaReportTemplateKind = "standard" | "grWpSp" | "liquid" | "bromadio
 
 export type CoaReportSample = CoaSampleSnapshot & {
   rows: CoaResultSnapshot[];
+  selectedResultsOnly?: boolean;
   product: string;
   manufacturingDate: string;
   expiredDate: string;
@@ -137,6 +138,7 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
     return {
       ...sample,
       rows: rowsWithAiCriteria,
+      selectedResultsOnly: Boolean(doc.formSelections?.some((selection) => selection.itemSeq === sample.itemSeq && Array.isArray(selection.resultKeys))),
       product: productLabel(sample),
       manufacturingDate: formatGregorianDate(sample.productionDate),
       expiredDate: addYears(sample.productionDate, 2),
