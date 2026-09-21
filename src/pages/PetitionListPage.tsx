@@ -491,7 +491,7 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
           lotNo: item.lotNo || undefined,
           itemNo: item.itemNo || undefined,
           testItems: 'ส่งตรวจคุณภาพ',
-          sendToLab: false,
+          sendToLab: item.itemNo.trim().toUpperCase().startsWith('F'),
           note: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
           sampleQuantity: 1,
         })),
