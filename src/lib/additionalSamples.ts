@@ -3,6 +3,10 @@ import type { AdditionalSampleRequest, Petition, QCTestResult } from '@/types/pe
 
 type SamplePetition = Pick<Petition, 'additionalSampleRequests'>;
 
+export function additionalSampleWeights(item: AdditionalSampleRequest['items'][number]): number[] {
+  return item.weights?.length ? item.weights : [item.quantity];
+}
+
 export function pendingAdditionalSample(petition: SamplePetition | null | undefined, side: AdditionalSampleRequest['side']) {
   return petition?.additionalSampleRequests?.find((request) => request.side === side && request.status !== 'received');
 }

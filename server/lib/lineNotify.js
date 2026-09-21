@@ -119,7 +119,9 @@ function describeEvent(petition, payload) {
       !Number.isInteger(item?.itemSeq) || !Number.isInteger(item?.quantity) || item.quantity < 1
     )) return null;
     const quantity = items.reduce((total, item) => total + item.quantity, 0);
-    const details = items.map((item) => `รายการ ${item.itemSeq}: ${item.quantity}`).join(' · ');
+    const details = items.map((item) => item.weights?.length
+      ? `รายการ ${item.itemSeq}: ${item.quantity} ตัวอย่าง (${item.weights.join(', ')} กรัม)`
+      : `รายการ ${item.itemSeq}: ${item.quantity}`).join(' · ');
     const no = petition?.petitionNo || payload?.petitionNo || '(ไม่ทราบเลข)';
     const requesterEmployeeId = String(petition?.submittedBy?.employeeId || '').trim();
     return {

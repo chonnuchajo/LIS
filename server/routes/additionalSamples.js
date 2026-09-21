@@ -78,7 +78,7 @@ router.post('/:id/additional-samples', serializePetitionWrite(async (req, res) =
     if (!failed) return fail(res, 409, 'ต้องบันทึกผลที่ไม่ผ่านของรายการที่เลือกก่อนขอตัวอย่างเพิ่ม');
     const round = {
       _id: new mongoose.Types.ObjectId(), qrCode: 'LIS-EXTRA-' + randomUUID(),
-      side: input.side, reason: input.reason.trim(), items: input.items.map(item => ({ itemSeq: item.itemSeq, quantity: item.quantity })),
+      side: input.side, reason: input.reason.trim(), items: input.items.map(item => ({ itemSeq: item.itemSeq, quantity: item.quantity, ...(item.weights ? { weights: item.weights } : {}) })),
       requestedAt: new Date(), requestedBy: actorOf(user), status: 'requested', previousResults,
     };
     const reset = { status: 'inProgress', completedAt: null, [input.side + 'CompletedAt']: null, [input.side + 'CompletedBy']: null };

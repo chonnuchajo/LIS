@@ -13,6 +13,7 @@ import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { useAuth } from '@/hooks/useAuth';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { additionalSamplePayload, extractScannedCode, fetchPetitionByScannedCode, getScannedAdditionalSample, type AdditionalSampleRequest } from '@/lib/additionalSampleQr';
+import { additionalSampleWeights } from '@/lib/additionalSamples';
 
 const READER_ID = 'icp-qr-reader';
 const HARDWARE_SCAN_IDLE_MS = 250;
@@ -338,7 +339,7 @@ export default function ScannerPage() {
                 <div className="rounded-lg border bg-card p-3 text-sm text-foreground space-y-1">
                   <p className="font-semibold">ตัวอย่างเพิ่ม · {additionalRequest.side.toUpperCase()} · รอบ {petition.additionalSampleRequests?.findIndex((request) => request._id === additionalRequest._id) + 1}</p>
                   <p className="whitespace-pre-wrap break-words">{additionalRequest.reason}</p>
-                  {additionalRequest.items.map((item) => <p key={item.itemSeq}>{petition.items.find((entry) => entry.seq === item.itemSeq)?.sampleName || `รายการ ${item.itemSeq}`} · จำนวน {item.quantity}</p>)}
+                  {additionalRequest.items.map((item) => <p key={item.itemSeq}>{petition.items.find((entry) => entry.seq === item.itemSeq)?.sampleName || `รายการ ${item.itemSeq}`} · {additionalSampleWeights(item).length} ตัวอย่าง · น้ำหนัก {additionalSampleWeights(item).map((weight) => `${weight} กรัม`).join(', ')}</p>)}
                 </div>
               )}
 

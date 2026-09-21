@@ -15,6 +15,14 @@ test('request validates received side, open petition, reason, unique selected it
   assert.equal(validateAdditionalSampleInput({ ...petition, additionalSampleRequests: [{ ...round, side: 'lab' }] }, input), null);
 });
 
+test('weights match sample count and supported gram values while legacy requests remain valid', () => {
+  assert.equal(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 2, weights: [100, 500] }] }), null);
+  assert.equal(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 500 }] }), null);
+  for (const weights of [null, '500', [], [100], [100, 250, 500], [100, 0], [100, -500], [100, 1.5], [100, 1001], [100, '500'], [100, null], [100, Infinity]]) {
+    assert.ok(validateAdditionalSampleInput(petition, { ...input, items: [{ itemSeq: 1, quantity: 2, weights }] }), JSON.stringify(weights));
+  }
+});
+
 test('pending rounds prevent closure but do not stop unaffected side completing', () => {
   const waiting = { ...petition, additionalSampleRequests: [round] };
   assert.equal(pendingAdditionalSamples(waiting).length, 1);
