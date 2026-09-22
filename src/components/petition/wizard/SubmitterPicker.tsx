@@ -21,6 +21,7 @@ import { useEmployeeOptions, type EmployeeOption } from '@/hooks/useExternalLook
 export interface SubmitterValues {
   employeeId?: string;
   name: string;
+  email?: string;
 }
 
 interface Props {
@@ -58,7 +59,7 @@ export default function SubmitterPicker({ value, onChange, readOnly, department 
   }, [submitterOptions, value.employeeId, value.name]);
 
   function pick(opt: EmployeeOption) {
-    onChange({ ...value, employeeId: opt.id, name: opt.name });
+    onChange({ ...value, employeeId: opt.id, name: opt.name, email: opt.email || undefined });
     setOpen(false);
   }
 

@@ -12,6 +12,7 @@ describe('SubmitterPicker', () => {
       id: '1',
       label: 'พนักงาน',
       name: 'พนักงาน',
+      email: '',
       department: 'ควบคุมคุณภาพ',
       position: 'เจ้าหน้าที่',
       employeeType: 'รายวัน',

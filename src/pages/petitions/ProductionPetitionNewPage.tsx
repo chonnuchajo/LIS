@@ -603,11 +603,13 @@ export default function ProductionPetitionNewPage({
   const [submitter, setSubmitter] = useState<SubmitterValues>({
     employeeId: integrationMode ? integrationActor.employeeId : (user?.id ?? ''),
     name: integrationMode ? integrationActor.name : (user?.name ?? ''),
+    email: integrationMode ? integrationActor.email : (user?.email ?? ''),
   });
   // ผู้นำส่ง = required ต้องเลือกเอง ไม่ default เป็นผู้ล็อกอิน (integration เท่านั้นที่ตั้งค่าให้)
   const [deliverer, setDeliverer] = useState<SubmitterValues>({
     employeeId: integrationMode ? integrationActor.employeeId : '',
     name: integrationMode ? integrationActor.name : '',
+    email: integrationMode ? integrationActor.email : '',
   });
   const [delivererTouched, setDelivererTouched] = useState(false);
 
@@ -619,7 +621,7 @@ export default function ProductionPetitionNewPage({
         setDeliverer(integrationActor);
       }
     } else if (user?.name) {
-      setSubmitter({ employeeId: user.id ?? '', name: user.name });
+      setSubmitter({ employeeId: user.id ?? '', name: user.name, email: user.email ?? '' });
     }
   }, [user?.id, user?.name, delivererTouched, integrationMode, integrationActor]);
 
@@ -821,6 +823,7 @@ export default function ProductionPetitionNewPage({
         submittedBy: {
           employeeId: submitter.employeeId || undefined,
           name: submitter.name,
+          email: submitter.email || undefined,
           department: submitterDepartment || undefined,
         },
         items: items.map((it, idx) => ({ ...it, seq: idx + 1, sendToLab: sendToLabForSubmit(it, submitterDepartment) })),

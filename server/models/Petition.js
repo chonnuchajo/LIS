@@ -86,6 +86,7 @@ const SubmittedBySchema = new mongoose.Schema(
   {
     employeeId: String,
     name: { type: String, required: true },
+    email: String,
     department: String, // แผนกผู้ยื่น จาก HR/Microsoft
     submittedAt: { type: Date, default: Date.now },
   },
@@ -96,6 +97,7 @@ const DeliveredBySchema = new mongoose.Schema(
   {
     employeeId: String,
     name: { type: String, required: true },
+    email: String,
   },
   { _id: false },
 );
