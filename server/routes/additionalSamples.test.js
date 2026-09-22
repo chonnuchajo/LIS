@@ -106,13 +106,13 @@ test('new QR lookup returns its round metadata, not the original QR context', as
   assert.equal(res.body.scannedAdditionalSampleCode, code);
 });
 
-test('old QR cannot deliver or receive a pending additional round', async context => {
+test('original QR can deliver pending additional round while receive remains authenticated', async context => {
   const { writes } = fixture(context);
-  for (const action of ['deliver', 'receive']) {
-    const res = await invoke(petitions, '/:id/' + action, 'patch', { side: 'qc' });
-    assert.equal(res.statusCode, 409, action);
-  }
-  assert.equal(writes.length, 0);
+  const deliver = await invoke(petitions, '/:id/deliver', 'patch', { side: 'qc', additionalSampleId: roundId, additionalSampleCode: code });
+  assert.equal(deliver.statusCode, 200);
+  assert.equal(writes.length, 1);
+  const receive = await invoke(petitions, '/:id/receive', 'patch', { side: 'qc', additionalSampleId: roundId, additionalSampleCode: code });
+  assert.equal(receive.statusCode, 200);
 });
 
 test('round QR sends and receives once without replacing original timestamps', async context => {

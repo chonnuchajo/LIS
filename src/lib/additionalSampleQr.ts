@@ -37,9 +37,8 @@ export async function fetchPetitionByScannedCode(code: string): Promise<Petition
 export function getScannedAdditionalSample(petition: Petition, code: string, side?: 'qc' | 'lab'): AdditionalSampleRequest | undefined {
   const requests = petition.additionalSampleRequests ?? [];
   if (!code.startsWith('LIS-EXTRA-') && !petition.scannedAdditionalSampleId && !petition.scannedAdditionalSampleCode) {
-    if (requests.some((request) => request.status !== 'received' && (!side || request.side === side))) {
-      throw new Error('กรุณาสแกน QR บนใบนำส่งรอบเพิ่ม — QR เดิมใช้รับรอบใหม่ไม่ได้');
-    }
+    const pending = requests.find((request) => request.status !== 'received' && (!side || request.side === side));
+    if (pending) return pending;
     return undefined;
   }
   const request = requests.find((entry) => entry._id === petition.scannedAdditionalSampleId);
