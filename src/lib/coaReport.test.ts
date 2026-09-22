@@ -3,6 +3,31 @@ import { buildCoaReportPages } from "./coaReport";
 import type { CoaDocument } from "@/types/coa.types";
 
 describe("buildCoaReportPages", () => {
+  it.each([
+    ["  Trade A  ", "Trade A"],
+    [undefined, "-"],
+    ["", "-"],
+    ["   ", "-"],
+  ])("uses only the trade name %s for PRODUCT", (sampleName, expected) => {
+    const doc = {
+      sampleSnapshots: [{ itemSeq: 1, sampleName, commonName: "Glyphosate 48% SL" }],
+    } as CoaDocument;
+
+    const [page] = buildCoaReportPages(doc);
+
+    expect(page.samples[0].product).toBe(expected);
+    expect(page.samples[0].commonName).toBe("Glyphosate 48% SL");
+    expect(page.template).toBe("liquid");
+  });
+
+  it.each(["%AI", "% AI", "AI content", "active ingredient"])("reads the configured %s result", (testItem) => {
+    const doc = {
+      sampleSnapshots: [{ itemSeq: 1, commonName: "Glyphosate 48% SL" }],
+      resultSnapshots: [{ itemSeq: 1, testItem, result: "48.3%" }],
+    } as CoaDocument;
+    expect(buildCoaReportPages(doc)[0].samples[0].aiContentResult).toBe("48.3%");
+  });
+
   it("groups frozen result rows by selected sample", () => {
     const doc = {
       _id: "c1",
@@ -50,7 +75,7 @@ describe("buildCoaReportPages", () => {
     const pages = buildCoaReportPages(doc);
 
     expect(pages[0].template).toBe("grWpSp");
-    expect(pages[0].samples[0].product).toBe("Trade Herbicide (Glyphosate 48% SL GR)");
+    expect(pages[0].samples[0].product).toBe("Trade Herbicide");
     expect(pages[0].samples[0].manufacturingDate).toBe("15/08/2026");
     expect(pages[0].samples[0].expiredDate).toBe("15/08/2028");
     expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
@@ -95,22 +120,27 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].samples[0].aiContentCriteria).toBe("2% ± 0.50");
   });
 
-  it.each(["SL", "ME", "SC", "EC", "ZC", "EW"])(
-    "uses the liquid COA form data for common names ending with %% %s",
-    (formulation) => {
+  it.each(["SC", "EW", "EC", "ZC", "SL"].flatMap((formulation) => [
+    `Glyphosate 48% ${formulation}`,
+    `Glyphosate 48% W/V ${formulation}`,
+    `Glyphosate 48%${formulation}`,
+    `  Glyphosate 48%  ${formulation.toLowerCase()}  `,
+  ]))(
+    "uses the liquid COA form data for %s",
+    (commonName) => {
       const doc = {
-        _id: `c-liquid-${formulation}`,
+        _id: "c-liquid",
         coaNo: "00062026",
         revision: 0,
         status: "approved",
-        petitionId: `p-liquid-${formulation}`,
+        petitionId: "p-liquid",
         petitionNoSnapshot: "P-2608-0006",
         selectedItemSeqs: [1],
         customerSnapshot: { name: "Customer A" },
         sampleSnapshots: [{
           itemSeq: 1,
           sampleName: "Trade Liquid",
-          commonName: `Glyphosate 48% ${formulation}`,
+          commonName,
           batchNo: "B-888",
           lotNo: "LOT-888",
           productionDate: "2026-08-15",
@@ -126,13 +156,71 @@ describe("buildCoaReportPages", () => {
       const pages = buildCoaReportPages(doc);
 
       expect(pages[0].template).toBe("liquid");
-      expect(pages[0].samples[0].product).toBe(`Trade Liquid (Glyphosate 48% ${formulation})`);
+      expect(pages[0].issueDate).toBe("August 20, 2026");
+      expect(pages[0].samples[0].product).toBe("Trade Liquid");
       expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
       expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
       expect(pages[0].samples[0].densityResult).toBe("1.120");
       expect(pages[0].samples[0].dateOfAnalysis).toBe("20/08/2026");
     },
   );
+
+  it.each(["SC", "EW", "EC", "ZC", "SL"])("recognizes %s without a concentration", (formulation) => {
+    const doc = {
+      sampleSnapshots: [{ itemSeq: 1, commonName: `Product ${formulation}` }],
+      resultSnapshots: [],
+    } as CoaDocument;
+
+    const [page] = buildCoaReportPages(doc);
+
+    expect(page.template).toBe("liquid");
+    expect(page.issueDate).toBe("-");
+    expect(page.samples[0].aiContentCriteria).toBe("-");
+  });
+
+  it.each([undefined, "", "Product 48% ME", "Product SC extra", "Product ESC", "Product SC WP"])(
+    "does not classify %s as a liquid formulation",
+    (commonName) => {
+      const doc = { sampleSnapshots: [{ itemSeq: 1, commonName }] } as CoaDocument;
+
+      expect(buildCoaReportPages(doc)[0].template).not.toBe("liquid");
+    },
+  );
+
+  it("keeps every selected sample and its results on the matching form", () => {
+    const doc = {
+      sampleSnapshots: [
+        { itemSeq: 1, commonName: "Other product" },
+        { itemSeq: 2, commonName: "Product 48% W/V SC", batchNo: "B-SC" },
+        { itemSeq: 3, commonName: "Product 10% EW", batchNo: "B-EW" },
+        { itemSeq: 4, commonName: "Product 2% GR" },
+      ],
+      resultSnapshots: [
+        { itemSeq: 1, testItem: "pH", result: "7" },
+        { itemSeq: 2, testItem: "%AI content (W/V)", result: "48.2%" },
+        { itemSeq: 3, testItem: "%AI content (W/V)", result: "10.1%" },
+        { itemSeq: 4, testItem: "%AI content (W/W)", result: "2.1%" },
+      ],
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages.map((page) => page.template)).toEqual(["standard", "liquid", "liquid", "grWpSp"]);
+    expect(pages.map((page) => page.samples.map((sample) => sample.itemSeq))).toEqual([[1], [2], [3], [4]]);
+    expect(pages.map((page) => page.samples[0].rows[0].result)).toEqual(["7", "48.2%", "10.1%", "2.1%"]);
+    expect(pages[1].samples[0].batchLabel).toBe("B-SC");
+    expect(pages[2].samples[0].batchLabel).toBe("B-EW");
+  });
+
+  it("keeps standard samples together and supports an empty draft", () => {
+    const doc = {
+      sampleSnapshots: [{ itemSeq: 1, commonName: "Other A" }, { itemSeq: 2, commonName: "Other B" }],
+    } as CoaDocument;
+
+    expect(buildCoaReportPages(doc)).toHaveLength(1);
+    expect(buildCoaReportPages(doc)[0].samples).toHaveLength(2);
+    expect(buildCoaReportPages({ ...doc, sampleSnapshots: [] })[0].samples).toEqual([]);
+  });
 
   it("uses the BROMADIOLONE 0.005% wax block COA form data", () => {
     const doc = {
@@ -163,7 +251,7 @@ describe("buildCoaReportPages", () => {
     const pages = buildCoaReportPages(doc);
 
     expect(pages[0].template).toBe("bromadiolone0005");
-    expect(pages[0].samples[0].product).toBe("Red Wax Block (BROMADIOLONE 0.005%)");
+    expect(pages[0].samples[0].product).toBe("Red Wax Block");
     expect(pages[0].samples[0].batchLabel).toBe("LOT-008 / B-008");
     expect(pages[0].samples[0].aiContentResult).toBe("0.0051%");
     expect(pages[0].samples[0].aiContentCriteria).toBe("0.005% ± 0.00125");

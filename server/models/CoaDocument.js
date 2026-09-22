@@ -84,7 +84,7 @@ const STATUS = [
 ];
 
 const ISSUED_SNAPSHOT_STATUSES = new Set(['approved', 'printed', 'reissued', 'cancelled', 'superseded']);
-const SNAPSHOT_PATHS = ['customerSnapshot', 'sampleSnapshots', 'resultSnapshots', 'trendSnapshots'];
+const SNAPSHOT_PATHS = ['customerSnapshot', 'sampleSnapshots', 'resultSnapshots', 'trendSnapshots', 'formSelections'];
 
 function getUpdateValue(update = {}, path) {
   const operators = ['$set', '$setOnInsert'];
@@ -216,6 +216,10 @@ function hasNonEmptyCancellationReason(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function requiresLegacyFormSelection() {
+  return this.resultKeys === undefined;
+}
+
 const CoaDocumentSchema = new mongoose.Schema(
   {
     coaNo: { type: String, default: null, index: true },
@@ -233,6 +237,26 @@ const CoaDocumentSchema = new mongoose.Schema(
     sampleSnapshots: { type: [SampleSnapshotSchema], default: [] },
     resultSnapshots: { type: [ResultSnapshotSchema], default: [] },
     trendSnapshots: { type: [TrendSnapshotSchema], default: [] },
+    formSelections: {
+      type: [new mongoose.Schema({
+        itemSeq: { type: Number, required: true },
+        resultKeys: {
+          type: [String], default: undefined,
+          validate: {
+            validator: (keys) => keys === undefined || (Array.isArray(keys) && keys.length > 0
+              && keys.every((key) => typeof key === 'string' && key.trim()) && new Set(keys).size === keys.length),
+            message: 'ต้องเลือกผลพารามิเตอร์อย่างน้อยหนึ่งค่าและไม่ซ้ำกัน',
+          },
+        },
+        aiKey: { type: String, required: requiresLegacyFormSelection },
+        appearanceKey: { type: String, required: requiresLegacyFormSelection },
+        appearanceSource: { type: String, required: requiresLegacyFormSelection },
+        appearanceSpecification: { type: String, required: requiresLegacyFormSelection, maxlength: 300 },
+        appearanceResult: { type: String, enum: ['Conform', 'Not conform'], required: requiresLegacyFormSelection },
+        densityKey: String,
+      }, { _id: false })],
+      default: undefined,
+    },
     remark: { type: String, default: '' },
     approval: {
       submittedBy: PersonSchema,

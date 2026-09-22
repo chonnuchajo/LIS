@@ -1,5 +1,5 @@
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
-import type { CoaReportPage } from "@/lib/coaReport";
+import type { CoaReportPage, CoaReportSample } from "@/lib/coaReport";
 import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from "@/lib/printConfig";
 
 export const COA_REPORT_CSS = `
@@ -23,7 +23,10 @@ export const COA_REPORT_CSS = `
 .coa-special-table { margin-top: 8mm; }
 .coa-special-table th, .coa-special-table td { text-align: center; vertical-align: middle; }
 .coa-special-sign { margin-top: 28mm; margin-left: auto; width: 78mm; text-align: center; line-height: 1.55; }
-.coa-liquid-page { background: #fff3b0; }
+.coa-liquid-page, .coa-liquid-page * { font-size: 18pt; }
+.coa-liquid-page .coa-special-title { font-size: 20pt; }
+.coa-liquid-page .coa-special-label { font-weight: 400; }
+.coa-liquid-page .coa-special-table th { font-weight: 400 !important; }
 .coa-brom-page { padding: 24mm 22mm 18mm; }
 .coa-brom-title { margin-top: 0; text-align: center; font-size: 14pt; font-weight: 700; letter-spacing: 0; }
 .coa-brom-meta { margin-top: 7mm; text-align: right; line-height: 1.7; }
@@ -36,8 +39,24 @@ export const COA_REPORT_CSS = `
 .coa-root h1, .coa-root th, .coa-title, .print-heading { font-weight: ${A4_PRINT_HEADING_FONT_WEIGHT} !important; }
 `;
 
+function SelectedCoaRows({ sample }: { sample: CoaReportSample }) {
+  return (
+    <>
+      <tr><td colSpan={2}>BATCH NO.</td><td>{sample.batchLabel === "-" ? "" : sample.batchLabel}</td></tr>
+      {sample.rows.map((row, index) => (
+        <tr key={index}>
+          <td>{row.testItem}</td>
+          <td>{row.criteria === "-" ? "" : row.criteria}</td>
+          <td>{row.result}{row.unit && !row.result?.endsWith(row.unit) ? ` ${row.unit}` : ""}</td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
+  const appearance = sample?.rows.find((row) => /^appearance$/i.test(row.testItem?.trim() ?? ""));
 
   return (
     <section className="coa-page coa-special-page" key={`${page.coaNo}-${index}`}>
@@ -63,10 +82,11 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
           </tr>
         </thead>
         <tbody>
+          {sample?.selectedResultsOnly ? <SelectedCoaRows sample={sample} /> : <>
           <tr>
             <td>Appearance</td>
-            <td />
-            <td>Conform</td>
+            <td>{appearance?.criteria === "-" ? "" : appearance?.criteria}</td>
+            <td>{appearance?.result || "Conform"}</td>
           </tr>
           <tr>
             <td colSpan={2}>BATCH NO.</td>
@@ -81,6 +101,7 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
             <td colSpan={2}>Date of analysis</td>
             <td />
           </tr>
+          </>}
         </tbody>
       </table>
 
@@ -95,13 +116,14 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
 
 function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
+  const appearance = sample?.rows.find((row) => /^appearance$/i.test(row.testItem?.trim() ?? ""));
 
   return (
     <section className="coa-page coa-special-page coa-liquid-page" key={`${page.coaNo}-${index}`}>
       <h1 className="coa-special-title">CERTIFICATE OF ANALYSIS</h1>
       <div className="coa-special-meta">
         <div>NO. {page.coaNo === "-" ? "" : page.coaNo}</div>
-        <div>Month DATE, ค.ศ.</div>
+        <div>{page.issueDate === "-" ? "" : page.issueDate}</div>
       </div>
 
       <div className="coa-special-fields">
@@ -120,10 +142,11 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
           </tr>
         </thead>
         <tbody>
+          {sample?.selectedResultsOnly ? <SelectedCoaRows sample={sample} /> : <>
           <tr>
             <td>Appearance</td>
-            <td />
-            <td>Conform</td>
+            <td>{appearance?.criteria === "-" ? "" : appearance?.criteria}</td>
+            <td>{appearance?.result === "-" ? "" : appearance?.result}</td>
           </tr>
           <tr>
             <td colSpan={2}>BATCH NO.</td>
@@ -135,14 +158,14 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
             <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
           </tr>
           <tr>
-            <td>Density at 30°C (g/cm³)</td>
-            <td />
+            <td colSpan={2}>Density at 30°C (g/cm³)</td>
             <td>{sample?.densityResult === "-" ? "" : sample?.densityResult}</td>
           </tr>
           <tr>
             <td colSpan={2}>Date of analysis</td>
             <td>{sample?.dateOfAnalysis === "-" ? "" : sample?.dateOfAnalysis}</td>
           </tr>
+          </>}
         </tbody>
       </table>
 
@@ -157,6 +180,7 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
 
 function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
+  const appearance = sample?.rows.find((row) => /^appearance$/i.test(row.testItem?.trim() ?? ""));
 
   return (
     <section className="coa-page coa-brom-page" key={page.coaNo + "-" + index}>
@@ -182,10 +206,11 @@ function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: numb
           </tr>
         </thead>
         <tbody>
+          {sample?.selectedResultsOnly ? <SelectedCoaRows sample={sample} /> : <>
           <tr>
             <td>Appearance</td>
-            <td>Red wax block</td>
-            <td>Conform</td>
+            <td>{appearance?.criteria && appearance.criteria !== "-" ? appearance.criteria : "Red wax block"}</td>
+            <td>{appearance?.result || "Conform"}</td>
           </tr>
           <tr>
             <td colSpan={2}>BATCH NO.</td>
@@ -205,6 +230,7 @@ function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: numb
             <td colSpan={2}>Date of analysis</td>
             <td>{sample?.dateOfAnalysis === "-" ? "" : sample?.dateOfAnalysis}</td>
           </tr>
+          </>}
         </tbody>
       </table>
 
@@ -255,7 +281,7 @@ function StandardCoaPage({ page, index }: { page: CoaReportPage; index: number }
             {sample.rows.length ? sample.rows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 <td>{row.testItem || "-"}</td>
-                <td className="coa-center">{row.result || "-"}</td>
+                <td className="coa-center">{row.result || "-"}{sample.selectedResultsOnly && row.unit && !row.result?.endsWith(row.unit) ? ` ${row.unit}` : ""}</td>
                 <td className="coa-center">{row.criteria || "-"}</td>
                 <td className="coa-center">{row.method || "-"}</td>
               </tr>

@@ -5,6 +5,7 @@ export type CoaReportTemplateKind = "standard" | "grWpSp" | "liquid" | "bromadio
 
 export type CoaReportSample = CoaSampleSnapshot & {
   rows: CoaResultSnapshot[];
+  selectedResultsOnly?: boolean;
   product: string;
   manufacturingDate: string;
   expiredDate: string;
@@ -45,6 +46,13 @@ function formatGregorianDate(value?: string): string {
   return date.toLocaleDateString("en-GB");
 }
 
+function formatEnglishDate(value?: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
 function addYears(value: string | undefined, years: number): string {
   if (!value) return "-";
   const date = new Date(value);
@@ -58,7 +66,7 @@ function isGrWpSpCommonName(commonName?: string): boolean {
 }
 
 function isLiquidCommonName(commonName?: string): boolean {
-  return /%\s*(SL|ME|SC|EC|ZC|EW)$/i.test(commonName?.trim() ?? "");
+  return /\b(SC|EW|EC|ZC|SL)$/i.test(commonName?.trim() ?? "");
 }
 
 function normalizeCommonName(commonName?: string): string {
@@ -70,10 +78,7 @@ function isBromadiolone0005CommonName(commonName?: string): boolean {
 }
 
 function productLabel(sample: CoaSampleSnapshot): string {
-  const tradeName = sample.sampleName?.trim();
-  const commonName = sample.commonName?.trim();
-  if (tradeName && commonName) return `${tradeName} (${commonName})`;
-  return tradeName || commonName || "-";
+  return sample.sampleName?.trim() || "-";
 }
 
 function batchLabel(sample: CoaSampleSnapshot): string {
@@ -81,7 +86,7 @@ function batchLabel(sample: CoaSampleSnapshot): string {
 }
 
 function aiContentResult(rows: CoaResultSnapshot[]): string {
-  return rows.find((row) => /%?\s*AI\s*content/i.test(row.testItem ?? ""))?.result || "-";
+  return rows.find((row) => isAiContentTestItem(row.testItem))?.result || "-";
 }
 
 function aiContentCriteria(rows: CoaResultSnapshot[], sample: CoaSampleSnapshot): string {
@@ -130,6 +135,7 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
     return {
       ...sample,
       rows: rowsWithAiCriteria,
+      selectedResultsOnly: Boolean(doc.formSelections?.some((selection) => selection.itemSeq === sample.itemSeq && Array.isArray(selection.resultKeys))),
       product: productLabel(sample),
       manufacturingDate: formatGregorianDate(sample.productionDate),
       expiredDate: addYears(sample.productionDate, 2),
@@ -141,18 +147,22 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
       dateOfAnalysis: dateOfAnalysis(rows),
     };
   });
-  return [
-    {
-      template: templateKindFor(samples),
+  const sampleGroups = samples.some((sample) => templateKindFor([sample]) !== "standard")
+    ? samples.map((sample) => [sample])
+    : [samples];
+  return sampleGroups.map((group) => {
+    const template = templateKindFor(group);
+    return {
+      template,
       coaNo: doc.coaNo || "-",
       revision: doc.revision || 0,
-      issueDate: formatDate(doc.approval?.approvedAt),
+      issueDate: template === "liquid" ? formatEnglishDate(doc.approval?.approvedAt) : formatDate(doc.approval?.approvedAt),
       petitionNo: doc.petitionNoSnapshot || "-",
       customer: doc.customerSnapshot || {},
-      samples,
+      samples: group,
       remark: doc.remark || "",
       approvedBy: doc.approval?.approvedBy?.name || "-",
       approvedAt: formatDate(doc.approval?.approvedAt),
-    },
-  ];
+    };
+  });
 }
