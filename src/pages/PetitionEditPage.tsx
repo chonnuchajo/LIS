@@ -93,10 +93,12 @@ export default function PetitionEditPage() {
     setSubmitter({
       employeeId: data.submittedBy.employeeId ?? '',
       name: data.submittedBy.name,
+      email: data.submittedBy.email ?? '',
     });
     setDeliverer({
       employeeId: data.deliveredBy?.employeeId ?? data.submittedBy.employeeId ?? '',
       name: data.deliveredBy?.name ?? data.submittedBy.name,
+      email: data.deliveredBy?.email ?? data.submittedBy.email ?? '',
     });
     const mappedItems: ItemRowValues[] = data.items.map((it) => ({
       seq: it.seq,
@@ -306,12 +308,14 @@ export default function PetitionEditPage() {
       const submittedBy = {
         employeeId: submitter.employeeId || undefined,
         name: submitter.name,
+        email: submitter.email || undefined,
         department: data.submittedBy.department, // คงแผนกผู้ยื่นเดิม
         submittedAt: data.submittedBy.submittedAt,
       };
       const deliveredBy = {
         employeeId: deliverer.employeeId || undefined,
         name: deliverer.name,
+        email: deliverer.email || undefined,
       };
       if (data.dept === 'production') {
         await updatePetition(

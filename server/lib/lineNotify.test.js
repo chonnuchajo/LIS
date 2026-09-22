@@ -195,6 +195,16 @@ test('audiencesForEvent: sampleSent uses petition.sentToLab to decide Lab sound 
   );
 });
 
+test('audiencesForEvent: sampleSent also notifies the requester department', () => {
+  assert.deepStrictEqual(
+    audiencesForEvent(
+      { submittedBy: { department: 'ผลิต 01' }, items: [qcOnlyItem] },
+      { event: 'statusChanged', toStatus: 'sampleSent' },
+    ),
+    ['qc', 'production'],
+  );
+});
+
 test('audiencesForEvent: success with lab item → qc + lab', () => {
   assert.deepStrictEqual(
     audiencesForEvent({ items: [labItem] }, { event: 'statusChanged', toStatus: 'success' }),

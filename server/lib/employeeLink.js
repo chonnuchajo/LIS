@@ -30,6 +30,17 @@ function findEmployeeById(employees, employeeId) {
   return employees.find((e) => e.employeeId === key) || null;
 }
 
+function normalizeName(value) {
+  return String(value ?? '').trim().replace(/\s+/g, '').toLowerCase();
+}
+
+function findEmployeeByName(employees, name) {
+  const key = normalizeName(name);
+  if (!key) return null;
+  const matches = employees.filter((e) => normalizeName(e.name) === key);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 // Given the current users and the employee directory, decide which users to link.
 // Only fills users with an empty employeeId — never overwrites an existing link.
 function planEmployeeSync(users, employees) {
@@ -65,5 +76,6 @@ module.exports = {
   normalizeEmployee,
   findEmployeeByEmail,
   findEmployeeById,
+  findEmployeeByName,
   planEmployeeSync,
 };

@@ -21,4 +21,20 @@ async function fetchMonthlyEmployees() {
     .filter((e) => e.isActive && e.empType === MONTHLY_TYPE && e.employeeId && e.name);
 }
 
-module.exports = { EMPLOYEE_API_URL, fetchMonthlyEmployees };
+async function fetchActiveEmployees() {
+  const response = await fetch(EMPLOYEE_API_URL);
+  if (!response.ok) {
+    throw new Error(`โหลดข้อมูลพนักงานไม่สำเร็จ (${response.status})`);
+  }
+  const payload = await response.json();
+  const rows = Array.isArray(payload?.value)
+    ? payload.value
+    : Array.isArray(payload)
+      ? payload
+      : [];
+  return rows
+    .map(normalizeEmployee)
+    .filter((e) => e.isActive && e.employeeId && e.name);
+}
+
+module.exports = { EMPLOYEE_API_URL, fetchMonthlyEmployees, fetchActiveEmployees };
