@@ -131,9 +131,6 @@ function validatePetitionSubmission(body) {
     return 'กรุณาระบุผู้ยื่นคำขอ';
   }
   const needsDeliveryAndBatch = requiresDeliveryAndBatch(body);
-  if (needsDeliveryAndBatch && !body.deliveredBy?.name) {
-    return 'กรุณาระบุผู้นำส่ง';
-  }
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ';
   }

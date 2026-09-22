@@ -1,7 +1,7 @@
 // สร้างคำขอของแผนก RM จากฟอร์ม F-WAR-03-01,02
 // submit 2 จังหวะ: สร้าง petition ก่อน แล้วค่อยผูกฟอร์ม — ถ้าจังหวะ 2 พังต้องลบ petition ทิ้ง
 // ไม่งั้นจะเหลือคำขอลอยที่ไม่มีฟอร์มผูกอยู่
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ import type { GoodsReceiptReceipt, RawMaterialInspection } from '@/types/goodsRe
 import GoodsReceiptStep from '@/components/warehouse/GoodsReceiptStep';
 import RawMaterialInspectionStep from '@/components/warehouse/RawMaterialInspectionStep';
 import RmTestItemsStep from '@/components/warehouse/RmTestItemsStep';
-import SubmitterPicker, { type SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 
 const STEPS = ['ใบรับสินค้า', 'ใบตรวจสอบวัตถุดิบ', 'สินค้าอ้างอิง', 'ตรวจทาน'];
 
@@ -30,16 +29,6 @@ export default function RmPetitionNewPage() {
   const [receipt, setReceipt] = useState<GoodsReceiptReceipt>({});
   const [inspection, setInspection] = useState<RawMaterialInspection>({});
   const [selections, setSelections] = useState<RmTestSelection[]>([]);
-  // ผู้นำส่งตัวอย่าง — prefill เป็นผู้ล็อกอิน (คนกรอกฟอร์มมักเป็นคนถือของไปส่งเอง) แต่แก้ไขได้
-  const [deliverer, setDeliverer] = useState<SubmitterValues>({ employeeId: '', name: '' });
-  const [delivererTouched, setDelivererTouched] = useState(false);
-
-  useEffect(() => {
-    if (!delivererTouched && user?.name) {
-      setDeliverer({ employeeId: user.employeeId || '', name: user.name });
-    }
-  }, [user?.employeeId, user?.name, delivererTouched]);
-
   const sendBatches = useMemo(
     () => (receipt.productBatches ?? []).filter((b) => b.sendToLab),
     [receipt.productBatches],
@@ -67,11 +56,6 @@ export default function RmPetitionNewPage() {
       return;
     }
 
-    if (!deliverer.name.trim()) {
-      toast.error('กรุณาระบุผู้นำส่งตัวอย่าง');
-      return;
-    }
-
     setSaving(true);
     let petitionId: string | undefined;
     try {
@@ -82,10 +66,6 @@ export default function RmPetitionNewPage() {
           employeeId: user?.employeeId || undefined,
           name: user?.name ?? '',
           department: 'คลังสินค้า RM',
-        },
-        deliveredBy: {
-          employeeId: deliverer.employeeId || undefined,
-          name: deliverer.name,
         },
         items,
         cause: '',
@@ -145,15 +125,7 @@ export default function RmPetitionNewPage() {
       )}
       {step === 3 && (
         <div className="space-y-4 text-sm">
-          <div className="max-w-sm">
-            <SubmitterPicker
-              value={deliverer}
-              onChange={(v) => {
-                setDelivererTouched(true);
-                setDeliverer(v);
-              }}
-            />
-          </div>
+          <p className="text-grey-600">ผู้นำส่งจะเลือกภายหลังเมื่อสแกน QR ที่หน้าส่งตัวอย่าง</p>
           <p>สินค้า: <span className="font-medium">{receipt.productName || '—'}</span></p>
           <p>แบชที่ส่งตรวจ: <span className="font-medium">
             {sendBatches.map((b) => b.batchNo).filter(Boolean).join(', ') || '—'}

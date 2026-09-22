@@ -113,6 +113,7 @@ async function changeAdditionalSampleState(req, res, petition, action) {
   if (action === 'receive' ? !canTestSide(user, petition, round.side) : !canDeliver(user, petition)) return fail(res, 403, 'ไม่มีสิทธิ์ดำเนินการกับรอบตัวอย่างนี้');
   const now = new Date();
   const update = { 'additionalSampleRequests.$.status': action === 'receive' ? 'received' : 'sent' };
+  if (action === 'deliver' && req.body?.deliveredBy?.name) update.deliveredBy = req.body.deliveredBy;
   if (action === 'receive') {
     update['additionalSampleRequests.$.receivedAt'] = now;
     update['additionalSampleRequests.$.receivedBy'] = actorOf(user);

@@ -898,6 +898,7 @@ router.patch('/:id/deliver', serializePetitionWrite(async (req, res) => {
     if (pendingAdditionalSamples(before).length) return res.status(409).json({ error: { message: 'กรุณาสแกน QR ใบนำส่งตัวอย่างเพิ่มของรอบนี้' } });
     if (before.additionalSampleRequests?.length) return res.status(409).json({ error: { message: 'คำขอนี้นำส่งแล้ว กรุณาใช้ QR รอบตัวอย่างเพิ่ม' } });
     const update = { status: 'sampleSent' };
+    if (req.body?.deliveredBy?.name) update.deliveredBy = req.body.deliveredBy;
     if (!before.sampleSentAt) update.sampleSentAt = new Date();
     const doc = await Petition.findOneAndUpdate({ ...q, status: before.status, __v: before.__v == null ? { $exists: false } : before.__v }, { $set: update, $inc: { __v: 1 } }, { new: true });
     if (!doc) return res.status(409).json({ error: { message: 'คำขอเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่' } });

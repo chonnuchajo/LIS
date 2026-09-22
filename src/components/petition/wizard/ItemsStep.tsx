@@ -69,6 +69,7 @@ interface Props {
   submitterDepartment?: string;
   deliverer: SubmitterValues;
   onDelivererChange: (v: SubmitterValues) => void;
+  showDeliverer?: boolean;
   requireDeliveryAndBatch?: boolean;
   itemsReadOnly?: boolean;
   allowManualItemFields?: boolean;
@@ -150,6 +151,7 @@ export default function ItemsStep({
   submitterDepartment,
   deliverer,
   onDelivererChange,
+  showDeliverer = true,
   requireDeliveryAndBatch = true,
   itemsReadOnly = false,
   allowManualItemFields = false,
@@ -256,13 +258,15 @@ export default function ItemsStep({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">ผู้ยื่นคำขอ และ ผู้นำส่ง</h2>
+        <h2 className="text-lg font-semibold">{showDeliverer ? 'ผู้ยื่นคำขอ และ ผู้นำส่ง' : 'ผู้ยื่นคำขอ'}</h2>
         <p className="text-sm text-grey-500">
-          ผู้ยื่นคำขอ = ผู้ใช้งานที่เข้าสู่ระบบ · ผู้นำส่ง = ผู้ที่จะถือตัวอย่างไปส่ง (เลือกจากระบบ HR)
+          {showDeliverer
+            ? 'ผู้ยื่นคำขอ = ผู้ใช้งานที่เข้าสู่ระบบ · ผู้นำส่ง = ผู้ที่จะถือตัวอย่างไปส่ง (เลือกจากระบบ HR)'
+            : 'ผู้ยื่นคำขอ = ผู้ใช้งานที่เข้าสู่ระบบ'}
         </p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <SubmitterPicker value={submitter} onChange={onSubmitterChange} readOnly={submitterReadOnly} department={submitterDepartment} />
-          {requireDeliveryAndBatch && (
+          {showDeliverer && requireDeliveryAndBatch && (
             <SubmitterPicker value={deliverer} onChange={onDelivererChange} />
           )}
         </div>

@@ -738,10 +738,6 @@ export default function ProductionPetitionNewPage({
         setStepError('ไม่พบชื่อผู้ยื่นคำขอ กรุณาเข้าสู่ระบบใหม่');
         return false;
       }
-      if (deliveryAndBatchRequired && !deliverer.name.trim()) {
-        setStepError('กรุณาเลือกผู้นำส่ง');
-        return false;
-      }
       if (items.length === 0) {
         setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
         return false;
@@ -837,14 +833,6 @@ export default function ProductionPetitionNewPage({
         cause: '',
         revisionOf: revisionOfId || undefined,
       };
-      if (deliveryAndBatchRequired) {
-        Object.assign(payload, {
-          deliveredBy: {
-            employeeId: deliverer.employeeId || undefined,
-            name: deliverer.name,
-          },
-        });
-      }
       const created = await createPetition(payload as Parameters<typeof createPetition>[0]);
 
       if (labBatches.length > 0 && labRequest) {
@@ -1002,6 +990,7 @@ export default function ProductionPetitionNewPage({
                   setDelivererTouched(true);
                   setDeliverer(v);
                 }}
+                showDeliverer={false}
                 requireDeliveryAndBatch={deliveryAndBatchRequired}
                 itemsReadOnly={integrationMode}
                 allowManualItemFields={!masterItemSelectionRequired}

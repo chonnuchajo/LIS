@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { useAuth } from '@/hooks/useAuth';
+import SubmitterPicker, { type SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { additionalSamplePayload, extractScannedCode, fetchPetitionByScannedCode, getScannedAdditionalSample, type AdditionalSampleRequest } from '@/lib/additionalSampleQr';
 import { additionalSampleWeights } from '@/lib/additionalSamples';
@@ -27,16 +28,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 
-async function deliverPetition(id: string, actor?: string, request?: AdditionalSampleRequest | null): Promise<Petition> {
+async function deliverPetition(id: string, actor?: string, request?: AdditionalSampleRequest | null, deliveredBy?: SubmitterValues): Promise<Petition> {
   if (request) {
-    const response = await api.patch<Petition>(`/petitions/${id}/deliver`, { actor, ...additionalSamplePayload(request) });
+    const response = await api.patch<Petition>(`/petitions/${id}/deliver`, { actor, deliveredBy, ...additionalSamplePayload(request) });
     return response.data.data;
   }
   try {
-    const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent', actor });
+    const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent', actor, deliveredBy });
     return res.data.data;
   } catch {
-    const res = await api.patch<Petition>(`/petitions/${id}`, { status: 'sampleSent', actor });
+    const res = await api.patch<Petition>(`/petitions/${id}`, { status: 'sampleSent', actor, deliveredBy });
     return res.data.data;
   }
 }
@@ -47,6 +48,7 @@ export default function ScannerPage() {
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
   const [additionalRequest, setAdditionalRequest] = useState<AdditionalSampleRequest | null>(null);
+  const [deliverer, setDeliverer] = useState<SubmitterValues>({ employeeId: '', name: '' });
   const scanBusy = useRef(false);
   const deliveryBusy = useRef(false);
   const deliveredRounds = useRef(new Set<string>());
@@ -142,11 +144,11 @@ export default function ScannerPage() {
 
   async function confirmDeliver() {
     const id = petition?._id || pendingId;
-    if (!id || deliveryBusy.current || phase !== 'confirming') return;
+    if (!id || !deliverer.name.trim() || deliveryBusy.current || phase !== 'confirming') return;
     deliveryBusy.current = true;
     setPhase('loading');
     try {
-      const delivered = await deliverPetition(id, user?.name || user?.email, additionalRequest);
+      const delivered = await deliverPetition(id, user?.name || user?.email, additionalRequest, deliverer);
       if (additionalRequest) deliveredRounds.current.add(additionalRequest._id);
       setPetition(delivered);
       setPhase('success');
@@ -165,6 +167,7 @@ export default function ScannerPage() {
     scanBusy.current = false;
     deliveryBusy.current = false;
     setAdditionalRequest(null);
+    setDeliverer({ employeeId: '', name: '' });
     setPetition(null);
     setPendingId('');
     setErrorMsg('');
@@ -216,12 +219,6 @@ export default function ScannerPage() {
       window.removeEventListener('keydown', handleHardwareScannerKeyDown);
       clearHardwareScanBuffer();
     };
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== 'success') return;
-    const t = setTimeout(reset, 10000);
-    return () => clearTimeout(t);
   }, [phase]);
 
   const targetStatusCfg = PETITION_STATUS_CONFIG.sampleSent;
@@ -351,6 +348,8 @@ export default function ScannerPage() {
                 </div>
               </div>
 
+              <SubmitterPicker value={deliverer} onChange={setDeliverer} />
+
               <div className="flex gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
                 <span className="text-grey-600">{petitionDepartmentLabel(petition)}</span>
@@ -385,6 +384,7 @@ export default function ScannerPage() {
                   variant="success"
                   className="flex-1 flex items-center gap-1.5 justify-center"
                   onClick={confirmDeliver}
+                  disabled={!deliverer.name.trim()}
                 >
                   ยืนยัน
                 </Button>
@@ -405,10 +405,10 @@ export default function ScannerPage() {
               <span className="font-semibold text-black-500">{petition.petitionNo}</span>
             </p>
             <p className="text-xs text-grey-400">
-              {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
+              {deliverer.name || petition.deliveredBy?.name || '-'} · {petitionDepartmentLabel(petition)}
             </p>
             <Button variant="primary" className="mt-2 w-full" onClick={reset}>
-              กลับ
+              สแกนคำร้องถัดไป
             </Button>
           </div>
         )}

@@ -30,18 +30,32 @@ interface Props {
   department?: string;
 }
 
+const SUBMITTER_DEPARTMENT = 'ควบคุมคุณภาพ';
+const SUBMITTER_POSITION = 'เจ้าหน้าที่';
+const SUBMITTER_EMPLOYEE_TYPE = 'รายวัน';
+
+export function filterSubmitterOptions(options: EmployeeOption[]): EmployeeOption[] {
+  return options.filter(
+    (option) =>
+      option.department.trim() === SUBMITTER_DEPARTMENT &&
+      option.position.trim() === SUBMITTER_POSITION &&
+      option.employeeType.trim() === SUBMITTER_EMPLOYEE_TYPE,
+  );
+}
+
 export default function SubmitterPicker({ value, onChange, readOnly, department }: Props) {
   const { options, loading } = useEmployeeOptions();
   const [open, setOpen] = useState(false);
+  const submitterOptions = useMemo(() => filterSubmitterOptions(options), [options]);
 
   const selected = useMemo<EmployeeOption | null>(() => {
     if (!value.employeeId && !value.name) return null;
     return (
-      options.find((o) => o.id === value.employeeId) ??
-      options.find((o) => o.name === value.name) ??
+      submitterOptions.find((o) => o.id === value.employeeId) ??
+      submitterOptions.find((o) => o.name === value.name) ??
       null
     );
-  }, [options, value.employeeId, value.name]);
+  }, [submitterOptions, value.employeeId, value.name]);
 
   function pick(opt: EmployeeOption) {
     onChange({ ...value, employeeId: opt.id, name: opt.name });
@@ -96,7 +110,7 @@ export default function SubmitterPicker({ value, onChange, readOnly, department 
               <CommandList>
                 <CommandEmpty>ไม่พบพนักงาน</CommandEmpty>
                 <CommandGroup>
-                  {options.map((opt) => (
+                  {submitterOptions.map((opt) => (
                     <CommandItem
                       key={opt.id}
                       value={opt.label}
@@ -116,7 +130,7 @@ export default function SubmitterPicker({ value, onChange, readOnly, department 
             </Command>
           </PopoverContent>
         </Popover>
-        {!loading && options.length === 0 && (
+        {!loading && submitterOptions.length === 0 && (
           <p className="mt-1 flex items-center gap-1 text-xs text-yellow-600">
             <AlertCircle className="h-3 w-3" />
             โหลดรายชื่อจาก API ไม่สำเร็จ — โปรดลองใหม่
