@@ -78,6 +78,38 @@ describe('ScannerPage camera failure fallback', () => {
     expect(screen.getAllByText('P-2506-0003').length).toBeGreaterThan(0);
   });
 
+  it('กดเพิ่มรายการแล้วเปิด popup โดยยังคงหน้าตรวจสอบรายการเดิมไว้', async () => {
+    const secondPetition = {
+      ...petition,
+      _id: 'pet2',
+      petitionNo: 'P-2506-0004',
+      submittedBy: { name: 'ผู้ส่งคนที่สอง' },
+    };
+    (api.get as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ data: { data: petition } })
+      .mockResolvedValueOnce({ data: { data: secondPetition } });
+
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /สแกน QR Code/ }));
+    const input = await screen.findByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
+    fireEvent.change(input, { target: { value: 'P-2506-0003' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ค้นหา' }));
+
+    expect(await screen.findByText('ตรวจสอบคำร้องก่อนยืนยัน')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มรายการ' }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('ตรวจสอบคำร้องก่อนยืนยัน')).toBeInTheDocument();
+
+    const addInput = screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
+    fireEvent.change(addInput, { target: { value: 'P-2506-0004' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ค้นหา' }));
+
+    await waitFor(() => expect(screen.getByText('ทั้งหมด 2 ตัวอย่าง')).toBeInTheDocument());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('P-2506-0004')).toBeInTheDocument();
+  });
+
   it('สแกนด้วยเครื่องสแกนเนอร์ได้ทันทีโดยไม่ต้องโฟกัสช่องเลขคำร้อง', async () => {
     (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: petition } });
     renderPage();
