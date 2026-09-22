@@ -86,6 +86,7 @@ const SubmittedBySchema = new mongoose.Schema(
   {
     employeeId: String,
     name: { type: String, required: true },
+    email: String,
     department: String, // แผนกผู้ยื่น จาก HR/Microsoft
     submittedAt: { type: Date, default: Date.now },
   },
@@ -96,6 +97,7 @@ const DeliveredBySchema = new mongoose.Schema(
   {
     employeeId: String,
     name: { type: String, required: true },
+    email: String,
   },
   { _id: false },
 );
@@ -183,7 +185,7 @@ const PetitionSchema = new mongoose.Schema(
           itemSeq: { type: Number, required: true },
           quantity: { type: Number, required: true, min: 1, max: 1000, validate: Number.isInteger },
           weights: {
-            type: [{ type: Number, enum: [100, 250, 500] }],
+            type: [{ type: Number, min: 1, validate: Number.isSafeInteger }],
             default: undefined,
             validate: {
               validator: function (weights) { return weights === undefined || (Array.isArray(weights) && weights.length === this.quantity); },

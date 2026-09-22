@@ -35,7 +35,10 @@ export interface EmployeeOption {
   id: string;
   label: string;
   name: string;
+  email: string;
   department: string;
+  position: string;
+  employeeType: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -130,14 +133,19 @@ function normalizeEmployeeOptions(payload: unknown): EmployeeOption[] {
     .map((row, idx) => {
       const employeeId = pickString(row, ['employee_id', 'employeeId', 'code', 'id']);
       const name = pickString(row, ['name', 'employee_name', 'fullName']);
+      const email = pickString(row, ['email', 'mail', 'email_address']).toLowerCase();
       const department = pickString(row, ['department', 'department_name', 'Department', 'DEPARTMENT']);
-      const position = pickString(row, ['position']);
+      const position = pickString(row, ['position', 'position_name', 'job_title']);
+      const employeeType = pickString(row, ['emp_type', 'empType', 'employee_type', 'employment_type']);
       const detail = [employeeId, department, position].filter(Boolean).join(' | ');
       return {
         id: employeeId || String(idx),
         label: detail ? `${name} (${detail})` : name,
         name,
+        email,
         department,
+        position,
+        employeeType,
       };
     })
     .filter((option) => option.name);

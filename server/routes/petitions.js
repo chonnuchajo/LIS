@@ -28,6 +28,7 @@ const { pendingAdditionalSamples, additionalSampleCompletionError } = require('.
 router.use(additionalSamplesRouter);
 const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
 const { buildProductionWorkflow } = require('../lib/productionWorkflow');
+const { resolveEmployeeActor } = require('../lib/employeeResolver');
 const {
   isResearchAndDevelopmentDepartment,
   normalizePetitionItems,
@@ -64,6 +65,22 @@ function nextPetitionNo() {
 
 function badRequest(res, message) {
   return res.status(400).json({ error: { message } });
+}
+
+async function latestDeliverableRevision(petition) {
+  let current = petition;
+  for (let depth = 0; depth < 20 && current?.status === 'rejected'; depth += 1) {
+    const query = Petition.findOne({
+      revisionOf: current._id,
+      status: { $ne: 'approved' },
+    });
+    const next = await (typeof query.sort === 'function'
+      ? query.sort({ createdAt: -1 }).lean()
+      : query.lean());
+    if (!next || String(next._id) === String(current._id)) break;
+    current = next;
+  }
+  return current;
 }
 
 async function additionalCompletionError(petition, sides) {
@@ -550,8 +567,9 @@ router.get('/scan/:code', async (req, res) => {
     const fallbackPetitionNo = code.match(/^(P-\d{4}-\d{4})-\d+$/i)?.[1];
     if (fallbackPetitionNo) query.push({ petitionNo: fallbackPetitionNo });
 
-    const doc = await Petition.findOne({ $or: query }).lean();
+    let doc = await Petition.findOne({ $or: query }).lean();
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้องจาก QR Code นี้' } });
+    doc = await latestDeliverableRevision(doc);
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -866,8 +884,10 @@ router.post('/', async (req, res) => {
       department: body.submittedBy?.department,
       petitionNo,
     });
+    const submittedBy = await resolveEmployeeActor(body.submittedBy);
     const doc = await Petition.create({
       ...body,
+      submittedBy,
       items,
       petitionNo,
       status: 'deliveringQC',
@@ -898,6 +918,7 @@ router.patch('/:id/deliver', serializePetitionWrite(async (req, res) => {
     if (pendingAdditionalSamples(before).length) return res.status(409).json({ error: { message: 'กรุณาสแกน QR ใบนำส่งตัวอย่างเพิ่มของรอบนี้' } });
     if (before.additionalSampleRequests?.length) return res.status(409).json({ error: { message: 'คำขอนี้นำส่งแล้ว กรุณาใช้ QR รอบตัวอย่างเพิ่ม' } });
     const update = { status: 'sampleSent' };
+    if (req.body?.deliveredBy?.name) update.deliveredBy = await resolveEmployeeActor(req.body.deliveredBy);
     if (!before.sampleSentAt) update.sampleSentAt = new Date();
     const doc = await Petition.findOneAndUpdate({ ...q, status: before.status, __v: before.__v == null ? { $exists: false } : before.__v }, { $set: update, $inc: { __v: 1 } }, { new: true });
     if (!doc) return res.status(409).json({ error: { message: 'คำขอเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่' } });
@@ -1253,3 +1274,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.latestDeliverableRevision = latestDeliverableRevision;

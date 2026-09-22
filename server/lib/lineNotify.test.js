@@ -172,7 +172,7 @@ test('audiencesForEvent: created → qc only', () => {
   );
 });
 
-test('audiencesForEvent routes R&D created and sampleSent to lab only', () => {
+test('audiencesForEvent routes R&D created and sampleSent to lab and requester', () => {
   const petition = {
     submittedBy: { department: 'R & D' },
     items: [{ seq: 1, sampleName: 'R&D sample', batchNo: '' }],
@@ -180,7 +180,7 @@ test('audiencesForEvent routes R&D created and sampleSent to lab only', () => {
   assert.deepStrictEqual(audiencesForEvent(petition, { event: 'created' }), ['lab']);
   assert.deepStrictEqual(
     audiencesForEvent(petition, { event: 'statusChanged', toStatus: 'sampleSent' }),
-    ['lab'],
+    ['lab', 'rd'],
   );
 });
 
@@ -192,6 +192,16 @@ test('audiencesForEvent: sampleSent uses petition.sentToLab to decide Lab sound 
   assert.deepStrictEqual(
     audiencesForEvent({ sentToLab: false, items: [labItem] }, { event: 'statusChanged', toStatus: 'sampleSent' }),
     ['qc'],
+  );
+});
+
+test('audiencesForEvent: sampleSent also notifies the requester department', () => {
+  assert.deepStrictEqual(
+    audiencesForEvent(
+      { submittedBy: { department: 'ผลิต 01' }, items: [qcOnlyItem] },
+      { event: 'statusChanged', toStatus: 'sampleSent' },
+    ),
+    ['qc', 'production'],
   );
 });
 

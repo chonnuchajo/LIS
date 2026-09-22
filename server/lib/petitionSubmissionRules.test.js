@@ -35,12 +35,12 @@ test('validatePetitionSubmission allows R & D submissions without deliverer or b
   }), null);
 });
 
-test('validatePetitionSubmission still requires deliverer and batch for non-R&D submissions', () => {
-  assert.match(validatePetitionSubmission({
+test('validatePetitionSubmission no longer requires a deliverer, but still requires batch for non-R&D submissions', () => {
+  assert.strictEqual(validatePetitionSubmission({
     dept: 'production',
     submittedBy: { name: 'Production User', department: 'Production' },
-    items: [{ seq: 1, sampleName: 'Sample A', batchNo: '' }],
-  }), /นำส่ง/);
+    items: [{ seq: 1, sampleName: 'Sample A', batchNo: 'B-001' }],
+  }), null);
 
   assert.match(validatePetitionSubmission({
     dept: 'production',

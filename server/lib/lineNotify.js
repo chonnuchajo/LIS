@@ -76,12 +76,12 @@ function audiencesForEvent(petition, payload) {
   const labTrack = hasLabTrack(petition);
   const bothSides = [qcTrack ? 'qc' : null, labTrack ? 'lab' : null].filter(Boolean);
   const sampleSentAudiences = () => {
-    if (!qcTrack) return ['lab'];
+    if (!qcTrack) return [...new Set(['lab', requesterAudience(petition)].filter(Boolean))];
     const sentToLab =
       petition?.sentToLab === true ||
       petition?.sendToLab === true ||
       ((petition ?? {}).items ?? []).some((item) => item?.sentToLab === true || item?.sendToLab === true);
-    return ['qc', sentToLab ? 'lab' : null].filter(Boolean);
+    return [...new Set(['qc', sentToLab ? 'lab' : null, requesterAudience(petition)].filter(Boolean))];
   };
   switch (payload?.event) {
     case 'created':

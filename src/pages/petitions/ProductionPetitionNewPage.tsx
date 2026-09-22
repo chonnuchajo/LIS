@@ -603,11 +603,13 @@ export default function ProductionPetitionNewPage({
   const [submitter, setSubmitter] = useState<SubmitterValues>({
     employeeId: integrationMode ? integrationActor.employeeId : (user?.id ?? ''),
     name: integrationMode ? integrationActor.name : (user?.name ?? ''),
+    email: integrationMode ? integrationActor.email : (user?.email ?? ''),
   });
   // ผู้นำส่ง = required ต้องเลือกเอง ไม่ default เป็นผู้ล็อกอิน (integration เท่านั้นที่ตั้งค่าให้)
   const [deliverer, setDeliverer] = useState<SubmitterValues>({
     employeeId: integrationMode ? integrationActor.employeeId : '',
     name: integrationMode ? integrationActor.name : '',
+    email: integrationMode ? integrationActor.email : '',
   });
   const [delivererTouched, setDelivererTouched] = useState(false);
 
@@ -619,7 +621,7 @@ export default function ProductionPetitionNewPage({
         setDeliverer(integrationActor);
       }
     } else if (user?.name) {
-      setSubmitter({ employeeId: user.id ?? '', name: user.name });
+      setSubmitter({ employeeId: user.id ?? '', name: user.name, email: user.email ?? '' });
     }
   }, [user?.id, user?.name, delivererTouched, integrationMode, integrationActor]);
 
@@ -666,7 +668,7 @@ export default function ProductionPetitionNewPage({
             submissionNo: it.submissionNo ?? '',
             testUnit: it.testUnit ?? '',
             testItems: it.testItems ?? '',
-            sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
+            sendToLab: sendToLabForSubmit({ ...it, commonName: it.commonName ?? '' }, source.submittedBy?.department ?? ''),
             sampleQuantity: it.sampleQuantity ?? 1,
             labelQuantity: it.labelQuantity ?? '',
             labelQuantities: it.labelQuantities ?? [],
@@ -736,10 +738,6 @@ export default function ProductionPetitionNewPage({
     if (currentStep === 'items') {
       if (!submitter.name.trim()) {
         setStepError('ไม่พบชื่อผู้ยื่นคำขอ กรุณาเข้าสู่ระบบใหม่');
-        return false;
-      }
-      if (deliveryAndBatchRequired && !deliverer.name.trim()) {
-        setStepError('กรุณาเลือกผู้นำส่ง');
         return false;
       }
       if (items.length === 0) {
@@ -825,6 +823,7 @@ export default function ProductionPetitionNewPage({
         submittedBy: {
           employeeId: submitter.employeeId || undefined,
           name: submitter.name,
+          email: submitter.email || undefined,
           department: submitterDepartment || undefined,
         },
         items: items.map((it, idx) => ({ ...it, seq: idx + 1, sendToLab: sendToLabForSubmit(it, submitterDepartment) })),
@@ -837,14 +836,6 @@ export default function ProductionPetitionNewPage({
         cause: '',
         revisionOf: revisionOfId || undefined,
       };
-      if (deliveryAndBatchRequired) {
-        Object.assign(payload, {
-          deliveredBy: {
-            employeeId: deliverer.employeeId || undefined,
-            name: deliverer.name,
-          },
-        });
-      }
       const created = await createPetition(payload as Parameters<typeof createPetition>[0]);
 
       if (labBatches.length > 0 && labRequest) {
@@ -1002,6 +993,7 @@ export default function ProductionPetitionNewPage({
                   setDelivererTouched(true);
                   setDeliverer(v);
                 }}
+                showDeliverer={false}
                 requireDeliveryAndBatch={deliveryAndBatchRequired}
                 itemsReadOnly={integrationMode}
                 allowManualItemFields={!masterItemSelectionRequired}

@@ -1,24 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import {
   AlertCircle, CheckCircle2, QrCode,
-  Package, User, Building2, X,
+  Package, Building2, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
 import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { useAuth } from '@/hooks/useAuth';
+import SubmitterPicker, { type SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { additionalSamplePayload, extractScannedCode, fetchPetitionByScannedCode, getScannedAdditionalSample, type AdditionalSampleRequest } from '@/lib/additionalSampleQr';
 import { additionalSampleWeights } from '@/lib/additionalSamples';
 
 const READER_ID = 'icp-qr-reader';
+const ADDITIONAL_READER_ID = 'icp-additional-qr-reader';
 const HARDWARE_SCAN_IDLE_MS = 250;
 const MIN_HARDWARE_SCAN_LENGTH = 3;
 type Phase = 'idle' | 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
+type AddItemPhase = 'idle' | 'scanning' | 'loading' | 'error' | 'no-camera';
+
+type DeliveryItem = {
+  petition: Petition;
+  additionalRequest: AdditionalSampleRequest | null;
+};
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -27,16 +36,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 
-async function deliverPetition(id: string, actor?: string, request?: AdditionalSampleRequest | null): Promise<Petition> {
+async function deliverPetition(id: string, actor?: string, request?: AdditionalSampleRequest | null, deliveredBy?: SubmitterValues): Promise<Petition> {
   if (request) {
-    const response = await api.patch<Petition>(`/petitions/${id}/deliver`, { actor, ...additionalSamplePayload(request) });
+    const response = await api.patch<Petition>(`/petitions/${id}/deliver`, { actor, deliveredBy, ...additionalSamplePayload(request) });
     return response.data.data;
   }
   try {
-    const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent', actor });
+    const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent', actor, deliveredBy });
     return res.data.data;
   } catch {
-    const res = await api.patch<Petition>(`/petitions/${id}`, { status: 'sampleSent', actor });
+    const res = await api.patch<Petition>(`/petitions/${id}`, { status: 'sampleSent', actor, deliveredBy });
     return res.data.data;
   }
 }
@@ -45,8 +54,13 @@ export default function ScannerPage() {
   const { user } = useAuth();
   const [phase, setPhase] = useState<Phase>('idle');
   const [petition, setPetition] = useState<Petition | null>(null);
-  const [pendingId, setPendingId] = useState('');
+  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([]);
   const [additionalRequest, setAdditionalRequest] = useState<AdditionalSampleRequest | null>(null);
+  const [deliverer, setDeliverer] = useState<SubmitterValues>({ employeeId: '', name: '' });
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [addItemPhase, setAddItemPhase] = useState<AddItemPhase>('idle');
+  const [addItemError, setAddItemError] = useState('');
+  const [addItemManualCode, setAddItemManualCode] = useState('');
   const scanBusy = useRef(false);
   const deliveryBusy = useRef(false);
   const deliveredRounds = useRef(new Set<string>());
@@ -112,43 +126,68 @@ export default function ScannerPage() {
         } catch { /* ignore */ }
       }
     };
+    // The scanner only lives for the current phase; the callback is intentionally kept out
+    // of this effect so queued items do not restart an active camera session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  async function fetchAndConfirm(id: string) {
+  const fetchAndConfirm = useCallback(async (id: string, fromAddItemDialog = false) => {
     const code = extractScannedCode(id);
     if (!code || scanBusy.current) return;
     scanBusy.current = true;
-    setPendingId(code);
-    setPhase('loading');
+    if (fromAddItemDialog) {
+      setAddItemError('');
+      setAddItemPhase('loading');
+    } else {
+      setPhase('loading');
+    }
     try {
       const found = await fetchPetitionByScannedCode(code);
       const request = getScannedAdditionalSample(found, code);
       if (request && (request.status === 'sent' || deliveredRounds.current.has(request._id))) {
         throw new Error('ตัวอย่างเพิ่มรอบนี้นำส่งแล้ว ไม่สามารถนำส่งซ้ำได้');
       }
+      if (deliveryItems.some((item) => item.petition._id === found._id && item.additionalRequest?._id === request?._id)) {
+        throw new Error('รายการนี้อยู่ในคิวแล้ว');
+      }
+      const item = { petition: found, additionalRequest: request };
+      setDeliveryItems((current) => [...current, item]);
       setAdditionalRequest(request ?? null);
       setPetition(found);
-      setPendingId(found._id);
-      setPhase('confirming');
+      if (fromAddItemDialog) {
+        scanBusy.current = false;
+        setAddItemManualCode('');
+        setAddItemPhase('idle');
+        setAddItemOpen(false);
+      } else {
+        setPhase('confirming');
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ?? (err instanceof Error ? err.message : 'ไม่พบข้อมูลคำร้อง กรุณาตรวจสอบรหัส');
       scanBusy.current = false;
-      setErrorMsg(msg);
-      setPhase('error');
+      if (fromAddItemDialog) {
+        setAddItemError(msg);
+        setAddItemPhase('error');
+      } else {
+        setErrorMsg(msg);
+        setPhase('error');
+      }
     }
-  }
+  }, [deliveryItems]);
 
   async function confirmDeliver() {
-    const id = petition?._id || pendingId;
-    if (!id || deliveryBusy.current || phase !== 'confirming') return;
+    if (!deliveryItems.length || !deliverer.name.trim() || deliveryBusy.current || phase !== 'confirming') return;
     deliveryBusy.current = true;
     setPhase('loading');
     try {
-      const delivered = await deliverPetition(id, user?.name || user?.email, additionalRequest);
-      if (additionalRequest) deliveredRounds.current.add(additionalRequest._id);
-      setPetition(delivered);
+      let lastDelivered: Petition | null = null;
+      for (const item of deliveryItems) {
+        lastDelivered = await deliverPetition(item.petition._id, user?.name || user?.email, item.additionalRequest, deliverer);
+        if (item.additionalRequest) deliveredRounds.current.add(item.additionalRequest._id);
+      }
+      setPetition(lastDelivered);
       setPhase('success');
     } catch (err: unknown) {
       const msg =
@@ -165,11 +204,24 @@ export default function ScannerPage() {
     scanBusy.current = false;
     deliveryBusy.current = false;
     setAdditionalRequest(null);
+    setDeliveryItems([]);
+    setDeliverer({ employeeId: '', name: '' });
     setPetition(null);
-    setPendingId('');
     setErrorMsg('');
     setManualCode('');
+    setAddItemOpen(false);
+    setAddItemPhase('idle');
+    setAddItemError('');
+    setAddItemManualCode('');
     setPhase('idle');
+  }
+
+  function addAnotherDelivery() {
+    scanBusy.current = false;
+    setAddItemError('');
+    setAddItemManualCode('');
+    setAddItemPhase('idle');
+    setAddItemOpen(true);
   }
 
   useEffect(() => {
@@ -216,13 +268,53 @@ export default function ScannerPage() {
       window.removeEventListener('keydown', handleHardwareScannerKeyDown);
       clearHardwareScanBuffer();
     };
-  }, [phase]);
+  }, [phase, fetchAndConfirm]);
 
   useEffect(() => {
-    if (phase !== 'success') return;
-    const t = setTimeout(reset, 10000);
-    return () => clearTimeout(t);
-  }, [phase]);
+    if (!addItemOpen || addItemPhase !== 'scanning') return;
+    let active = true;
+    const scanner = new Html5Qrcode(ADDITIONAL_READER_ID);
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const onScan = (text: string) => {
+      if (active) fetchAndConfirm(text, true);
+    };
+    const startWith = (source: MediaTrackConstraints | string) =>
+      scanner.start(source, config, onScan, () => {});
+
+    (async () => {
+      try {
+        try {
+          await startWith({ facingMode: { exact: 'environment' } });
+        } catch {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras.length === 0) {
+            if (active) setAddItemPhase('no-camera');
+            return;
+          }
+          const back = cameras.find((camera) => /back|environment|rear|หลัง|后|背面/i.test(camera.label));
+          await startWith((back ?? (cameras.length > 1 ? cameras[cameras.length - 1] : cameras[0])).id);
+        }
+        if (!active) {
+          scanner.stop().catch(() => {});
+        }
+      } catch {
+        if (active) {
+          setAddItemError('เปิดกล้องไม่ได้ — กรอกเลขคำร้องเองได้เลย');
+          setAddItemPhase('no-camera');
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+      try {
+        const state = scanner.getState();
+        if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+          scanner.stop().catch(() => {});
+        }
+      } catch { /* ignore */ }
+    };
+  }, [addItemOpen, addItemPhase, fetchAndConfirm]);
 
   const targetStatusCfg = PETITION_STATUS_CONFIG.sampleSent;
 
@@ -328,14 +420,30 @@ export default function ScannerPage() {
             </div>
 
             <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-base font-bold text-black-500">{petition.petitionNo}</span>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-base font-bold text-black-500">รายการที่จะส่ง</p>
+                  <p className="text-xs text-grey-500">ทั้งหมด {deliveryItems.length} ตัวอย่าง</p>
+                </div>
                 <Badge variant={targetStatusCfg.variant}>{targetStatusCfg.label}</Badge>
               </div>
 
               <div className="border-t border-grey-100" />
 
-              {additionalRequest && (
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg bg-grey-50 p-3">
+                {deliveryItems.map(({ petition: queuedPetition, additionalRequest: queuedRequest }, index) => (
+                  <div key={`${queuedPetition._id}-${queuedRequest?._id ?? 'base'}`} className="flex gap-2 text-sm">
+                    <span className="font-semibold text-grey-500">{index + 1}.</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-black-500">{queuedPetition.petitionNo}</p>
+                      <p className="truncate text-xs text-grey-500">{queuedPetition.submittedBy?.name ?? '-'}</p>
+                      {queuedRequest && <p className="text-xs text-grey-500">ตัวอย่างเพิ่ม · {queuedRequest.side.toUpperCase()}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {additionalRequest && deliveryItems.length === 1 && (
                 <div className="rounded-lg border bg-card p-3 text-sm text-foreground space-y-1">
                   <p className="font-semibold">ตัวอย่างเพิ่ม · {additionalRequest.side.toUpperCase()} · รอบ {petition.additionalSampleRequests?.findIndex((request) => request._id === additionalRequest._id) + 1}</p>
                   <p className="whitespace-pre-wrap break-words">{additionalRequest.reason}</p>
@@ -343,13 +451,7 @@ export default function ScannerPage() {
                 </div>
               )}
 
-              <div className="flex gap-2 text-sm">
-                <User className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-black-500">{petition.submittedBy?.name ?? '-'}</p>
-                  <p className="text-grey-400 text-xs">{petition.petitionNo}</p>
-                </div>
-              </div>
+              <SubmitterPicker value={deliverer} onChange={setDeliverer} />
 
               <div className="flex gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
@@ -381,17 +483,103 @@ export default function ScannerPage() {
                 <Button variant="danger" className="flex-1" onClick={reset}>
                   ยกเลิก
                 </Button>
+                <Button variant="outline" className="flex-1" onClick={addAnotherDelivery}>
+                  เพิ่มรายการ
+                </Button>
                 <Button
                   variant="success"
                   className="flex-1 flex items-center gap-1.5 justify-center"
                   onClick={confirmDeliver}
+                  disabled={!deliverer.name.trim()}
                 >
-                  ยืนยัน
+                  {deliveryItems.length === 1 ? 'ยืนยัน' : `ยืนยันส่ง ${deliveryItems.length} รายการ`}
                 </Button>
               </div>
             </div>
           </div>
         )}
+
+        <Dialog
+          open={addItemOpen}
+          onOpenChange={(open) => {
+            setAddItemOpen(open);
+            if (!open) {
+              setAddItemPhase('idle');
+              setAddItemError('');
+              setAddItemManualCode('');
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-primary-500" />
+                เพิ่มรายการส่งตัวอย่าง
+              </DialogTitle>
+              <DialogDescription>
+                สแกน QR Code หรือกรอกเลขที่คำร้องเพื่อเพิ่มรายการเข้าคิว
+              </DialogDescription>
+            </DialogHeader>
+
+            {addItemPhase === 'scanning' ? (
+              <div className="space-y-3">
+                <div id={ADDITIONAL_READER_ID} className="w-full overflow-hidden rounded-lg border border-border" />
+                <p className="text-center text-sm text-muted-foreground">วางกล้องให้เห็น QR Code บนหน้าจอ</p>
+                <Button variant="outline" className="w-full" onClick={() => setAddItemPhase('idle')}>
+                  กรอกเลขที่คำร้องแทน
+                </Button>
+              </div>
+            ) : (
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const code = addItemManualCode.trim();
+                  if (!code) return;
+                  fetchAndConfirm(code, true);
+                }}
+              >
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="w-full flex items-center justify-center gap-2"
+                  onClick={() => {
+                    setAddItemError('');
+                    setAddItemPhase('scanning');
+                  }}
+                  disabled={addItemPhase === 'loading'}
+                >
+                  <QrCode className="h-4 w-4" />
+                  สแกน QR Code
+                </Button>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="h-px flex-1 bg-border" />
+                  <span>หรือ</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={addItemManualCode}
+                    onChange={(event) => setAddItemManualCode(event.target.value)}
+                    placeholder="พิมพ์เลขที่คำร้อง เช่น P-2506-0001"
+                    className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-primary-400"
+                    disabled={addItemPhase === 'loading'}
+                  />
+                  <Button type="submit" variant="primary" disabled={!addItemManualCode.trim() || addItemPhase === 'loading'}>
+                    {addItemPhase === 'loading' ? 'กำลังค้นหา...' : 'ค้นหา'}
+                  </Button>
+                </div>
+
+                {(addItemPhase === 'error' || addItemPhase === 'no-camera') && (
+                  <p className="text-sm text-destructive">{addItemError || 'ไม่พบกล้องในอุปกรณ์นี้'}</p>
+                )}
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {phase === 'success' && petition && (
           <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center space-y-3">
@@ -405,10 +593,10 @@ export default function ScannerPage() {
               <span className="font-semibold text-black-500">{petition.petitionNo}</span>
             </p>
             <p className="text-xs text-grey-400">
-              {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
+              {deliverer.name || petition.deliveredBy?.name || '-'} · {petitionDepartmentLabel(petition)}
             </p>
             <Button variant="primary" className="mt-2 w-full" onClick={reset}>
-              กลับ
+              สแกนคำร้องถัดไป
             </Button>
           </div>
         )}

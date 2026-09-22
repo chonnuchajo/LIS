@@ -4,6 +4,7 @@ const {
   normalizeEmployee,
   findEmployeeByEmail,
   findEmployeeById,
+  findEmployeeByName,
   planEmployeeSync,
   MONTHLY_TYPE,
 } = require('./employeeLink');
@@ -58,6 +59,23 @@ test('findEmployeeById matches trimmed id', () => {
   assert.strictEqual(findEmployeeById(employees, ' 11438 ').employeeId, '11438');
   assert.strictEqual(findEmployeeById(employees, '999'), null);
   assert.strictEqual(findEmployeeById(employees, ''), null);
+});
+
+test('findEmployeeByName matches an unambiguous normalized name', () => {
+  const employees = [
+    { employeeId: '1', name: ' นาย เอ  ' },
+    { employeeId: '2', name: 'นางสาวบี' },
+  ];
+  assert.strictEqual(findEmployeeByName(employees, 'นายเอ').employeeId, '1');
+  assert.strictEqual(findEmployeeByName(employees, 'ไม่มี'), null);
+});
+
+test('findEmployeeByName avoids ambiguous duplicate names', () => {
+  const employees = [
+    { employeeId: '1', name: 'สมชาย' },
+    { employeeId: '2', name: 'สมชาย' },
+  ];
+  assert.strictEqual(findEmployeeByName(employees, 'สมชาย'), null);
 });
 
 test('planEmployeeSync links empty users, counts already-linked and unmatched', () => {

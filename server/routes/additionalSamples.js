@@ -12,6 +12,7 @@ const { serializePetitionWrite } = require('../lib/petitionWriteQueue');
 const { computeAbnormalFlags } = require('../lib/abnormalFlags');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
 const { validateAdditionalSampleInput, validateSampleScan, requiredSampleRoundId, requesterAudience } = require('../lib/additionalSamples');
+const { resolveEmployeeActor } = require('../lib/employeeResolver');
 
 const router = express.Router();
 const fail = (res, status, message) => res.status(status).json({ error: { message } });
@@ -104,22 +105,26 @@ router.post('/:id/additional-samples', serializePetitionWrite(async (req, res) =
 
 async function changeAdditionalSampleState(req, res, petition, action) {
   const user = await currentUser(req);
-  if (!user) return fail(res, 401, 'กรุณาเข้าสู่ระบบ');
   const round = (petition.additionalSampleRequests || []).find(entry => String(entry._id) === String(req.body?.additionalSampleId || ''));
   const side = req.body?.side;
   const error = validateSampleScan(round, req.body?.additionalSampleCode, side, action);
   if (error) return fail(res, 409, error);
+  // Delivery uses the printed QR as bearer authorization; receiving still needs a LIS user.
+  if (!user && action === 'receive') return fail(res, 401, 'กรุณาเข้าสู่ระบบ');
   if (['approved', 'rejected'].includes(petition.status)) return fail(res, 409, 'คำขอนี้ปิดแล้ว');
-  if (action === 'receive' ? !canTestSide(user, petition, round.side) : !canDeliver(user, petition)) return fail(res, 403, 'ไม่มีสิทธิ์ดำเนินการกับรอบตัวอย่างนี้');
+  if (action === 'receive' ? !canTestSide(user, petition, round.side) : (user && !canDeliver(user, petition))) return fail(res, 403, 'ไม่มีสิทธิ์ดำเนินการกับรอบตัวอย่างนี้');
   const now = new Date();
   const update = { 'additionalSampleRequests.$.status': action === 'receive' ? 'received' : 'sent' };
+  if (action === 'deliver' && req.body?.deliveredBy?.name) {
+    update.deliveredBy = await resolveEmployeeActor(req.body.deliveredBy);
+  }
   if (action === 'receive') {
     update['additionalSampleRequests.$.receivedAt'] = now;
     update['additionalSampleRequests.$.receivedBy'] = actorOf(user);
   }
   if (action === 'deliver' || !round.sentAt) {
     update['additionalSampleRequests.$.sentAt'] = now;
-    update['additionalSampleRequests.$.sentBy'] = actorOf(user);
+    update['additionalSampleRequests.$.sentBy'] = user ? actorOf(user) : { name: 'ผู้ส่งผ่าน QR', email: '' };
   }
   const updated = await Petition.findOneAndUpdate({
     _id: petition._id, status: { $nin: ['approved', 'rejected'] },
@@ -127,7 +132,7 @@ async function changeAdditionalSampleState(req, res, petition, action) {
   }, { $set: update, $inc: { __v: 1 } }, { new: true, runValidators: true });
   if (!updated) return fail(res, 409, 'รอบนี้ถูกดำเนินการแล้ว กรุณาโหลดใหม่');
   try {
-    await notify(updated, action === 'receive' ? 'additionalSampleReceived' : 'additionalSampleSent', round, user);
+    await notify(updated, action === 'receive' ? 'additionalSampleReceived' : 'additionalSampleSent', round, user || { name: 'ผู้ส่งผ่าน QR', email: '' });
   } catch (error) {
     console.error('[additional-samples] notification failed:', error.message);
   }

@@ -96,6 +96,7 @@ export interface PetitionItem {
 export interface PetitionSubmitter {
   employeeId?: string;
   name: string;
+  email?: string;
   department?: string;
   submittedAt: string;
 }
@@ -104,6 +105,7 @@ export interface PetitionSubmitter {
 export interface PetitionDeliverer {
   employeeId?: string;
   name: string;
+  email?: string;
 }
 
 // ===== Review history =====
