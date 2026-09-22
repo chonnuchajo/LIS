@@ -235,6 +235,36 @@ test('actorFromRequest rejects inactive users', async () => {
   }
 });
 
+test('actorFromRequest accepts synthetic dev users when dev status is enabled', async () => {
+  const originalFindOne = User.findOne;
+  const originalRoleFind = Role.find;
+  const previousFlag = process.env.ALLOW_DEV_STATUS;
+  process.env.ALLOW_DEV_STATUS = 'true';
+  User.findOne = () => ({ lean: async () => null });
+  Role.find = () => ({ lean: async () => [
+    { id: 'qc-head', permissions: ['coa.approve'] },
+    { id: 'qc-staff', permissions: [] },
+  ] });
+  try {
+    const actor = await router.actorFromRequest({
+      _user: {
+        name: 'Dev QC Head',
+        email: 'qc-head-qc-staff-dept-qc-2s2.dev@icpladda.com',
+        role: 'qc-head',
+      },
+    });
+    assert.equal(actor.email, 'qc-head-qc-staff-dept-qc-2s2.dev@icpladda.com');
+    assert.equal(actor.role, 'qc-head');
+    assert.deepEqual(actor.roles, ['qc-head', 'qc-staff']);
+    assert.deepEqual(actor.permissions, ['coa.approve']);
+  } finally {
+    User.findOne = originalFindOne;
+    Role.find = originalRoleFind;
+    if (previousFlag === undefined) delete process.env.ALLOW_DEV_STATUS;
+    else process.env.ALLOW_DEV_STATUS = previousFlag;
+  }
+});
+
 test('GET / includes requested COA rows for Lab-approved petitions without COA documents', async () => {
   const originals = {
     coaFind: CoaDocument.find,

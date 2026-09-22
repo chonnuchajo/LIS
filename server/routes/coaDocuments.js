@@ -11,6 +11,7 @@ const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
 const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
+const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
 const {
   actorFromBody,
   applyCoaLifecycleAction,
@@ -249,14 +250,51 @@ async function permissionsForRoles(roles) {
   return permissions;
 }
 
+const SYNTHETIC_DEV_EMAIL_SUFFIX = '.dev@icpladda.com';
+const SYNTHETIC_DEV_ROLE_IDS = [
+  'lab-data-config', 'lab-inventory', 'lab-analyze', 'lab-analyst',
+  'qc-data-config', 'qc-reviewer', 'lab-config', 'lab-head',
+  'qc-staff', 'qc-head', 'viewer', 'admin', 'lab', 'qc',
+].sort((a, b) => b.length - a.length);
+
+function syntheticDevRolesFromEmail(email) {
+  if (process.env.ALLOW_DEV_STATUS !== 'true') return [];
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized.endsWith(SYNTHETIC_DEV_EMAIL_SUFFIX)) return [];
+  const roleSlug = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length).split('-dept-')[0];
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(roleSlug)) return [];
+
+  const roleIds = [];
+  let remaining = roleSlug;
+  while (remaining) {
+    const roleId = SYNTHETIC_DEV_ROLE_IDS.find((candidate) => (
+      remaining === candidate || remaining.startsWith(`${candidate}-`)
+    ));
+    if (!roleId) return [];
+    roleIds.push(roleId);
+    remaining = remaining.length === roleId.length ? '' : remaining.slice(roleId.length + 1);
+  }
+  return mergeBaseRolesForFamilies(roleIds);
+}
+
 async function actorFromRequest(body = {}) {
   const requested = body._user || body.actor || {};
   const requestedActor = actorFromBody(body);
   const email = String(requestedActor.email || requested.email || '').trim().toLowerCase();
   if (!email) throw errorWithStatus('COA actor email is required', 400);
 
-  const user = await User.findOne({ email }).lean();
-  if (!user) throw errorWithStatus('COA actor must match an active user', 401);
+  let user = await User.findOne({ email }).lean();
+  if (!user) {
+    const syntheticRoles = syntheticDevRolesFromEmail(email);
+    if (syntheticRoles.length === 0) throw errorWithStatus('COA actor must match an active user', 401);
+    user = {
+      email,
+      name: requestedActor.name || requested.name || email,
+      roles: syntheticRoles,
+      role: primaryRole(syntheticRoles),
+      status: 'active',
+    };
+  }
   if (user.status && user.status !== 'active') throw errorWithStatus('Inactive users cannot issue COA documents', 403);
 
   const roles = normalizeRoles(user);
