@@ -99,7 +99,7 @@ test('POST / rejects sendToLab override without item note before creating petiti
     });
 
     assert.equal(res.statusCode, 400);
-    assert.match(res.body.error.message, /หมายเหตุ/);
+    assert.match(res.body.error.message, /เหตุผล/);
     assert.equal(createCalled, false);
   } finally {
     DocumentNumberConfig.findOne = originals.configFindOne;
@@ -143,10 +143,29 @@ test('PATCH /:id rejects sendToLab override without item note before updating pe
     });
 
     assert.equal(res.statusCode, 400);
-    assert.match(res.body.error.message, /หมายเหตุ/);
+    assert.match(res.body.error.message, /เหตุผล/);
     assert.equal(updateCalled, false);
   } finally {
     Petition.findById = originals.petitionFindById;
     Petition.findByIdAndUpdate = originals.petitionFindByIdAndUpdate;
+  }
+});
+
+test('latestDeliverableRevision follows repeated rejected resubmissions', async () => {
+  const originalFindOne = Petition.findOne;
+  const rejectedChild = { _id: 'petition-2', status: 'rejected' };
+  const activeChild = { _id: 'petition-3', status: 'deliveringQC' };
+  try {
+    Petition.findOne = (query) => ({
+      sort: () => ({
+        lean: async () => query.revisionOf === 'petition-1' ? rejectedChild : activeChild,
+      }),
+    });
+
+    const result = await router.latestDeliverableRevision({ _id: 'petition-1', status: 'rejected' });
+
+    assert.equal(result._id, 'petition-3');
+  } finally {
+    Petition.findOne = originalFindOne;
   }
 });

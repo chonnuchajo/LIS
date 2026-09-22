@@ -668,7 +668,7 @@ export default function ProductionPetitionNewPage({
             submissionNo: it.submissionNo ?? '',
             testUnit: it.testUnit ?? '',
             testItems: it.testItems ?? '',
-            sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
+            sendToLab: sendToLabForSubmit({ ...it, commonName: it.commonName ?? '' }, source.submittedBy?.department ?? ''),
             sampleQuantity: it.sampleQuantity ?? 1,
             labelQuantity: it.labelQuantity ?? '',
             labelQuantities: it.labelQuantities ?? [],

@@ -72,7 +72,7 @@ async function latestDeliverableRevision(petition) {
   for (let depth = 0; depth < 20 && current?.status === 'rejected'; depth += 1) {
     const query = Petition.findOne({
       revisionOf: current._id,
-      status: { $nin: ['rejected', 'approved'] },
+      status: { $ne: 'approved' },
     });
     const next = await (typeof query.sort === 'function'
       ? query.sort({ createdAt: -1 }).lean()
@@ -1274,3 +1274,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.latestDeliverableRevision = latestDeliverableRevision;

@@ -172,7 +172,7 @@ test('audiencesForEvent: created → qc only', () => {
   );
 });
 
-test('audiencesForEvent routes R&D created and sampleSent to lab only', () => {
+test('audiencesForEvent routes R&D created and sampleSent to lab and requester', () => {
   const petition = {
     submittedBy: { department: 'R & D' },
     items: [{ seq: 1, sampleName: 'R&D sample', batchNo: '' }],
@@ -180,7 +180,7 @@ test('audiencesForEvent routes R&D created and sampleSent to lab only', () => {
   assert.deepStrictEqual(audiencesForEvent(petition, { event: 'created' }), ['lab']);
   assert.deepStrictEqual(
     audiencesForEvent(petition, { event: 'statusChanged', toStatus: 'sampleSent' }),
-    ['lab'],
+    ['lab', 'rd'],
   );
 });
 
