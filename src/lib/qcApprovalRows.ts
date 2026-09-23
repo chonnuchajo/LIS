@@ -143,13 +143,13 @@ export function buildApprovalGroups(
                 let rowAbnormal: boolean;
                 if (unit.labelTolerance) {
                   const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
-                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "", { showAutoPass: true });
+                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "", { showAutoPass: includeRestrictedStandards });
                   const statusNote = rv.status === "review"
                     ? "รอหัวหน้าอนุมัติ"
                     : rv.status === "fail"
                       ? "เกินช่วงที่อนุมัติได้"
                       : "";
-                  rowStandardText = includeRestrictedStandards ? [range, statusNote].filter(Boolean).join(" · ") : "";
+                  rowStandardText = [range, statusNote].filter(Boolean).join(" · ");
                   rowAbnormal = isLabelToleranceAbnormal(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
                 } else {
                   rowStandardText = hiddenStandard ? "" : (isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText);
