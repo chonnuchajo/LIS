@@ -20,7 +20,6 @@ import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
 import StockQrScanner from "@/components/lis/StockQrScanner";
-import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
 import { requisitionUser, standardRequisitionUnitLabelCode } from "@/lib/standardRequisition";
@@ -137,7 +136,6 @@ const StockDeduction = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [type, setType] = useState<string>("");
   const [selected, setSelected] = useState<StockTransactionItem | null>(null);
-  const [resolving, setResolving] = useState<StockTransactionItem | null>(null);
   const [editing, setEditing] = useState<StockTransactionItem | null>(null);
   const [deleting, setDeleting] = useState<StockTransactionItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -397,11 +395,6 @@ const StockDeduction = () => {
     },
   ];
 
-  const handleResolved = (updated: StockTransactionItem) => {
-    setSelected((current) => (current?._id === updated._id ? updated : current));
-    refreshStockDeductions();
-  };
-
   const handleEdited = (updated: StockTransactionItem) => {
     setSelected((current) => (current?._id === updated._id ? updated : current));
     setEditing(null);
@@ -556,15 +549,7 @@ const StockDeduction = () => {
       <DeductionDetailSheet
         transaction={selected}
         onClose={() => setSelected(null)}
-        onResolve={(transaction) => setResolving(transaction)}
       />
-      {resolving && (
-        <DeductionResolutionDialog
-          transaction={resolving}
-          onClose={() => setResolving(null)}
-          onSaved={handleResolved}
-        />
-      )}
       {editing && (
         <DeductionEditDialog
           transaction={editing}
@@ -736,15 +721,12 @@ function DeductionDeleteDialog({
 function DeductionDetailSheet({
   transaction,
   onClose,
-  onResolve,
 }: {
   transaction: StockTransactionItem | null;
   onClose: () => void;
-  onResolve: (transaction: StockTransactionItem) => void;
 }) {
   const amount = transaction ? deductionAmount(transaction) : null;
   const resolution = transaction?.deductionResolution;
-  const canResolve = Boolean(transaction && transaction.itemType !== "glassware" && !resolution);
 
   return (
     <Sheet open={Boolean(transaction)} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -790,10 +772,6 @@ function DeductionDetailSheet({
                   {resolution.note ? ` — ${resolution.note}` : ""}
                 </div>
               </div>
-            ) : canResolve ? (
-              <Button type="button" onClick={() => onResolve(transaction)}>
-                แจ้งหมด/ปัญหา
-              </Button>
             ) : null}
           </div>
         ) : null}
