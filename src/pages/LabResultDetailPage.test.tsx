@@ -71,6 +71,10 @@ vi.mock('@/hooks/useItemGroupMembership', () => ({
   useItemGroupMembership: () => new Map(),
 }));
 
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { role: 'viewer' } }),
+}));
+
 vi.mock('@/lib/api', () => ({
   api: {
     getParameters: mocks.getParameters,
