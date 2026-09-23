@@ -396,7 +396,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   note: "",
   hasPhases: false,
   multiEntry: false,
-  specificGravitySource: { mode: "link", refParameterId: null, refFieldLabel: null },
+  specificGravitySource: { mode: "link", linkUrl: null, valuePath: null, refParameterId: null, refFieldLabel: null },
 });
 
 type MultiSelectPopoverProps = {
@@ -2475,6 +2475,18 @@ function ParameterDialog({
                       <SelectItem value="manual">ไม่ดึงค่าอัตโนมัติ</SelectItem>
                     </SelectContent>
                   </Select>
+                  {form.specificGravitySource?.mode === "link" ? (
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Link / Webhook URL</Label>
+                        <Input value={form.specificGravitySource.linkUrl ?? ""} placeholder="เช่น https://..." onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, linkUrl: event.target.value || null })} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">ตำแหน่งค่าที่รับ (key/path)</Label>
+                        <Input value={form.specificGravitySource.valuePath ?? ""} placeholder="เช่น density หรือ data.value" onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, valuePath: event.target.value || null })} />
+                      </div>
+                    </div>
+                  ) : null}
                   {form.specificGravitySource?.mode === "reference" ? (
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Select

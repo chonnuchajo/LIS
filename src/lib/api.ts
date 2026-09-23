@@ -1436,6 +1436,8 @@ export type ParameterItem = {
   // Source used for the ค่า ถ.พ. column on service-request forms.
   specificGravitySource?: {
     mode: "link" | "reference" | "manual";
+    linkUrl?: string | null;
+    valuePath?: string | null;
     refParameterId?: string | null;
     refFieldLabel?: string | null;
   };
