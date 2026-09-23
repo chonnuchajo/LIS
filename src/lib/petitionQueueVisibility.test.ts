@@ -48,7 +48,7 @@ describe('petitionQueueVisibility', () => {
     } as Petition)).toBe(true);
   });
 
-  it('hides Lab-received petitions from Assign queue', () => {
+  it('keeps assigned Lab work visible after Lab receives sample', () => {
     const labReceivedPetition = {
       ...receivedStalePetition,
       status: 'inProgress',
@@ -58,7 +58,7 @@ describe('petitionQueueVisibility', () => {
       qcReceivedAt: undefined,
     } as Petition;
 
-    expect(isVisibleInAssignQueue(labReceivedPetition)).toBe(false);
+    expect(isVisibleInAssignQueue(labReceivedPetition)).toBe(true);
   });
 
   it('does not count Lab-received petitions as waiting for assignment', () => {
