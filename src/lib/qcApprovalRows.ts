@@ -149,7 +149,7 @@ export function buildApprovalGroups(
                     : rv.status === "fail"
                       ? "เกินช่วงที่อนุมัติได้"
                       : "";
-                  rowStandardText = [range, statusNote].filter(Boolean).join(" · ");
+                  rowStandardText = includeRestrictedStandards ? [range, statusNote].filter(Boolean).join(" · ") : "";
                   rowAbnormal = isLabelToleranceAbnormal(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
                 } else {
                   rowStandardText = hiddenStandard ? "" : (isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText);
