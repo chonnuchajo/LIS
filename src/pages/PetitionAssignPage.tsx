@@ -591,7 +591,27 @@ export default function PetitionAssignPage() {
   const dropPetition = dropTarget
     ? allPetitions.find((p) => p._id === dropTarget.petitionId) ?? null
     : null;
-  const dropEmployee = dropTarget ? employeeById.get(dropTarget.employeeId) ?? null : null;
+  // Existing assignments remain visible even when HR no longer returns that
+  // person in /employees/assignees. Reuse saved assignee data so dropping on
+  // that fallback column still opens machine selection instead of doing nothing.
+  const dropEmployee = dropTarget
+    ? employeeById.get(dropTarget.employeeId) ?? (() => {
+        const saved = allPetitions.find(
+          (petition) => petition.assignedTo?.employeeId === dropTarget.employeeId,
+        )?.assignedTo;
+        return saved
+          ? {
+              id: 0,
+              employeeId: saved.employeeId,
+              name: saved.name,
+              department: saved.department ?? '',
+              position: saved.position ?? '',
+              empType: 'saved',
+              isActive: true,
+            }
+          : null;
+      })()
+    : null;
 
   async function confirmDropAssign() {
     if (!dropTarget || !dropPetition) return;

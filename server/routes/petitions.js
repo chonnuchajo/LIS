@@ -1142,6 +1142,11 @@ router.patch('/:id', serializePetitionWrite(async (req, res) => {
       // target lab/qc/both — เด้ง track กลับเป็น inProgress (ไม่ปิดงาน ไม่ตั้ง conclusion)
       before.status = 'inProgress';
       before.completedAt = null;
+      // Rework starts a fresh review loop; clear terminal decision metadata.
+      before.conclusion = null;
+      before.conclusionNote = null;
+      before.approvedAt = null;
+      before.rejectedAt = null;
       if (target === 'lab' || target === 'both') {
         before.labCompletedAt = null;
         before.labCompletedBy = undefined;
