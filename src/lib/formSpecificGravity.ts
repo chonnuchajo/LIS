@@ -35,9 +35,14 @@ export function readSpecificGravityEntryValue(
 // Locate the QC parameter that holds the ถพ. reading shared with the lab.
 export function findSgParameter(parameters: ParameterItem[] | null | undefined): SgParameter | null {
   for (const p of parameters ?? []) {
-    if (p.scope !== 'qc' || !p.shareWithLab || !Array.isArray(p.valueFields)) continue;
-    const field = p.valueFields.find((f) => f.label === SG_FIELD_LABEL);
-    if (field && p._id) return { parameterId: p._id, fieldLabel: field.label };
+    const source = p.specificGravitySource;
+    if (source?.mode === 'manual') continue;
+    const sourceParameter = source?.mode === 'reference'
+      ? (parameters ?? []).find((candidate) => candidate._id === source.refParameterId)
+      : p;
+    if (!sourceParameter || sourceParameter.scope !== 'qc' || !sourceParameter.shareWithLab || !Array.isArray(sourceParameter.valueFields)) continue;
+    const field = sourceParameter.valueFields.find((f) => f.label === (source?.refFieldLabel || SG_FIELD_LABEL));
+    if (field && sourceParameter._id) return { parameterId: sourceParameter._id, fieldLabel: field.label };
   }
   return null;
 }
