@@ -62,7 +62,7 @@ function addYears(value: string | undefined, years: number): string {
 }
 
 function isGrWpSpCommonName(commonName?: string): boolean {
-  return /\b(GR|WP|SP)$/i.test(commonName?.trim() ?? "");
+  return /\b(GR|DS|WP|WG|GB|ST|SP)$/i.test(commonName?.trim() ?? "");
 }
 
 function isLiquidCommonName(commonName?: string): boolean {

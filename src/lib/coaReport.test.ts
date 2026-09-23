@@ -33,7 +33,7 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].samples[0].rows[0].testItem).toBe("pH");
   });
 
-  it("uses the GR/WP/SP COA form data for common names with those suffixes", () => {
+  it("uses the special COA form data for common names ending with GR", () => {
     const doc = {
       _id: "c-gr",
       coaNo: "00052026",
@@ -65,6 +65,17 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
     expect(pages[0].samples[0].rows[0].criteria).toBe("48% ± 2.40");
   });
+
+  it.each(["GR", "DS", "WP", "WG", "GB", "ST", "SP"])(
+    "uses the special COA form for common names ending with %s",
+    (suffix) => {
+      const doc = {
+        sampleSnapshots: [{ itemSeq: 1, commonName: `Product ${suffix}` }],
+      } as CoaDocument;
+
+      expect(buildCoaReportPages(doc)[0].template).toBe("grWpSp");
+    },
+  );
 
   it("uses the number before % in the common name for AI tolerance criteria", () => {
     const doc = {
