@@ -2,6 +2,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const Petition = require('../models/Petition');
+const { requireAdminUser } = require('../lib/adminGate');
+
+// Request-value sources expose collection and field metadata; keep them admin-only.
+router.use(requireAdminUser);
 
 router.get('/petition-fields', async (_req, res) => {
   try {

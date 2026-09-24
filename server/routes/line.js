@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { requireAdminUser } = require('../lib/adminGate');
 const Petition = require('../models/Petition');
 const LineGroup = require('../models/LineGroup');
 const line = require('../lib/line');
@@ -339,7 +340,7 @@ router.post('/ingest', async (req, res) => {
 // ─── Admin / setup helpers (mounted under /api/line and /LIS/api/line) ───────────
 
 // GET /line/health — config + registered group count (for a settings UI badge).
-router.get('/health', async (_req, res) => {
+router.get('/health', requireAdminUser, async (_req, res) => {
   try {
     const count = await LineGroup.countDocuments({ enabled: true });
     res.json({
@@ -356,7 +357,7 @@ router.get('/health', async (_req, res) => {
 });
 
 // GET /line/groups — list registered groups.
-router.get('/groups', async (_req, res) => {
+router.get('/groups', requireAdminUser, async (_req, res) => {
   try {
     const groups = await LineGroup.find().sort({ audience: 1, createdAt: 1 }).lean();
     res.json({ data: groups });
@@ -367,7 +368,7 @@ router.get('/groups', async (_req, res) => {
 
 // POST /line/groups — manual upsert { groupId, audience, name? } (alternative to the
 // in-chat /ผูก command).
-router.post('/groups', async (req, res) => {
+router.post('/groups', requireAdminUser, async (req, res) => {
   try {
     const groupId = String(req.body?.groupId || '').trim();
     const audience = String(req.body?.audience || '').trim();
@@ -388,7 +389,7 @@ router.post('/groups', async (req, res) => {
 });
 
 // DELETE /line/groups/:groupId — remove a registration.
-router.delete('/groups/:groupId', async (req, res) => {
+router.delete('/groups/:groupId', requireAdminUser, async (req, res) => {
   try {
     const r = await LineGroup.deleteOne({ groupId: req.params.groupId });
     res.json({ deleted: r.deletedCount });
@@ -398,7 +399,7 @@ router.delete('/groups/:groupId', async (req, res) => {
 });
 
 // POST /line/test — push a test message to an audience (verify wiring end-to-end).
-router.post('/test', async (req, res) => {
+router.post('/test', requireAdminUser, async (req, res) => {
   try {
     const audience = String(req.body?.audience || 'all').trim();
     const message = String(req.body?.message || '🔔 ทดสอบการแจ้งเตือนจากระบบ LIS').trim();
