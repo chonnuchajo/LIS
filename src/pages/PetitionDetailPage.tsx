@@ -191,13 +191,12 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
         setSgParam(nextSg);
         const nextValues: Record<string, unknown> = {};
         const sources = params.flatMap((param) => (param.valueFields ?? []).map((field) => ({ label: field.label, source: field.requestValueSource })))
-          .filter((entry) => entry.source?.mode === 'collection' && entry.source.collectionName && entry.source.matchBatchField && entry.source.matchSampleNameField && entry.source.valueField);
+          .filter((entry) => entry.source?.mode === 'collection' && entry.source.collectionName && entry.source.collectionMatchField && entry.source.petitionMatchField && entry.source.valueField);
         for (const { label, source } of sources) {
-          const batchKey = source!.petitionBatchField || 'batchNo';
-          const sampleKey = source!.petitionSampleNameField || 'sampleName';
+          const petitionKey = source!.petitionMatchField || 'items.batchNo';
           const readRef = (item: Record<string, unknown>, path: string) => path.replace(/^items\.?/, '').replace(/\[\]/g, '').replace(/^\./, '').split('.').filter(Boolean).reduce<unknown>((value, key) => (value as Record<string, unknown> | null)?.[key], item);
-          const refs = (data.items ?? []).map((item) => ({ batch: String(readRef(item as Record<string, unknown>, batchKey) ?? ''), sample: String(readRef(item as Record<string, unknown>, sampleKey) ?? '') }));
-          const result = await api.getRequestValues({ collectionName: source!.collectionName!, batchField: source!.matchBatchField!, sampleField: source!.matchSampleNameField!, valueField: source!.valueField!, refs });
+          const refs = (data.items ?? []).map((item) => ({ value: String(readRef(item as Record<string, unknown>, petitionKey) ?? '') }));
+          const result = await api.getRequestValues({ collectionName: source!.collectionName!, collectionMatchField: source!.collectionMatchField!, valueField: source!.valueField!, refs });
           for (const [key, value] of Object.entries(result.values ?? {})) nextValues[`${label}\u0000${key}`] = value;
         }
         if (!cancelled) setRequestValues(nextValues);

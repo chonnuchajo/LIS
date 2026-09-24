@@ -314,7 +314,7 @@ export const api = {
     request<{ batch: string; docs: Record<string, unknown>[] }>(
       `/result-densities/by-batch/${encodeURIComponent(batch)}`,
     ),
-  getRequestValues: (payload: { collectionName: string; batchField: string; sampleField: string; valueField: string; refs: { batch: string; sample: string }[] }) =>
+  getRequestValues: (payload: { collectionName: string; collectionMatchField?: string; batchField?: string; sampleField?: string; valueField: string; refs: { value?: string; batch?: string; sample?: string }[] }) =>
     request<{ values: Record<string, unknown> }>('/request-values', { method: 'POST', body: JSON.stringify(payload) }),
   getRequestValueCollections: () => request<string[]>('/request-values/collections'),
   getRequestValueFields: (collectionName: string) => request<string[]>(`/request-values/fields?collectionName=${encodeURIComponent(collectionName)}`),
@@ -1338,10 +1338,8 @@ export type ParameterValueField = {
   requestValueSource?: {
     mode: "manual" | "collection" | "link" | "reference";
     collectionName?: string | null;
-    matchBatchField?: string | null;
-    matchSampleNameField?: string | null;
-    petitionBatchField?: string | null;
-    petitionSampleNameField?: string | null;
+    collectionMatchField?: string | null;
+    petitionMatchField?: string | null;
     valueField?: string | null;
     refParameterId?: string | null;
     refFieldLabel?: string | null;
@@ -1457,8 +1455,6 @@ export type ParameterItem = {
     refParameterId?: string | null;
     refFieldLabel?: string | null;
     collectionName?: string | null;
-    matchBatchField?: string | null;
-    matchSampleNameField?: string | null;
     valueField?: string | null;
   };
   createdAt?: string;

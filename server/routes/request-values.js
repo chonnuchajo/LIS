@@ -43,12 +43,19 @@ router.get('/fields', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { collectionName, batchField, sampleField, valueField, refs } = req.body || {};
-    if (!/^[A-Za-z0-9_-]+$/.test(String(collectionName || '')) || !batchField || !sampleField || !valueField || !Array.isArray(refs)) {
+    const { collectionName, collectionMatchField, batchField, sampleField, valueField, refs } = req.body || {};
+    if (!/^[A-Za-z0-9_-]+$/.test(String(collectionName || '')) || !valueField || !Array.isArray(refs)) {
       return res.status(400).json({ error: 'invalid request-value source' });
     }
     const allowed = await mongoose.connection.db.listCollections({ name: collectionName }).hasNext();
     if (!allowed) return res.status(404).json({ error: 'collection not found' });
+    if (collectionMatchField) {
+      const keys = refs.map((r) => String(r.value ?? '').trim());
+      const docs = await mongoose.connection.db.collection(collectionName).find({ [collectionMatchField]: { $in: keys } }, { projection: { [collectionMatchField]: 1, [valueField]: 1 } }).toArray();
+      const values = Object.fromEntries(docs.map((doc) => [String(doc[collectionMatchField] ?? '').trim(), doc[valueField] ?? '']));
+      return res.json({ values });
+    }
+    if (!batchField || !sampleField) return res.status(400).json({ error: 'matching fields required' });
     const keys = refs.map((r) => `${String(r.batch ?? '').trim()}\u0000${String(r.sample ?? '').trim()}`);
     const docs = await mongoose.connection.db.collection(collectionName).find({
       [batchField]: { $in: refs.map((r) => r.batch).filter(Boolean) },
