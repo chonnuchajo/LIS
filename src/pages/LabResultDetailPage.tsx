@@ -16,6 +16,8 @@ import LabResultGroups from "@/components/petition/LabResultGroups";
 import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import type { QCTestResult } from "@/types/petition.types";
+import { useAuth } from "@/hooks/useAuth";
+import { normalizeRoles } from "@/lib/roles";
 
 const PHYSICAL_PARAMETER_NAME = "กายภาพ";
 
@@ -26,6 +28,8 @@ function isLabReportSourceParameter(parameter: ParameterItem): boolean {
 export default function LabResultDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canSeeRestrictedStandards = normalizeRoles(user).some((role) => role === "admin" || role === "qc-head");
 
   const { data: petition, loading, error } = usePetition(id);
   const { data: labRequests } = useLabRequestsByPetition(id);
@@ -51,8 +55,10 @@ export default function LabResultDetailPage() {
 
   const groups = useMemo(() => {
     if (!petition) return [];
-    return buildApprovalGroups(petition, parameters.filter((parameter) => parameter.scope === "lab"), results, groupMembership);
-  }, [petition, parameters, results, groupMembership]);
+    return buildApprovalGroups(petition, parameters.filter((parameter) => parameter.scope === "lab"), results, groupMembership, {
+      includeRestrictedStandards: canSeeRestrictedStandards,
+    });
+  }, [petition, parameters, results, groupMembership, canSeeRestrictedStandards]);
 
   const pages = useMemo(
     () => (petition ? buildLabResultReportPages({ petition, labRequests: labRequests ?? [], parameters, qcResults: results, groupMembership }) : []),

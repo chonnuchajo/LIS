@@ -84,7 +84,7 @@ describe("buildApprovalGroups", () => {
       values: { "Assay::a": 1 },
     } as unknown as QCTestResult;
 
-    const groups = buildApprovalGroups(labelPetition, [labelParam], [qcResult], new Map());
+    const groups = buildApprovalGroups(labelPetition, [labelParam], [qcResult], new Map(), { includeRestrictedStandards: true });
     const row = groups[0].params[0].rows[0];
 
     expect(row.standardText).toContain("ผ่าน 0.9750–1.0250");

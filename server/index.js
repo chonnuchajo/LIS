@@ -7,6 +7,8 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB';
+const corsOrigins = String(process.env.CORS_ORIGINS || '')
+  .split(',').map((origin) => origin.trim()).filter(Boolean);
 
 // Apache mod_proxy อยู่หน้าเซิร์ฟเวอร์นี้เสมอ (.htaccess proxy /api/* → localhost:3001) และเติม
 // X-Forwarded-For มาให้ ถ้าไม่ตั้ง trust proxy, req.ip จะเป็น loopback (::ffff:127.0.0.1) เสมอ
@@ -14,7 +16,10 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB
 // ทุกราย — 'loopback' เชื่อ X-Forwarded-For เฉพาะ hop ที่มาจาก 127.0.0.1/::1 เท่านั้น (ตัว proxy จริง)
 app.set('trust proxy', 'loopback');
 
-app.use(cors());
+app.use(cors(corsOrigins.length ? {
+  origin: (origin, callback) => callback(null, !origin || corsOrigins.includes(origin)),
+  credentials: true,
+} : undefined));
 // Capture the raw request bytes so routes/line.js can verify the LINE webhook
 // signature (HMAC over the exact body LINE sent — re-serialized JSON won't match).
 app.use(express.json({
@@ -45,6 +50,7 @@ mountApi('/physical-results', require('./routes/physicalResults'));
 mountApi('/approvals', require('./routes/approvals'));
 mountApi('/densities', require('./routes/densities'));
 mountApi('/result-densities', require('./routes/result-densities'));
+mountApi('/request-values', require('./routes/request-values'));
 mountApi('/instrument-readings', require('./routes/instrument-readings'));
 mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));
@@ -142,7 +148,7 @@ async function ensureCollections() {
 
 mongoose.connect(MONGODB_URI)
   .then(async () => {
-    console.log('✅ Connected to MongoDB:', MONGODB_URI);
+    console.log('✅ Connected to MongoDB');
     loadAllModels();
     await ensureCollections();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

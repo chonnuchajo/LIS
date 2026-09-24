@@ -100,6 +100,15 @@ const ApplyRuleSchema = new mongoose.Schema({
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
   type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer', 'reference'], required: true },
+  requestValueSource: {
+    mode: { type: String, enum: ['manual', 'collection', 'link', 'reference'], default: 'manual' },
+    collectionName: { type: String, default: null },
+    collectionMatchField: { type: String, default: null },
+    petitionMatchField: { type: String, default: null },
+    valueField: { type: String, default: null },
+    refParameterId: { type: String, default: null },
+    refFieldLabel: { type: String, default: null },
+  },
   unit: { type: String, default: '' },
   min: { type: Number, default: null },
   max: { type: Number, default: null },
@@ -204,6 +213,18 @@ const ParameterSchema = new mongoose.Schema({
   // Parameter-level repeat — when true the whole valueFields set repeats as
   // independent rows stored in QCTestResult.entries. Mutually exclusive with hasPhases.
   multiEntry: { type: Boolean, default: false, index: true },
+  // Source configuration for the hardcoded ค่า ถ.พ. display field.
+  specificGravitySource: {
+    mode: { type: String, enum: ['link', 'reference', 'collection', 'manual'], default: 'manual' },
+    linkUrl: { type: String, default: null },
+    valuePath: { type: String, default: null },
+    refParameterId: { type: String, default: null },
+    refFieldLabel: { type: String, default: null },
+    collectionName: { type: String, default: null },
+    matchBatchField: { type: String, default: null },
+    matchSampleNameField: { type: String, default: null },
+    valueField: { type: String, default: null },
+  },
 }, { timestamps: true });
 
 ParameterSchema.pre('validate', function (next) {

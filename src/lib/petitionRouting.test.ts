@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultSendItemToLab,
+  duplicateBatchError,
   hasLabTrack,
   hasSendToLabOverride,
   labSendOverrideNoteError,
@@ -105,19 +106,19 @@ describe("petitionRouting", () => {
       { batchNo: "*ขายต.ย.ให้ QC = 1 ขวด", sendToLab: false },
     ];
 
-    expect(duplicateBatchError(items, { department: "Production", labOnly: true })).toBeNull();
+    expect(duplicateBatchError(items, { allowDuplicates: true })).toBeNull();
   });
 
-  it("still rejects duplicate lab batches", () => {
+  it("allows duplicate production batches sent to Lab", () => {
     const items = [
       { batchNo: "BATCH001", sendToLab: true },
       { batchNo: "BATCH001", sendToLab: true },
     ];
 
-    expect(duplicateBatchError(items, { department: "Production", labOnly: true })).toBe("พบ batch ซ้ำ: BATCH001");
+    expect(duplicateBatchError(items, { allowDuplicates: true })).toBeNull();
   });
 
-  it("keeps all-batch duplicate checks when labOnly is off", () => {
+  it("keeps duplicate checks for other petition types", () => {
     const items = [
       { batchNo: "BATCH002", sendToLab: false },
       { batchNo: "BATCH002", sendToLab: false },

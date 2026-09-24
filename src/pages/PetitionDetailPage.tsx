@@ -173,6 +173,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [qcResults, setQcResults] = useState<QCTestResult[]>([]);
   const [sgParam, setSgParam] = useState<SgParameter | null>(null);
+  const [requestValues, setRequestValues] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     if (!data?._id) return;
@@ -186,7 +187,19 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
         if (cancelled) return;
         setQcResults(results ?? []);
         setParameters(params ?? []);
-        setSgParam(findSgParameter(params));
+        const nextSg = findSgParameter(params);
+        setSgParam(nextSg);
+        const nextValues: Record<string, unknown> = {};
+        const sources = params.flatMap((param) => (param.valueFields ?? []).map((field) => ({ label: field.label, source: field.requestValueSource })))
+          .filter((entry) => entry.source?.mode === 'collection' && entry.source.collectionName && entry.source.collectionMatchField && entry.source.petitionMatchField && entry.source.valueField);
+        for (const { label, source } of sources) {
+          const petitionKey = source!.petitionMatchField || 'items.batchNo';
+          const readRef = (item: Record<string, unknown>, path: string) => path.replace(/^items\.?/, '').replace(/\[\]/g, '').replace(/^\./, '').split('.').filter(Boolean).reduce<unknown>((value, key) => (value as Record<string, unknown> | null)?.[key], item);
+          const refs = (data.items ?? []).map((item) => ({ value: String(readRef(item as Record<string, unknown>, petitionKey) ?? '') }));
+          const result = await api.getRequestValues({ collectionName: source!.collectionName!, collectionMatchField: source!.collectionMatchField!, valueField: source!.valueField!, refs });
+          for (const [key, value] of Object.entries(result.values ?? {})) nextValues[`${label}\u0000${key}`] = value;
+        }
+        if (!cancelled) setRequestValues(nextValues);
       } catch {
         /* คอลัมน์ ค่า ถ.พ. ปล่อยว่างถ้าโหลดไม่สำเร็จ */
       }
@@ -510,7 +523,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
 
               {hasLabRequests && (
                 <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="service-request">
-                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} qcResults={qcResults} sgParam={sgParam} />
+                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} qcResults={qcResults} sgParam={sgParam} requestValues={requestValues} />
                 </PrintPreviewDialog>
               )}
               {data && (

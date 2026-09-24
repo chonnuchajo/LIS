@@ -345,6 +345,7 @@ function uniqueSorted(values: string[]): string[] {
 const emptyValueField = (): ParameterValueField => ({
   label: "",
   type: "text",
+  requestValueSource: { mode: "manual" },
   unit: "",
   standardValue: null,
   standardOperator: undefined,
@@ -361,9 +362,7 @@ const emptyValueField = (): ParameterValueField => ({
   phase: "both",
   triggersPhase2: false,
   refParameterId: null,
-  refFieldLabel: null,
-  refPhase: 1,
-  conditionalMode: false,
+    conditionalMode: false,
   conditionalStandards: [],
   showLastBatch: false,
 });
@@ -877,6 +876,7 @@ function parameterValueFieldSearchTokens(field: ParameterValueField) {
 
 type ValueFieldEditorProps = {
   field: ParameterValueField;
+  parameterName?: string;
   index: number;
   total: number;
   onChange: (next: ParameterValueField) => void;
@@ -1088,6 +1088,7 @@ function OptionFilterDialog({
 
 function ValueFieldEditor({
   field,
+  parameterName,
   index,
   total,
   onChange,
@@ -1114,6 +1115,23 @@ function ValueFieldEditor({
   const [substanceDialogOpen, setSubstanceDialogOpen] = useState(false);
   const [conditionalDialogOpen, setConditionalDialogOpen] = useState(false);
   const [labelToleranceDialogOpen, setLabelToleranceDialogOpen] = useState(false);
+  const requestCollectionsQuery = useQuery({
+    queryKey: ["request-value-collections"],
+    queryFn: () => api.getRequestValueCollections(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const requestCollectionName = field.requestValueSource?.collectionName ?? (field.label.trim() === "ค่าถพ." ? "Result-Density" : "");
+  const requestFieldsQuery = useQuery({
+    queryKey: ["request-value-fields", requestCollectionName],
+    queryFn: () => api.getRequestValueFields(requestCollectionName),
+    enabled: !!requestCollectionName,
+    staleTime: 5 * 60 * 1000,
+  });
+  const petitionFieldsQuery = useQuery({
+    queryKey: ["request-value-petition-fields"],
+    queryFn: () => api.getPetitionValueFields(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1285,6 +1303,14 @@ function ValueFieldEditor({
       {expanded ? (
         <div className={cn("pl-4 pr-3 pb-4 pt-2 border-t border-grey-100", meta.tint)}>
         <div className="space-y-3">
+          <div className="rounded-md border bg-card p-3 space-y-2">
+            <Label className="text-sm font-medium">แหล่งค่า {parameterName || field.label || "Parameter"} บนใบคำขอ</Label>
+            <p className="text-xs text-muted-foreground">กำหนดเป็นกรอกมือ หรือใช้ค่าจาก Reference ของระบบ</p>
+            <Select value={field.requestValueSource?.mode === "reference" ? "reference" : "manual"} onValueChange={(value) => onChange({ ...field, requestValueSource: { mode: value as "manual" | "reference" } })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="manual">กรอกมือ</SelectItem><SelectItem value="reference">ตาม Reference</SelectItem></SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Checkbox
@@ -1360,7 +1386,17 @@ function ValueFieldEditor({
               <Label className="text-sm">ชื่อช่อง *</Label>
               <Input
                 value={field.label}
-                onChange={(e) => onChange({ ...field, label: e.target.value })}
+                onChange={(e) => {
+                  const label = e.target.value;
+                  const legacyDensity = label.trim() === "ค่าถพ." && !field.label.trim() && field.requestValueSource?.mode === "manual";
+                  onChange({
+                    ...field,
+                    label,
+                    requestValueSource: legacyDensity
+                      ? { mode: "collection", collectionName: "Result-Density", matchBatchField: "Batch", matchSampleNameField: "Sample name", valueField: "Density [g/cm³]" }
+                      : field.requestValueSource,
+                  });
+                }}
                 placeholder="เช่น ผล, ค่า, หมายเหตุ"
                 className="h-10"
               />
@@ -2433,7 +2469,7 @@ function ParameterDialog({
             </div>
           </div>
 
-          {(form.scope ?? "qc") === "qc" ? (
+      {(form.scope ?? "qc") === "qc" ? (
             <div className="rounded-lg border bg-sky-50/40 p-4">
               <label className="flex cursor-pointer items-start gap-3">
                 <Checkbox
@@ -2817,6 +2853,7 @@ function ParameterDialog({
                   <ValueFieldEditor
                     key={i}
                     field={f}
+                    parameterName={form.name}
                     index={i}
                     total={form.valueFields?.length ?? 0}
                     onChange={(next) => updateField(i, next)}
@@ -3718,3 +3755,6 @@ function ValueFieldBadges({ fields }: { fields: ParameterValueField[] }) {
     </div>
   );
 }
+
+
+

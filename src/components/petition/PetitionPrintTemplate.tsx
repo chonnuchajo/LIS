@@ -352,7 +352,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
   );
 }
 
-function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; petition: Petition; items: PetitionItem[]; qcResults: QCTestResult[]; sgParam: SgParameter | null }) {
+function PageTwo({ lr, petition, items, qcResults, sgParam, requestValues = {} }: { lr: LabRequest; petition: Petition; items: PetitionItem[]; qcResults: QCTestResult[]; sgParam: SgParameter | null; requestValues?: Record<string, unknown> }) {
   const receivedDateTime = petition.receivedAt ? new Date(petition.receivedAt) : null;
   const receivedTime = receivedDateTime
     ? `${String(receivedDateTime.getHours()).padStart(2, '0')}.${String(receivedDateTime.getMinutes()).padStart(2, '0')} น.`
@@ -516,10 +516,13 @@ function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; 
                 <td>{item.batchNo}</td>
                 <td className="pr-center">{buddhistShort(item.productionDate)}</td>
                 <td>{item.submissionNo ?? ''}</td>
-                <td className="pr-center">{resolveSpecificGravity(qcResults, item.seq, sgParam)}</td>
+                <td className="pr-center">{resolveSpecificGravity(qcResults, item.seq, sgParam) || String(requestValues[`${item.batchNo}\u0000${item.sampleName}`] ?? '')}</td>
                 <td>{item.packageUnit ?? ''}</td>
                 <td>{item.testUnit ?? ''}</td>
-                <td>{item.testItems ?? ''}</td>
+                <td>
+                  {item.testItems ?? ''}
+                  {Object.entries(requestValues).filter(([key, value]) => !key.startsWith('ค่าถพ.\u0000') && key.endsWith(`\u0000${item.batchNo}\u0000${item.sampleName}`) && value !== '').map(([key, value]) => <div key={key} className="pr-note">{key.split('\u0000')[0]}: {String(value)}</div>)}
+                </td>
                 <td>{item.note ?? ''}</td>
                 <td>{item.sampleId ?? ''}</td>
                 <td className="pr-center">{item.condition === 'normal' ? '✓' : ''}</td>
@@ -588,9 +591,10 @@ interface Props {
   petition: Petition;
   qcResults?: QCTestResult[];
   sgParam?: SgParameter | null;
+  requestValues?: Record<string, unknown>;
 }
 
-export default function PetitionPrintTemplate({ labRequest, petition, qcResults = [], sgParam = null }: Props) {
+export default function PetitionPrintTemplate({ labRequest, petition, qcResults = [], sgParam = null, requestValues = {} }: Props) {
   const labItems = petition.items.filter((it) => shouldSendItemToLab(it));
   const itemsToShow = labItems.length > 0 ? labItems : petition.items.filter((it) => it.seq === labRequest.sampleSeq);
   // เลขที่ใบนำส่งใช้ค่าเดียวทั้งใบ (default = เลขคำขอ) — ดึงจากรายการที่ใบนี้อ้างถึง
@@ -600,7 +604,7 @@ export default function PetitionPrintTemplate({ labRequest, petition, qcResults 
       <style>{PRINT_CSS}</style>
       <div className="pr-root">
         <PageOne lr={labRequest} submissionNo={submissionNo} />
-        <PageTwo lr={labRequest} petition={petition} items={itemsToShow} qcResults={qcResults} sgParam={sgParam} />
+        <PageTwo lr={labRequest} petition={petition} items={itemsToShow} qcResults={qcResults} sgParam={sgParam} requestValues={requestValues} />
       </div>
     </>
   );

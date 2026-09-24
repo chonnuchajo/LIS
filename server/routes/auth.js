@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
 const { clearLisSessionCookie, getLisSessionUserId, setLisSessionCookie } = require('../lib/lisSessionCookie');
+const { requireAdminUser } = require('../lib/adminGate');
 
 function b64urlDecode(value) {
   const padded = value + '='.repeat((4 - (value.length % 4)) % 4);
@@ -167,7 +168,7 @@ router.post('/logout', (_req, res) => {
 });
 
 // Admin only: create user
-router.post('/register', async (req, res) => {
+router.post('/register', requireAdminUser, async (req, res) => {
   try {
     const { email, password, name, role } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });

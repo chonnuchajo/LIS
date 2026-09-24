@@ -52,6 +52,12 @@ function checkRateLimit(state, keyId, limitPerMinute, nowMs = Date.now()) {
   const limit = Number(limitPerMinute) || 0;
   if (limit <= 0) return { allowed: true, count: 0 };
   const windowStart = Math.floor(nowMs / 60000) * 60000;
+  // Bound memory when many short-lived API keys hit this process.
+  if (state.size > 10000) {
+    for (const [id, item] of state) {
+      if (item.windowStart < windowStart) state.delete(id);
+    }
+  }
   const entry = state.get(keyId);
   if (!entry || entry.windowStart !== windowStart) {
     state.set(keyId, { windowStart, count: 1 });

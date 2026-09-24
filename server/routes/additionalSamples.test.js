@@ -309,3 +309,23 @@ test('manual phase unlock targets only the requested received round', async cont
   assert.equal(state.additionalSampleRequests[1].currentPhase, 1);
   assert.equal(state.currentPhase, 2);
 });
+
+test('rework clears terminal decision metadata before returning to testing', async context => {
+  const { state } = fixture(context, {
+    status: 'success',
+    conclusion: 'accepted-oos',
+    conclusionNote: 'เดิม',
+    approvedAt: new Date(),
+    rejectedAt: new Date(),
+    additionalSampleRequests: [],
+  });
+  const res = await invoke(petitions, '/:id', 'patch', {
+    status: 'rejected', target: 'qc', revisionNote: 'ตรวจใหม่',
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(state.status, 'inProgress');
+  assert.equal(state.conclusion, null);
+  assert.equal(state.conclusionNote, null);
+  assert.equal(state.approvedAt, null);
+  assert.equal(state.rejectedAt, null);
+});

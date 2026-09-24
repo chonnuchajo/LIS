@@ -107,12 +107,12 @@ export function labSendOverrideNoteError(items: LabRouteItem[]): string | null {
 
 export function duplicateBatchError(
   items: Pick<LabRouteItem, "batchNo" | "sendToLab">[],
-  options: { department?: unknown; labOnly?: boolean } = {},
+  options: { allowDuplicates?: boolean } = {},
 ): string | null {
+  // Production samples can share a batch, including samples sent to Lab.
+  if (options.allowDuplicates) return null;
   const seen = new Set<string>();
-  const allItemsSendToLab = isResearchAndDevelopmentDepartment(options.department);
   for (const item of items) {
-    if (options.labOnly && !allItemsSendToLab && !shouldSendItemToLab(item)) continue;
     const key = String(item.batchNo ?? "").trim();
     if (!key) continue;
     if (seen.has(key)) return `พบ batch ซ้ำ: ${key}`;
