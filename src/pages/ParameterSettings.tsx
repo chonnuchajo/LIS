@@ -877,6 +877,7 @@ function parameterValueFieldSearchTokens(field: ParameterValueField) {
 
 type ValueFieldEditorProps = {
   field: ParameterValueField;
+  parameterName?: string;
   index: number;
   total: number;
   onChange: (next: ParameterValueField) => void;
@@ -1088,6 +1089,7 @@ function OptionFilterDialog({
 
 function ValueFieldEditor({
   field,
+  parameterName,
   index,
   total,
   onChange,
@@ -1292,7 +1294,7 @@ function ValueFieldEditor({
         <div className="space-y-3">
           <div className="rounded-md border bg-card p-3 space-y-3">
             <div>
-              <Label className="text-sm font-medium">แหล่งค่า {field.label || "Parameter"} บนใบคำขอ</Label>
+              <Label className="text-sm font-medium">แหล่งค่า {parameterName || field.label || "Parameter"} บนใบคำขอ</Label>
               <p className="text-xs text-muted-foreground">เลือกกรอกมือ หรือดึงค่าจาก Collection</p>
             </div>
             <Select
@@ -2863,6 +2865,7 @@ function ParameterDialog({
                   <ValueFieldEditor
                     key={i}
                     field={f}
+                    parameterName={form.name}
                     index={i}
                     total={form.valueFields?.length ?? 0}
                     onChange={(next) => updateField(i, next)}
