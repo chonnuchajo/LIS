@@ -2508,7 +2508,7 @@ function ParameterDialog({
                     QC เป็นผู้กรอกค่า — Lab สามารถดูผลได้แบบอ่านอย่างเดียว
                   </p>
                 </div>
-              ) : null}
+              </label>
             </div>
           ) : null}
 
