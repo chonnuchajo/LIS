@@ -270,8 +270,7 @@ export default function PetitionEditPage() {
         return false;
       }
       const duplicateError = duplicateBatchError(items, {
-        department: data?.submittedBy?.department,
-        labOnly: data?.dept === 'production',
+        allowDuplicates: data?.dept === 'production',
       });
       if (duplicateError) {
         setStepError(duplicateError);

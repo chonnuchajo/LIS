@@ -41,7 +41,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-function renderPage() {
+function renderPage(overrides: Record<string, string> = {}) {
   const query = new URLSearchParams({
     department: "Production",
     requesterName: "สมชาย",
@@ -50,6 +50,7 @@ function renderPage() {
     batchNo: "B2",
     productionDate: "2026-08-01",
     quantity: "1 L",
+    ...overrides,
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -79,6 +80,20 @@ describe("ProductionPetitionNewPage approval QR timing", () => {
       createdAt: "2026-08-01T00:00:00.000Z",
       updatedAt: "2026-08-01T00:00:00.000Z",
     });
+  });
+
+  it("continues to the Lab request with repeated production batch numbers", async () => {
+    renderPage({
+      sampleName: "สินค้า A,สินค้า B",
+      commonName: "BROMADIOLONE,BROMADIOLONE",
+      batchNo: "26S-BRM0.005-GMP(BFT)-004,26S-BRM0.005-GMP(BFT)-004",
+    });
+
+    expect(screen.getAllByDisplayValue("26S-BRM0.005-GMP(BFT)-004")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    await screen.findByRole("button", { name: /บันทึก/ });
+    expect(screen.queryByText(/พบ batch ซ้ำ/)).not.toBeInTheDocument();
   });
 
   it("does not show QR label preview immediately after save", async () => {

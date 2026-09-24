@@ -787,7 +787,7 @@ export default function ProductionPetitionNewPage({
         setStepError(overrideNoteError);
         return false;
       }
-      const duplicateError = duplicateBatchError(items, { department: submitterDepartment, labOnly: true });
+      const duplicateError = duplicateBatchError(items, { allowDuplicates: true });
       if (duplicateError) {
         setStepError(duplicateError);
         return false;
