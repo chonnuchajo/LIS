@@ -2,6 +2,16 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 
+router.get('/collections', async (_req, res) => {
+  try {
+    const names = (await mongoose.connection.db.listCollections({ type: 'collection' }).toArray())
+      .map((entry) => entry.name)
+      .filter((name) => /^[A-Za-z0-9_-]+$/.test(name))
+      .sort();
+    res.json(names);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post('/', async (req, res) => {
   try {
     const { collectionName, batchField, sampleField, valueField, refs } = req.body || {};

@@ -1114,6 +1114,11 @@ function ValueFieldEditor({
   const [substanceDialogOpen, setSubstanceDialogOpen] = useState(false);
   const [conditionalDialogOpen, setConditionalDialogOpen] = useState(false);
   const [labelToleranceDialogOpen, setLabelToleranceDialogOpen] = useState(false);
+  const requestCollectionsQuery = useQuery({
+    queryKey: ["request-value-collections"],
+    queryFn: () => api.getRequestValueCollections(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1308,9 +1313,9 @@ function ValueFieldEditor({
             </Select>
             {field.requestValueSource?.mode === "collection" || (!field.requestValueSource && field.label.trim() === "ค่าถพ.") ? (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Select value={field.requestValueSource?.collectionName ?? "Result-Density"} onValueChange={(value) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", collectionName: value } })}>
+                <Select value={field.requestValueSource?.collectionName ?? (field.label.trim() === "ค่าถพ." ? "Result-Density" : "")} onValueChange={(value) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", collectionName: value } })}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="เลือก Collection" /></SelectTrigger>
-                  <SelectContent><SelectItem value="Result-Density">Result-Density</SelectItem></SelectContent>
+                  <SelectContent>{(requestCollectionsQuery.data ?? ["Result-Density"]).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
                 </Select>
                 <Input className="h-9" value={field.requestValueSource?.matchBatchField ?? "Batch"} placeholder="Field เทียบ Batch" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", matchBatchField: e.target.value || null } })} />
                 <Input className="h-9" value={field.requestValueSource?.matchSampleNameField ?? "Sample name"} placeholder="Field เทียบ Sample name" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", matchSampleNameField: e.target.value || null } })} />
