@@ -362,9 +362,7 @@ const emptyValueField = (): ParameterValueField => ({
   phase: "both",
   triggersPhase2: false,
   refParameterId: null,
-  refFieldLabel: null,
-  refPhase: 1,
-  conditionalMode: false,
+    conditionalMode: false,
   conditionalStandards: [],
   showLastBatch: false,
 });
@@ -3831,4 +3829,5 @@ function ValueFieldBadges({ fields }: { fields: ParameterValueField[] }) {
     </div>
   );
 }
+
 
