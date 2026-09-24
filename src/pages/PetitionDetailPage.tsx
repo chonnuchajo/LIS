@@ -173,6 +173,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [qcResults, setQcResults] = useState<QCTestResult[]>([]);
   const [sgParam, setSgParam] = useState<SgParameter | null>(null);
+  const [requestValues, setRequestValues] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     if (!data?._id) return;
@@ -186,7 +187,16 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
         if (cancelled) return;
         setQcResults(results ?? []);
         setParameters(params ?? []);
-        setSgParam(findSgParameter(params));
+        const nextSg = findSgParameter(params);
+        setSgParam(nextSg);
+        const sourceParam = params.find((p) => p._id === nextSg?.parameterId);
+        const sourceField = sourceParam?.valueFields?.find((f) => f.label === nextSg?.fieldLabel);
+        const source = sourceField?.requestValueSource;
+        if (source?.mode === 'collection' && source.collectionName && source.matchBatchField && source.matchSampleNameField && source.valueField) {
+          const refs = (data.items ?? []).map((item) => ({ batch: item.batchNo, sample: item.sampleName }));
+          const result = await api.getRequestValues({ collectionName: source.collectionName, batchField: source.matchBatchField, sampleField: source.matchSampleNameField, valueField: source.valueField, refs });
+          if (!cancelled) setRequestValues(result.values ?? {});
+        }
       } catch {
         /* คอลัมน์ ค่า ถ.พ. ปล่อยว่างถ้าโหลดไม่สำเร็จ */
       }
@@ -510,7 +520,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
 
               {hasLabRequests && (
                 <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="service-request">
-                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} qcResults={qcResults} sgParam={sgParam} />
+                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} qcResults={qcResults} sgParam={sgParam} requestValues={requestValues} />
                 </PrintPreviewDialog>
               )}
               {data && (
