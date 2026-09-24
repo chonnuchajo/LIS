@@ -1435,11 +1435,15 @@ export type ParameterItem = {
   multiEntry?: boolean;
   // Source used for the ค่า ถ.พ. column on service-request forms.
   specificGravitySource?: {
-    mode: "link" | "reference" | "manual";
+    mode: "link" | "reference" | "collection" | "manual";
     linkUrl?: string | null;
     valuePath?: string | null;
     refParameterId?: string | null;
     refFieldLabel?: string | null;
+    collectionName?: string | null;
+    matchBatchField?: string | null;
+    matchSampleNameField?: string | null;
+    valueField?: string | null;
   };
   createdAt?: string;
   updatedAt?: string;

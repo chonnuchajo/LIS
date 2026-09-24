@@ -206,11 +206,15 @@ const ParameterSchema = new mongoose.Schema({
   multiEntry: { type: Boolean, default: false, index: true },
   // Source configuration for the hardcoded ค่า ถ.พ. display field.
   specificGravitySource: {
-    mode: { type: String, enum: ['link', 'reference', 'manual'], default: 'link' },
+    mode: { type: String, enum: ['link', 'reference', 'collection', 'manual'], default: 'manual' },
     linkUrl: { type: String, default: null },
     valuePath: { type: String, default: null },
     refParameterId: { type: String, default: null },
     refFieldLabel: { type: String, default: null },
+    collectionName: { type: String, default: null },
+    matchBatchField: { type: String, default: null },
+    matchSampleNameField: { type: String, default: null },
+    valueField: { type: String, default: null },
   },
 }, { timestamps: true });
 

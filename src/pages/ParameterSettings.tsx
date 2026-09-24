@@ -396,7 +396,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   note: "",
   hasPhases: false,
   multiEntry: false,
-  specificGravitySource: { mode: "link", linkUrl: null, valuePath: null, refParameterId: null, refFieldLabel: null },
+  specificGravitySource: { mode: "manual", linkUrl: null, valuePath: null, refParameterId: null, refFieldLabel: null, collectionName: null, matchBatchField: null, matchSampleNameField: null, valueField: null },
 });
 
 type MultiSelectPopoverProps = {
@@ -2237,6 +2237,9 @@ function ParameterDialog({
     if (sgSource?.mode === "reference" && (!sgSource.refParameterId || !sgSource.refFieldLabel)) {
       return "แหล่งค่า ถ.พ.: ต้องเลือก Parameter และ Field ต้นทางให้ครบ";
     }
+    if (sgSource?.mode === "collection" && (!sgSource.collectionName || !sgSource.matchBatchField || !sgSource.matchSampleNameField || !sgSource.valueField)) {
+      return "แหล่งค่า: ต้องระบุ Collection, Field เทียบ Batch, Field เทียบ Sample name และ Field ที่แสดงให้ครบ";
+    }
     if (form.hasPhases) {
       const hasBefore = fields.some((f) => f.phase === "both" || f.phase === "before");
       const hasTrigger = fields.some((f) => f.triggersPhase2);
@@ -2290,7 +2293,7 @@ function ParameterDialog({
       note: form.note?.trim() || "",
       hasPhases: !!form.hasPhases,
       multiEntry: !!form.multiEntry,
-      specificGravitySource: form.specificGravitySource ?? { mode: "link", refParameterId: null, refFieldLabel: null },
+      specificGravitySource: form.specificGravitySource ?? { mode: "manual", refParameterId: null, refFieldLabel: null },
     };
     try {
       if (isEdit && item?._id) {
@@ -2456,22 +2459,27 @@ function ParameterDialog({
                   </p>
                 </div>
               </label>
-              {form.valueFields?.some((field) => field.label.trim() === "ค่าถพ.") ? (
+              {form.valueFields?.some((field) => field.type !== "reference") ? (
                 <div className="mt-4 border-t border-border/60 pt-4">
-                  <Label className="text-sm font-medium">แหล่งค่า ถ.พ. บนใบคำขอ</Label>
-                  <p className="mb-2 text-xs text-muted-foreground">ตั้งค่าได้ว่าจะใช้ค่าจากการแชร์ผลของ Parameter นี้ หรือดึงจาก ref อื่น</p>
+                  <Label className="text-sm font-medium">แหล่งค่า {form.name || "Parameter"} บนใบคำขอ</Label>
+                  <p className="mb-2 text-xs text-muted-foreground">ตั้งค่าว่าจะกรอกมือ หรือดึงค่าจากแหล่งข้อมูลภายนอก</p>
                   <Select
-                    value={form.specificGravitySource?.mode ?? "link"}
+                    value={form.specificGravitySource?.mode ?? (form.valueFields?.some((field) => field.label.trim() === "ค่าถพ.") ? "link" : "manual")}
                     onValueChange={(value) => set("specificGravitySource", {
-                      mode: value as "link" | "reference" | "manual",
+                      mode: value as "link" | "reference" | "collection" | "manual",
                       refParameterId: value === "reference" ? form.specificGravitySource?.refParameterId ?? null : null,
                       refFieldLabel: value === "reference" ? form.specificGravitySource?.refFieldLabel ?? null : null,
+                      collectionName: value === "collection" ? form.specificGravitySource?.collectionName ?? null : null,
+                      matchBatchField: value === "collection" ? form.specificGravitySource?.matchBatchField ?? null : null,
+                      matchSampleNameField: value === "collection" ? form.specificGravitySource?.matchSampleNameField ?? null : null,
+                      valueField: value === "collection" ? form.specificGravitySource?.valueField ?? null : null,
                     })}
                   >
                     <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="link">ใช้ Link จาก Parameter นี้</SelectItem>
                       <SelectItem value="reference">ดึงจาก Reference</SelectItem>
+                      <SelectItem value="collection">ดึงจาก Collection</SelectItem>
                       <SelectItem value="manual">ไม่ดึงค่าอัตโนมัติ</SelectItem>
                     </SelectContent>
                   </Select>
@@ -2518,6 +2526,14 @@ function ParameterDialog({
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  ) : null}
+                  {form.specificGravitySource?.mode === "collection" ? (
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5"><Label className="text-sm">ชื่อ Collection</Label><Input value={form.specificGravitySource.collectionName ?? ""} placeholder="เช่น Result-Density" onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, collectionName: event.target.value || null })} /></div>
+                      <div className="space-y-1.5"><Label className="text-sm">Field ที่เทียบ Batch</Label><Input value={form.specificGravitySource.matchBatchField ?? ""} placeholder="เช่น Batch" onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, matchBatchField: event.target.value || null })} /></div>
+                      <div className="space-y-1.5"><Label className="text-sm">Field ที่เทียบ Sample name</Label><Input value={form.specificGravitySource.matchSampleNameField ?? ""} placeholder="เช่น Sample name" onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, matchSampleNameField: event.target.value || null })} /></div>
+                      <div className="space-y-1.5"><Label className="text-sm">Field ที่นำมาแสดง</Label><Input value={form.specificGravitySource.valueField ?? ""} placeholder="เช่น Density [g/cm³]" onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, valueField: event.target.value || null })} /></div>
                     </div>
                   ) : null}
                 </div>
