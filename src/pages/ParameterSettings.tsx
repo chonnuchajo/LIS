@@ -1121,6 +1121,13 @@ function ValueFieldEditor({
     queryFn: () => api.getRequestValueCollections(),
     staleTime: 5 * 60 * 1000,
   });
+  const requestCollectionName = field.requestValueSource?.collectionName ?? (field.label.trim() === "ค่าถพ." ? "Result-Density" : "");
+  const requestFieldsQuery = useQuery({
+    queryKey: ["request-value-fields", requestCollectionName],
+    queryFn: () => api.getRequestValueFields(requestCollectionName),
+    enabled: !!requestCollectionName,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1319,9 +1326,12 @@ function ValueFieldEditor({
                   <SelectTrigger className="h-9"><SelectValue placeholder="เลือก Collection" /></SelectTrigger>
                   <SelectContent>{(requestCollectionsQuery.data ?? ["Result-Density"]).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
                 </Select>
-                <Input className="h-9" value={field.requestValueSource?.matchBatchField ?? "Batch"} placeholder="Field เทียบ Batch" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", matchBatchField: e.target.value || null } })} />
-                <Input className="h-9" value={field.requestValueSource?.matchSampleNameField ?? "Sample name"} placeholder="Field เทียบ Sample name" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", matchSampleNameField: e.target.value || null } })} />
-                <Input className="h-9" value={field.requestValueSource?.valueField ?? (field.label.trim() === "ค่าถพ." ? "Density [g/cm³]" : "")} placeholder="Field ที่นำมาแสดง" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", valueField: e.target.value || null } })} />
+                {([['matchBatchField', 'Field เทียบ Batch', field.requestValueSource?.matchBatchField ?? (field.label.trim() === "ค่าถพ." ? "Batch" : "")], ['matchSampleNameField', 'Field เทียบ Sample name', field.requestValueSource?.matchSampleNameField ?? (field.label.trim() === "ค่าถพ." ? "Sample name" : "")], ['valueField', 'Field ที่นำมาแสดง', field.requestValueSource?.valueField ?? (field.label.trim() === "ค่าถพ." ? "Density [g/cm³]" : "")]] as const).map(([key, label, value]) => (
+                  <Select key={key} value={value || "__none__"} onValueChange={(next) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", [key]: next === "__none__" ? null : next } })}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
+                    <SelectContent><SelectItem value="__none__">— {label} —</SelectItem>{(requestFieldsQuery.data ?? []).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+                  </Select>
+                ))}
               </div>
             ) : null}
           </div>

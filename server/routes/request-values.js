@@ -12,6 +12,16 @@ router.get('/collections', async (_req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.get('/fields', async (req, res) => {
+  try {
+    const name = String(req.query.collectionName || '');
+    if (!/^[A-Za-z0-9_-]+$/.test(name)) return res.status(400).json({ error: 'invalid collection' });
+    if (!(await mongoose.connection.db.listCollections({ name }).hasNext())) return res.status(404).json({ error: 'collection not found' });
+    const sample = await mongoose.connection.db.collection(name).findOne({}, { projection: { _id: 0 } });
+    res.json(Object.keys(sample || {}).sort());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post('/', async (req, res) => {
   try {
     const { collectionName, batchField, sampleField, valueField, refs } = req.body || {};
