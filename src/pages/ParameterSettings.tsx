@@ -1326,10 +1326,13 @@ function ValueFieldEditor({
             </Select>
             {field.requestValueSource?.mode === "collection" || (!field.requestValueSource && field.label.trim() === "ค่าถพ.") ? (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Collection ต้นทาง</Label>
                 <Select value={field.requestValueSource?.collectionName ?? (field.label.trim() === "ค่าถพ." ? "Result-Density" : "")} onValueChange={(value) => onChange({ ...field, requestValueSource: { mode: "collection", collectionName: value, collectionMatchField: null, petitionMatchField: null, valueField: null } })}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="เลือก Collection" /></SelectTrigger>
+                  <SelectTrigger className="h-9" aria-label="Collection ต้นทาง"><SelectValue placeholder="เลือก Collection" /></SelectTrigger>
                   <SelectContent>{(requestCollectionsQuery.data ?? ["Result-Density"]).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
                 </Select>
+                </div>
                 {([['collectionMatchField', 'Collection: field ที่ใช้เทียบ', field.requestValueSource?.collectionMatchField ?? '', 'collection'], ['petitionMatchField', 'Petition: field ตัวเทียบ', field.requestValueSource?.petitionMatchField ?? '', 'petition'], ['valueField', 'Collection: field ที่นำมาแสดง', field.requestValueSource?.valueField ?? (field.label.trim() === "ค่าถพ." ? "Density [g/cm³]" : ""), 'collection']] as const).map(([key, label, value, source]) => (
                   <div key={key} className="space-y-1">
                     <Label className="text-xs text-muted-foreground">{label}</Label>
