@@ -1339,6 +1339,8 @@ export type ParameterValueField = {
     collectionName?: string | null;
     matchBatchField?: string | null;
     matchSampleNameField?: string | null;
+    petitionBatchField?: string | null;
+    petitionSampleNameField?: string | null;
     valueField?: string | null;
     refParameterId?: string | null;
     refFieldLabel?: string | null;

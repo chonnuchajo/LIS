@@ -105,6 +105,8 @@ const ValueFieldSchema = new mongoose.Schema({
     collectionName: { type: String, default: null },
     matchBatchField: { type: String, default: null },
     matchSampleNameField: { type: String, default: null },
+    petitionBatchField: { type: String, default: null },
+    petitionSampleNameField: { type: String, default: null },
     valueField: { type: String, default: null },
     refParameterId: { type: String, default: null },
     refFieldLabel: { type: String, default: null },
