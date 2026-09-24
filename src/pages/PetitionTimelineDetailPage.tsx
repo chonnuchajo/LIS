@@ -244,12 +244,14 @@ export default function PetitionTimelineDetailPage() {
   useEffect(() => {
     if (!petition?._id || !parameters.length) { setRequestValues({}); return; }
     let alive = true;
-    const refs = (petition.items ?? []).map((item) => ({ batch: item.batchNo, sample: item.sampleName }));
     const sources = parameters.flatMap((param) => (param.valueFields ?? []).map((field) => ({ label: field.label, source: field.requestValueSource })))
       .filter((entry) => entry.source?.mode === 'collection' && entry.source.collectionName && entry.source.matchBatchField && entry.source.matchSampleNameField && entry.source.valueField);
     (async () => {
       const values: Record<string, unknown> = {};
       for (const { label, source } of sources) {
+        const batchKey = source!.petitionBatchField || 'batchNo';
+        const sampleKey = source!.petitionSampleNameField || 'sampleName';
+        const refs = (petition.items ?? []).map((item) => ({ batch: String((item as Record<string, unknown>)[batchKey] ?? ''), sample: String((item as Record<string, unknown>)[sampleKey] ?? '') }));
         const result = await api.getRequestValues({ collectionName: source!.collectionName!, batchField: source!.matchBatchField!, sampleField: source!.matchSampleNameField!, valueField: source!.valueField!, refs });
         for (const [key, value] of Object.entries(result.values ?? {})) values[`${label}\u0000${key}`] = value;
       }
