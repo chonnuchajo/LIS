@@ -1303,47 +1303,13 @@ function ValueFieldEditor({
       {expanded ? (
         <div className={cn("pl-4 pr-3 pb-4 pt-2 border-t border-grey-100", meta.tint)}>
         <div className="space-y-3">
-          <div className="rounded-md border bg-card p-3 space-y-3">
-            <div>
-              <Label className="text-sm font-medium">แหล่งค่า {parameterName || field.label || "Parameter"} บนใบคำขอ</Label>
-              <p className="text-xs text-muted-foreground">เลือกกรอกมือ หรือดึงค่าจาก Collection</p>
-            </div>
-            <Select
-              value={field.requestValueSource?.mode ?? (field.label.trim() === "ค่าถพ." ? "collection" : "manual")}
-              onValueChange={(value) => onChange({
-                ...field,
-                requestValueSource: {
-                  ...(field.requestValueSource ?? {}),
-                  mode: value as "manual" | "collection",
-                },
-              })}
-            >
+          <div className="rounded-md border bg-card p-3 space-y-2">
+            <Label className="text-sm font-medium">แหล่งค่า {parameterName || field.label || "Parameter"} บนใบคำขอ</Label>
+            <p className="text-xs text-muted-foreground">กำหนดเป็นกรอกมือ หรือใช้ค่าจาก Reference ของระบบ</p>
+            <Select value={field.requestValueSource?.mode === "reference" ? "reference" : "manual"} onValueChange={(value) => onChange({ ...field, requestValueSource: { mode: value as "manual" | "reference" } })}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">ไม่ดึงค่าอัตโนมัติ</SelectItem>
-                <SelectItem value="collection">ดึงจาก Collection</SelectItem>
-              </SelectContent>
+              <SelectContent><SelectItem value="manual">กรอกมือ</SelectItem><SelectItem value="reference">ตาม Reference</SelectItem></SelectContent>
             </Select>
-            {field.requestValueSource?.mode === "collection" || (!field.requestValueSource && field.label.trim() === "ค่าถพ.") ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Collection ต้นทาง</Label>
-                <Select value={field.requestValueSource?.collectionName ?? (field.label.trim() === "ค่าถพ." ? "Result-Density" : "")} onValueChange={(value) => onChange({ ...field, requestValueSource: { mode: "collection", collectionName: value, collectionMatchField: null, petitionMatchField: null, valueField: null } })}>
-                  <SelectTrigger className="h-9" aria-label="Collection ต้นทาง"><SelectValue placeholder="เลือก Collection" /></SelectTrigger>
-                  <SelectContent>{(requestCollectionsQuery.data ?? ["Result-Density"]).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
-                </Select>
-                </div>
-                {([['collectionMatchField', 'Collection: field ที่ใช้เทียบ', field.requestValueSource?.collectionMatchField ?? '', 'collection'], ['petitionMatchField', 'Petition: field ตัวเทียบ', field.requestValueSource?.petitionMatchField ?? '', 'petition'], ['valueField', 'Collection: field ที่นำมาแสดง', field.requestValueSource?.valueField ?? (field.label.trim() === "ค่าถพ." ? "Density [g/cm³]" : ""), 'collection']] as const).map(([key, label, value, source]) => (
-                  <div key={key} className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">{label}</Label>
-                    <Select value={value || "__none__"} onValueChange={(next) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", [key]: next === "__none__" ? null : next } })}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
-                      <SelectContent><SelectItem value="__none__">— เลือก —</SelectItem>{source === 'petition' ? (petitionFieldsQuery.data ?? []).filter((name) => key !== 'petitionSampleNameField' || name !== field.requestValueSource?.petitionBatchField).filter((name) => key !== 'petitionBatchField' || name !== field.requestValueSource?.petitionSampleNameField).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>) : Array.from(new Set(requestFieldsQuery.data ?? [])).filter((name) => key !== 'matchSampleNameField' || name !== field.requestValueSource?.matchBatchField).filter((name) => key !== 'matchBatchField' || name !== field.requestValueSource?.matchSampleNameField).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -3789,5 +3755,6 @@ function ValueFieldBadges({ fields }: { fields: ParameterValueField[] }) {
     </div>
   );
 }
+
 
 
