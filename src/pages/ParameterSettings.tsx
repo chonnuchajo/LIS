@@ -1127,6 +1127,11 @@ function ValueFieldEditor({
     enabled: !!requestCollectionName,
     staleTime: 5 * 60 * 1000,
   });
+  const petitionFieldsQuery = useQuery({
+    queryKey: ["request-value-petition-fields"],
+    queryFn: () => api.getPetitionValueFields(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1330,7 +1335,7 @@ function ValueFieldEditor({
                     <Label className="text-xs text-muted-foreground">{label}</Label>
                     <Select value={value || "__none__"} onValueChange={(next) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", [key]: next === "__none__" ? null : next } })}>
                       <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
-                      <SelectContent><SelectItem value="__none__">— เลือก —</SelectItem>{source === 'petition' ? <><SelectItem value="batchNo">Batch</SelectItem><SelectItem value="sampleName">Sample name</SelectItem></> : Array.from(new Set(requestFieldsQuery.data ?? [])).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+                      <SelectContent><SelectItem value="__none__">— เลือก —</SelectItem>{source === 'petition' ? (petitionFieldsQuery.data ?? []).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>) : Array.from(new Set(requestFieldsQuery.data ?? [])).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 ))}

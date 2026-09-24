@@ -1,6 +1,25 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
+const Petition = require('../models/Petition');
+
+router.get('/petition-fields', async (_req, res) => {
+  try {
+    const sample = await Petition.findOne({}).lean();
+    const fields = new Set(['items.batchNo', 'items.sampleName', 'batchNo', 'sampleName']);
+    const visit = (value, prefix = '') => {
+      if (!value || typeof value !== 'object') return;
+      if (Array.isArray(value)) { if (value[0]) visit(value[0], `${prefix}[]`); return; }
+      for (const [key, child] of Object.entries(value)) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        if (child && typeof child === 'object') visit(child, path);
+        else fields.add(path);
+      }
+    };
+    visit(sample);
+    res.json(Array.from(fields).sort());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 router.get('/collections', async (_req, res) => {
   try {

@@ -318,6 +318,7 @@ export const api = {
     request<{ values: Record<string, unknown> }>('/request-values', { method: 'POST', body: JSON.stringify(payload) }),
   getRequestValueCollections: () => request<string[]>('/request-values/collections'),
   getRequestValueFields: (collectionName: string) => request<string[]>(`/request-values/fields?collectionName=${encodeURIComponent(collectionName)}`),
+  getPetitionValueFields: () => request<string[]>('/request-values/petition-fields'),
   // Fire the n8n webhook that makes the plant push fresh DMA 501 readings into
   // Result-Density. Returns once n8n has accepted the trigger (async on their side).
   triggerDensitySync: () =>
