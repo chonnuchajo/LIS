@@ -100,6 +100,15 @@ const ApplyRuleSchema = new mongoose.Schema({
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
   type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer', 'reference'], required: true },
+  requestValueSource: {
+    mode: { type: String, enum: ['manual', 'collection', 'link', 'reference'], default: 'manual' },
+    collectionName: { type: String, default: null },
+    matchBatchField: { type: String, default: null },
+    matchSampleNameField: { type: String, default: null },
+    valueField: { type: String, default: null },
+    refParameterId: { type: String, default: null },
+    refFieldLabel: { type: String, default: null },
+  },
   unit: { type: String, default: '' },
   min: { type: Number, default: null },
   max: { type: Number, default: null },

@@ -345,6 +345,7 @@ function uniqueSorted(values: string[]): string[] {
 const emptyValueField = (): ParameterValueField => ({
   label: "",
   type: "text",
+  requestValueSource: { mode: "manual" },
   unit: "",
   standardValue: null,
   standardOperator: undefined,
@@ -1286,6 +1287,39 @@ function ValueFieldEditor({
       {expanded ? (
         <div className={cn("pl-4 pr-3 pb-4 pt-2 border-t border-grey-100", meta.tint)}>
         <div className="space-y-3">
+          <div className="rounded-md border bg-card p-3 space-y-3">
+            <div>
+              <Label className="text-sm font-medium">แหล่งค่า {field.label || "Parameter"} บนใบคำขอ</Label>
+              <p className="text-xs text-muted-foreground">เลือกกรอกมือ หรือดึงค่าจาก Collection</p>
+            </div>
+            <Select
+              value={field.requestValueSource?.mode ?? (field.label.trim() === "ค่าถพ." ? "collection" : "manual")}
+              onValueChange={(value) => onChange({
+                ...field,
+                requestValueSource: {
+                  ...(field.requestValueSource ?? {}),
+                  mode: value as "manual" | "collection",
+                },
+              })}
+            >
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">ไม่ดึงค่าอัตโนมัติ</SelectItem>
+                <SelectItem value="collection">ดึงจาก Collection</SelectItem>
+              </SelectContent>
+            </Select>
+            {field.requestValueSource?.mode === "collection" || (!field.requestValueSource && field.label.trim() === "ค่าถพ.") ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Select value={field.requestValueSource?.collectionName ?? "Result-Density"} onValueChange={(value) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", collectionName: value } })}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="เลือก Collection" /></SelectTrigger>
+                  <SelectContent><SelectItem value="Result-Density">Result-Density</SelectItem></SelectContent>
+                </Select>
+                <Input className="h-9" value={field.requestValueSource?.matchBatchField ?? "Batch"} placeholder="Field เทียบ Batch" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", matchBatchField: e.target.value || null } })} />
+                <Input className="h-9" value={field.requestValueSource?.matchSampleNameField ?? "Sample name"} placeholder="Field เทียบ Sample name" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", matchSampleNameField: e.target.value || null } })} />
+                <Input className="h-9" value={field.requestValueSource?.valueField ?? (field.label.trim() === "ค่าถพ." ? "Density [g/cm³]" : "")} placeholder="Field ที่นำมาแสดง" onChange={(e) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", valueField: e.target.value || null } })} />
+              </div>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Checkbox
@@ -2459,16 +2493,7 @@ function ParameterDialog({
                   </p>
                 </div>
               </label>
-              {form.valueFields?.some((field) => field.type !== "reference") ? (
-                <div className="mt-4 border-t border-border/60 pt-4">
-                  <Label className="text-sm font-medium">แหล่งค่า {form.name || "Parameter"} บนใบคำขอ</Label>
-                  <p className="mb-2 text-xs text-muted-foreground">ตั้งค่าว่าจะกรอกมือ หรือดึงค่าจากแหล่งข้อมูลภายนอก</p>
-                  <Select
-                    value={form.specificGravitySource?.mode ?? (form.valueFields?.some((field) => field.label.trim() === "ค่าถพ.") ? "link" : "manual")}
-                    onValueChange={(value) => set("specificGravitySource", {
-                      mode: value as "link" | "reference" | "collection" | "manual",
-                      refParameterId: value === "reference" ? form.specificGravitySource?.refParameterId ?? null : null,
-                      refFieldLabel: value === "reference" ? form.specificGravitySource?.refFieldLabel ?? null : null,
+              {             refFieldLabel: value === "reference" ? form.specificGravitySource?.refFieldLabel ?? null : null,
                       collectionName: value === "collection" ? form.specificGravitySource?.collectionName ?? null : null,
                       matchBatchField: value === "collection" ? form.specificGravitySource?.matchBatchField ?? null : null,
                       matchSampleNameField: value === "collection" ? form.specificGravitySource?.matchSampleNameField ?? null : null,
@@ -3806,3 +3831,4 @@ function ValueFieldBadges({ fields }: { fields: ParameterValueField[] }) {
     </div>
   );
 }
+

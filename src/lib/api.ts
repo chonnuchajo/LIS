@@ -1330,6 +1330,15 @@ export type OptionOutput = { kind: OptionOutputKind; text?: string };
 export type ParameterValueField = {
   label: string;
   type: ParameterValueFieldType;
+  requestValueSource?: {
+    mode: "manual" | "collection" | "link" | "reference";
+    collectionName?: string | null;
+    matchBatchField?: string | null;
+    matchSampleNameField?: string | null;
+    valueField?: string | null;
+    refParameterId?: string | null;
+    refFieldLabel?: string | null;
+  };
   unit?: string;
   standardValue?: number | null;
   standardOperator?: StandardOperator;
