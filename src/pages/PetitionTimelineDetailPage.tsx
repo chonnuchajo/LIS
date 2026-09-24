@@ -190,6 +190,7 @@ export default function PetitionTimelineDetailPage() {
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [activityPage, setActivityPage] = useState(1);
   const [qcResults, setQcResults] = useState<import("@/types/petition.types").QCTestResult[]>([]);
+  const [requestValues, setRequestValues] = useState<Record<string, unknown>>({});
   const [goodsReceipt, setGoodsReceipt] = useState<GoodsReceipt | null>(null);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
@@ -239,6 +240,25 @@ export default function PetitionTimelineDetailPage() {
       alive = false;
     };
   }, [petition?._id, taskReloadKey]);
+
+  useEffect(() => {
+    if (!petition?._id || !parameters.length) { setRequestValues({}); return; }
+    let alive = true;
+    const sources = parameters.flatMap((param) => (param.valueFields ?? []).map((field) => ({ label: field.label, source: field.requestValueSource })))
+      .filter((entry) => entry.source?.mode === 'collection' && entry.source.collectionName && entry.source.collectionMatchField && entry.source.petitionMatchField && entry.source.valueField);
+    (async () => {
+      const values: Record<string, unknown> = {};
+      for (const { label, source } of sources) {
+        const petitionKey = source!.petitionMatchField || 'items.batchNo';
+        const readRef = (item: Record<string, unknown>, path: string) => path.replace(/^items\.?/, '').replace(/\[\]/g, '').replace(/^\./, '').split('.').filter(Boolean).reduce<unknown>((value, key) => (value as Record<string, unknown> | null)?.[key], item);
+        const refs = (petition.items ?? []).map((item) => ({ value: String(readRef(item as Record<string, unknown>, petitionKey) ?? '') }));
+        const result = await api.getRequestValues({ collectionName: source!.collectionName!, collectionMatchField: source!.collectionMatchField!, valueField: source!.valueField!, refs });
+        for (const [key, value] of Object.entries(result.values ?? {})) values[`${label}\u0000${key}`] = value;
+      }
+      if (alive) setRequestValues(values);
+    })().catch(() => { if (alive) setRequestValues({}); });
+    return () => { alive = false; };
+  }, [petition, parameters]);
 
   // ใบรับสินค้า/ใบตรวจสอบวัตถุดิบ (F-WAR-03-01,02) มีเฉพาะคำร้องแผนก RM — ไม่ยิง fetch เลยสำหรับแผนกอื่น
   useEffect(() => {
@@ -609,7 +629,7 @@ export default function PetitionTimelineDetailPage() {
     </div>
 
     {labelPrintOpen && <PrintPreviewDialog open={labelPrintOpen} onOpenChange={setLabelPrintOpen} docType="sample-label"><SampleLabelPrintTemplate petition={petition} /></PrintPreviewDialog>}
-    {servicePrintOpen && labRequests?.[0] && <PrintPreviewDialog open={servicePrintOpen} onOpenChange={setServicePrintOpen} docType="service-request"><PetitionPrintTemplate labRequest={labRequests[0]} petition={petition} qcResults={qcResults} sgParam={sgParameter} /></PrintPreviewDialog>}
+    {servicePrintOpen && labRequests?.[0] && <PrintPreviewDialog open={servicePrintOpen} onOpenChange={setServicePrintOpen} docType="service-request"><PetitionPrintTemplate labRequest={labRequests[0]} petition={petition} qcResults={qcResults} sgParam={sgParameter} requestValues={requestValues} /></PrintPreviewDialog>}
     {preReportOpen && <PrintPreviewDialog open={preReportOpen} onOpenChange={setPreReportOpen} docType="coa"><ResultReportPrintTemplate kind="pre" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
     {finalReportOpen && <PrintPreviewDialog open={finalReportOpen} onOpenChange={setFinalReportOpen} docType="coa"><ResultReportPrintTemplate kind="final" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
     {labResultOpen && <PrintPreviewDialog open={labResultOpen} onOpenChange={setLabResultOpen} docType="coa" css={LAB_REPORT_CSS}><LabResultReportTemplate pages={labReportPages} /></PrintPreviewDialog>}

@@ -314,6 +314,11 @@ export const api = {
     request<{ batch: string; docs: Record<string, unknown>[] }>(
       `/result-densities/by-batch/${encodeURIComponent(batch)}`,
     ),
+  getRequestValues: (payload: { collectionName: string; collectionMatchField?: string; batchField?: string; sampleField?: string; valueField: string; refs: { value?: string; batch?: string; sample?: string }[] }) =>
+    request<{ values: Record<string, unknown> }>('/request-values', { method: 'POST', body: JSON.stringify(payload) }),
+  getRequestValueCollections: () => request<string[]>('/request-values/collections'),
+  getRequestValueFields: (collectionName: string) => request<string[]>(`/request-values/fields?collectionName=${encodeURIComponent(collectionName)}`),
+  getPetitionValueFields: () => request<string[]>('/request-values/petition-fields'),
   // Fire the n8n webhook that makes the plant push fresh DMA 501 readings into
   // Result-Density. Returns once n8n has accepted the trigger (async on their side).
   triggerDensitySync: () =>
@@ -1330,6 +1335,15 @@ export type OptionOutput = { kind: OptionOutputKind; text?: string };
 export type ParameterValueField = {
   label: string;
   type: ParameterValueFieldType;
+  requestValueSource?: {
+    mode: "manual" | "collection" | "link" | "reference";
+    collectionName?: string | null;
+    collectionMatchField?: string | null;
+    petitionMatchField?: string | null;
+    valueField?: string | null;
+    refParameterId?: string | null;
+    refFieldLabel?: string | null;
+  };
   unit?: string;
   standardValue?: number | null;
   standardOperator?: StandardOperator;
@@ -1435,11 +1449,13 @@ export type ParameterItem = {
   multiEntry?: boolean;
   // Source used for the ค่า ถ.พ. column on service-request forms.
   specificGravitySource?: {
-    mode: "link" | "reference" | "manual";
+    mode: "link" | "reference" | "collection" | "manual";
     linkUrl?: string | null;
     valuePath?: string | null;
     refParameterId?: string | null;
     refFieldLabel?: string | null;
+    collectionName?: string | null;
+    valueField?: string | null;
   };
   createdAt?: string;
   updatedAt?: string;

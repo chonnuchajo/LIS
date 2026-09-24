@@ -345,6 +345,7 @@ function uniqueSorted(values: string[]): string[] {
 const emptyValueField = (): ParameterValueField => ({
   label: "",
   type: "text",
+  requestValueSource: { mode: "manual" },
   unit: "",
   standardValue: null,
   standardOperator: undefined,
@@ -361,9 +362,7 @@ const emptyValueField = (): ParameterValueField => ({
   phase: "both",
   triggersPhase2: false,
   refParameterId: null,
-  refFieldLabel: null,
-  refPhase: 1,
-  conditionalMode: false,
+    conditionalMode: false,
   conditionalStandards: [],
   showLastBatch: false,
 });
@@ -396,7 +395,6 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   note: "",
   hasPhases: false,
   multiEntry: false,
-  specificGravitySource: { mode: "link", linkUrl: null, valuePath: null, refParameterId: null, refFieldLabel: null },
 });
 
 type MultiSelectPopoverProps = {
@@ -878,6 +876,7 @@ function parameterValueFieldSearchTokens(field: ParameterValueField) {
 
 type ValueFieldEditorProps = {
   field: ParameterValueField;
+  parameterName?: string;
   index: number;
   total: number;
   onChange: (next: ParameterValueField) => void;
@@ -1089,6 +1088,7 @@ function OptionFilterDialog({
 
 function ValueFieldEditor({
   field,
+  parameterName,
   index,
   total,
   onChange,
@@ -1115,6 +1115,23 @@ function ValueFieldEditor({
   const [substanceDialogOpen, setSubstanceDialogOpen] = useState(false);
   const [conditionalDialogOpen, setConditionalDialogOpen] = useState(false);
   const [labelToleranceDialogOpen, setLabelToleranceDialogOpen] = useState(false);
+  const requestCollectionsQuery = useQuery({
+    queryKey: ["request-value-collections"],
+    queryFn: () => api.getRequestValueCollections(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const requestCollectionName = field.requestValueSource?.collectionName ?? (field.label.trim() === "ค่าถพ." ? "Result-Density" : "");
+  const requestFieldsQuery = useQuery({
+    queryKey: ["request-value-fields", requestCollectionName],
+    queryFn: () => api.getRequestValueFields(requestCollectionName),
+    enabled: !!requestCollectionName,
+    staleTime: 5 * 60 * 1000,
+  });
+  const petitionFieldsQuery = useQuery({
+    queryKey: ["request-value-petition-fields"],
+    queryFn: () => api.getPetitionValueFields(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1286,6 +1303,14 @@ function ValueFieldEditor({
       {expanded ? (
         <div className={cn("pl-4 pr-3 pb-4 pt-2 border-t border-grey-100", meta.tint)}>
         <div className="space-y-3">
+          <div className="rounded-md border bg-card p-3 space-y-2">
+            <Label className="text-sm font-medium">แหล่งค่า {parameterName || field.label || "Parameter"} บนใบคำขอ</Label>
+            <p className="text-xs text-muted-foreground">กำหนดเป็นกรอกมือ หรือใช้ค่าจาก Reference ของระบบ</p>
+            <Select value={field.requestValueSource?.mode === "reference" ? "reference" : "manual"} onValueChange={(value) => onChange({ ...field, requestValueSource: { mode: value as "manual" | "reference" } })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="manual">กรอกมือ</SelectItem><SelectItem value="reference">ตาม Reference</SelectItem></SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Checkbox
@@ -1361,7 +1386,17 @@ function ValueFieldEditor({
               <Label className="text-sm">ชื่อช่อง *</Label>
               <Input
                 value={field.label}
-                onChange={(e) => onChange({ ...field, label: e.target.value })}
+                onChange={(e) => {
+                  const label = e.target.value;
+                  const legacyDensity = label.trim() === "ค่าถพ." && !field.label.trim() && field.requestValueSource?.mode === "manual";
+                  onChange({
+                    ...field,
+                    label,
+                    requestValueSource: legacyDensity
+                      ? { mode: "collection", collectionName: "Result-Density", matchBatchField: "Batch", matchSampleNameField: "Sample name", valueField: "Density [g/cm³]" }
+                      : field.requestValueSource,
+                  });
+                }}
                 placeholder="เช่น ผล, ค่า, หมายเหตุ"
                 className="h-10"
               />
@@ -2233,10 +2268,6 @@ function ParameterDialog({
         return `ช่อง "${f.label}": ตัว trigger รอบตรวจซ้ำต้องอยู่ใน Phase 1 (เลือก "ทั้ง 2 phase" หรือ "เฉพาะก่อน")`;
       }
     }
-    const sgSource = form.specificGravitySource;
-    if (sgSource?.mode === "reference" && (!sgSource.refParameterId || !sgSource.refFieldLabel)) {
-      return "แหล่งค่า ถ.พ.: ต้องเลือก Parameter และ Field ต้นทางให้ครบ";
-    }
     if (form.hasPhases) {
       const hasBefore = fields.some((f) => f.phase === "both" || f.phase === "before");
       const hasTrigger = fields.some((f) => f.triggersPhase2);
@@ -2290,7 +2321,6 @@ function ParameterDialog({
       note: form.note?.trim() || "",
       hasPhases: !!form.hasPhases,
       multiEntry: !!form.multiEntry,
-      specificGravitySource: form.specificGravitySource ?? { mode: "link", refParameterId: null, refFieldLabel: null },
     };
     try {
       if (isEdit && item?._id) {
@@ -2456,72 +2486,6 @@ function ParameterDialog({
                   </p>
                 </div>
               </label>
-              {form.valueFields?.some((field) => field.label.trim() === "ค่าถพ.") ? (
-                <div className="mt-4 border-t border-border/60 pt-4">
-                  <Label className="text-sm font-medium">แหล่งค่า ถ.พ. บนใบคำขอ</Label>
-                  <p className="mb-2 text-xs text-muted-foreground">ตั้งค่าได้ว่าจะใช้ค่าจากการแชร์ผลของ Parameter นี้ หรือดึงจาก ref อื่น</p>
-                  <Select
-                    value={form.specificGravitySource?.mode ?? "link"}
-                    onValueChange={(value) => set("specificGravitySource", {
-                      mode: value as "link" | "reference" | "manual",
-                      refParameterId: value === "reference" ? form.specificGravitySource?.refParameterId ?? null : null,
-                      refFieldLabel: value === "reference" ? form.specificGravitySource?.refFieldLabel ?? null : null,
-                    })}
-                  >
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="link">ใช้ Link จาก Parameter นี้</SelectItem>
-                      <SelectItem value="reference">ดึงจาก Reference</SelectItem>
-                      <SelectItem value="manual">ไม่ดึงค่าอัตโนมัติ</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {form.specificGravitySource?.mode === "link" ? (
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label className="text-sm">Link / Webhook URL</Label>
-                        <Input value={form.specificGravitySource.linkUrl ?? ""} placeholder="เช่น https://..." onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, linkUrl: event.target.value || null })} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-sm">ตำแหน่งค่าที่รับ (key/path)</Label>
-                        <Input value={form.specificGravitySource.valuePath ?? ""} placeholder="เช่น density หรือ data.value" onChange={(event) => set("specificGravitySource", { ...form.specificGravitySource!, valuePath: event.target.value || null })} />
-                      </div>
-                    </div>
-                  ) : null}
-                  {form.specificGravitySource?.mode === "reference" ? (
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Select
-                        value={form.specificGravitySource.refParameterId ?? "__none__"}
-                        onValueChange={(value) => set("specificGravitySource", {
-                          ...form.specificGravitySource!,
-                          refParameterId: value === "__none__" ? null : value,
-                          refFieldLabel: null,
-                        })}
-                      >
-                        <SelectTrigger className="h-10"><SelectValue placeholder="เลือก Parameter ต้นทาง" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— เลือก Parameter —</SelectItem>
-                          {allParameters.filter((parameter) => parameter._id && parameter._id !== item?._id && parameter.status !== "inactive").map((parameter) => (
-                            <SelectItem key={parameter._id} value={parameter._id!}>{parameter.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={form.specificGravitySource.refFieldLabel ?? "__none__"}
-                        onValueChange={(value) => set("specificGravitySource", { ...form.specificGravitySource!, refFieldLabel: value === "__none__" ? null : value })}
-                        disabled={!form.specificGravitySource.refParameterId}
-                      >
-                        <SelectTrigger className="h-10"><SelectValue placeholder="เลือก Field ต้นทาง" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— เลือก Field —</SelectItem>
-                          {(allParameters.find((parameter) => parameter._id === form.specificGravitySource?.refParameterId)?.valueFields ?? []).filter((field) => field.type !== "reference").map((field) => (
-                            <SelectItem key={field.label} value={field.label}>{field.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
           ) : null}
 
@@ -2889,6 +2853,7 @@ function ParameterDialog({
                   <ValueFieldEditor
                     key={i}
                     field={f}
+                    parameterName={form.name}
                     index={i}
                     total={form.valueFields?.length ?? 0}
                     onChange={(next) => updateField(i, next)}
@@ -3790,3 +3755,6 @@ function ValueFieldBadges({ fields }: { fields: ParameterValueField[] }) {
     </div>
   );
 }
+
+
+

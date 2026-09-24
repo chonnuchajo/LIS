@@ -5,6 +5,7 @@ const fs = require('fs');
 const { randomUUID } = require('crypto');
 
 const router = express.Router();
+const { requirePageAccess } = require('../lib/pageAccessGate');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'qc-photos');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -89,7 +90,7 @@ const upload = multer({
 // POST /api/uploads/qc-photo
 // Body: multipart/form-data with field "photo"
 // Returns: { url: "/LIS/uploads/qc-photos/<filename>" }
-router.post('/qc-photo', upload.single('photo'), (req, res) => {
+router.post('/qc-photo', requirePageAccess(['/qc-testing', '/master-items']), upload.single('photo'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'ไม่พบไฟล์ภาพหรือวิดีโอ' });
   }
@@ -99,7 +100,7 @@ router.post('/qc-photo', upload.single('photo'), (req, res) => {
 
 // DELETE /api/uploads/qc-photo
 // Body: { url: "/LIS/uploads/qc-photos/<filename>" }
-router.delete('/qc-photo', (req, res) => {
+router.delete('/qc-photo', requirePageAccess(['/qc-testing', '/master-items']), (req, res) => {
   const { url } = req.body || {};
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'url is required' });
@@ -128,7 +129,7 @@ router.delete('/qc-photo', (req, res) => {
 // POST /api/uploads/param-file
 // Body: multipart/form-data with field "file"
 // Returns: { url: "/LIS/uploads/param-files/<filename>", name: <original>, size: <bytes> }
-router.post('/param-file', uploadParamFileMiddleware.single('file'), (req, res) => {
+router.post('/param-file', requirePageAccess(['/parameter-settings']), uploadParamFileMiddleware.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'ไม่พบไฟล์' });
   }
@@ -138,7 +139,7 @@ router.post('/param-file', uploadParamFileMiddleware.single('file'), (req, res) 
 
 // DELETE /api/uploads/param-file
 // Body: { url: "/LIS/uploads/param-files/<filename>" }
-router.delete('/param-file', (req, res) => {
+router.delete('/param-file', requirePageAccess(['/parameter-settings']), (req, res) => {
   const { url } = req.body || {};
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'url is required' });

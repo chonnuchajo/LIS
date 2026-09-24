@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { requireAdminUser } = require('../lib/adminGate');
 const Petition = require('../models/Petition');
 const LineGroup = require('../models/LineGroup');
 const line = require('../lib/line');
@@ -292,12 +293,13 @@ async function handleEvent(event, deferJoinReply) {
 // RAW request body (captured as req.rawBody in index.js), then handles each event.
 router.post('/webhook', async (req, res) => {
   const signature = req.get('x-line-signature');
-  // If a channel secret is configured, enforce the signature. If not configured
-  // (dev), accept so the endpoint can still be exercised locally.
-  if (line.channelSecret()) {
-    if (!line.verifySignature(req.rawBody, signature)) {
-      return res.status(401).json({ error: { message: 'invalid signature' } });
+  // Production must never accept unsigned LINE webhooks.
+  if (!line.channelSecret()) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ error: { message: 'LINE webhook is not configured' } });
     }
+  } else if (!line.verifySignature(req.rawBody, signature)) {
+    return res.status(401).json({ error: { message: 'invalid signature' } });
   }
   // Ack immediately; LINE expects a fast 200 and does not read the body.
   res.status(200).json({ ok: true });
@@ -322,7 +324,7 @@ router.post('/ingest', async (req, res) => {
     if (!line.ingestSecret()) {
       return res.status(503).json({ error: { message: 'ingest ยังไม่ถูกตั้งค่า (LINE_INGEST_SECRET)' } });
     }
-    const key = req.get('x-lis-ingest-key') || req.query.key;
+    const key = req.get('x-lis-ingest-key') || (process.env.NODE_ENV === 'production' ? '' : req.query.key);
     if (!line.verifyIngestKey(key)) {
       return res.status(401).json({ error: { message: 'invalid ingest key' } });
     }
@@ -338,7 +340,7 @@ router.post('/ingest', async (req, res) => {
 // ─── Admin / setup helpers (mounted under /api/line and /LIS/api/line) ───────────
 
 // GET /line/health — config + registered group count (for a settings UI badge).
-router.get('/health', async (_req, res) => {
+router.get('/health', requireAdminUser, async (_req, res) => {
   try {
     const count = await LineGroup.countDocuments({ enabled: true });
     res.json({
@@ -355,7 +357,7 @@ router.get('/health', async (_req, res) => {
 });
 
 // GET /line/groups — list registered groups.
-router.get('/groups', async (_req, res) => {
+router.get('/groups', requireAdminUser, async (_req, res) => {
   try {
     const groups = await LineGroup.find().sort({ audience: 1, createdAt: 1 }).lean();
     res.json({ data: groups });
@@ -366,7 +368,7 @@ router.get('/groups', async (_req, res) => {
 
 // POST /line/groups — manual upsert { groupId, audience, name? } (alternative to the
 // in-chat /ผูก command).
-router.post('/groups', async (req, res) => {
+router.post('/groups', requireAdminUser, async (req, res) => {
   try {
     const groupId = String(req.body?.groupId || '').trim();
     const audience = String(req.body?.audience || '').trim();
@@ -387,7 +389,7 @@ router.post('/groups', async (req, res) => {
 });
 
 // DELETE /line/groups/:groupId — remove a registration.
-router.delete('/groups/:groupId', async (req, res) => {
+router.delete('/groups/:groupId', requireAdminUser, async (req, res) => {
   try {
     const r = await LineGroup.deleteOne({ groupId: req.params.groupId });
     res.json({ deleted: r.deletedCount });
@@ -397,7 +399,7 @@ router.delete('/groups/:groupId', async (req, res) => {
 });
 
 // POST /line/test — push a test message to an audience (verify wiring end-to-end).
-router.post('/test', async (req, res) => {
+router.post('/test', requireAdminUser, async (req, res) => {
   try {
     const audience = String(req.body?.audience || 'all').trim();
     const message = String(req.body?.message || '🔔 ทดสอบการแจ้งเตือนจากระบบ LIS').trim();
