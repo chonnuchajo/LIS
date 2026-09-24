@@ -1325,9 +1325,10 @@ export default function QCTestingDetailPage() {
 
                     // Specific-gravity (ค่า ถพ.) value + temperature are filled only by
                     // validated Result-Density rows, never typed by hand.
+                    const sgValueField = (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL);
                     const isSgMachineField =
-                      (param.specificGravitySource?.mode ?? 'link') === 'link' &&
-                      (param.valueFields ?? []).some((f) => f.label === SG_VALUE_LABEL) &&
+                      (sgValueField?.requestValueSource?.mode ?? 'collection') === 'collection' &&
+                      !!sgValueField &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
                     const unitDisabled = fieldDisabled || isSgMachineField;
 
@@ -1509,7 +1510,7 @@ export default function QCTestingDetailPage() {
                           };
                           return (
                             <div className="space-y-4">
-                              {isSgParam && (param.specificGravitySource?.mode ?? 'link') === 'link' && !fieldDisabled && (
+                              {isSgParam && ((param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL)?.requestValueSource?.mode ?? 'collection') === 'collection' && !fieldDisabled && (
                                 <div>
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}

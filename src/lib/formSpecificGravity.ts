@@ -36,7 +36,14 @@ export function readSpecificGravityEntryValue(
 export function findSgParameter(parameters: ParameterItem[] | null | undefined): SgParameter | null {
   for (const p of parameters ?? []) {
     const source = p.specificGravitySource;
-    if (source?.mode === 'manual') continue;
+    const configuredField = p.valueFields?.find((f) => f.label === SG_FIELD_LABEL);
+    const fieldSource = configuredField?.requestValueSource;
+    if (fieldSource?.mode === 'manual' || source?.mode === 'manual') continue;
+    // New config lives on the value field. Keep legacy parameter-level config readable.
+    if (fieldSource?.mode === 'collection' || fieldSource?.mode === 'manual') {
+      if (p.scope !== 'qc' || !p.shareWithLab || !p._id) continue;
+      return { parameterId: p._id, fieldLabel: SG_FIELD_LABEL };
+    }
     const sourceParameter = source?.mode === 'reference'
       ? (parameters ?? []).find((candidate) => candidate._id === source.refParameterId)
       : p;
