@@ -189,14 +189,15 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
         setParameters(params ?? []);
         const nextSg = findSgParameter(params);
         setSgParam(nextSg);
-        const sourceParam = params.find((p) => p._id === nextSg?.parameterId);
-        const sourceField = sourceParam?.valueFields?.find((f) => f.label === nextSg?.fieldLabel);
-        const source = sourceField?.requestValueSource;
-        if (source?.mode === 'collection' && source.collectionName && source.matchBatchField && source.matchSampleNameField && source.valueField) {
-          const refs = (data.items ?? []).map((item) => ({ batch: item.batchNo, sample: item.sampleName }));
-          const result = await api.getRequestValues({ collectionName: source.collectionName, batchField: source.matchBatchField, sampleField: source.matchSampleNameField, valueField: source.valueField, refs });
-          if (!cancelled) setRequestValues(result.values ?? {});
+        const refs = (data.items ?? []).map((item) => ({ batch: item.batchNo, sample: item.sampleName }));
+        const nextValues: Record<string, unknown> = {};
+        const sources = params.flatMap((param) => (param.valueFields ?? []).map((field) => ({ label: field.label, source: field.requestValueSource })))
+          .filter((entry) => entry.source?.mode === 'collection' && entry.source.collectionName && entry.source.matchBatchField && entry.source.matchSampleNameField && entry.source.valueField);
+        for (const { label, source } of sources) {
+          const result = await api.getRequestValues({ collectionName: source!.collectionName!, batchField: source!.matchBatchField!, sampleField: source!.matchSampleNameField!, valueField: source!.valueField!, refs });
+          for (const [key, value] of Object.entries(result.values ?? {})) nextValues[`${label}\u0000${key}`] = value;
         }
+        if (!cancelled) setRequestValues(nextValues);
       } catch {
         /* คอลัมน์ ค่า ถ.พ. ปล่อยว่างถ้าโหลดไม่สำเร็จ */
       }
