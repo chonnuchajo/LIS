@@ -395,7 +395,6 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   note: "",
   hasPhases: false,
   multiEntry: false,
-  specificGravitySource: { mode: "manual", linkUrl: null, valuePath: null, refParameterId: null, refFieldLabel: null, collectionName: null, matchBatchField: null, matchSampleNameField: null, valueField: null },
 });
 
 type MultiSelectPopoverProps = {
@@ -2292,13 +2291,6 @@ function ParameterDialog({
         return `ช่อง "${f.label}": ตัว trigger รอบตรวจซ้ำต้องอยู่ใน Phase 1 (เลือก "ทั้ง 2 phase" หรือ "เฉพาะก่อน")`;
       }
     }
-    const sgSource = form.specificGravitySource;
-    if (sgSource?.mode === "reference" && (!sgSource.refParameterId || !sgSource.refFieldLabel)) {
-      return "แหล่งค่า ถ.พ.: ต้องเลือก Parameter และ Field ต้นทางให้ครบ";
-    }
-    if (sgSource?.mode === "collection" && (!sgSource.collectionName || !sgSource.matchBatchField || !sgSource.matchSampleNameField || !sgSource.valueField)) {
-      return "แหล่งค่า: ต้องระบุ Collection, Field เทียบ Batch, Field เทียบ Sample name และ Field ที่แสดงให้ครบ";
-    }
     if (form.hasPhases) {
       const hasBefore = fields.some((f) => f.phase === "both" || f.phase === "before");
       const hasTrigger = fields.some((f) => f.triggersPhase2);
@@ -2352,7 +2344,6 @@ function ParameterDialog({
       note: form.note?.trim() || "",
       hasPhases: !!form.hasPhases,
       multiEntry: !!form.multiEntry,
-      specificGravitySource: form.specificGravitySource ?? { mode: "manual", refParameterId: null, refFieldLabel: null },
     };
     try {
       if (isEdit && item?._id) {
