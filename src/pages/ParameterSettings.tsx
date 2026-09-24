@@ -1400,7 +1400,17 @@ function ValueFieldEditor({
               <Label className="text-sm">ชื่อช่อง *</Label>
               <Input
                 value={field.label}
-                onChange={(e) => onChange({ ...field, label: e.target.value })}
+                onChange={(e) => {
+                  const label = e.target.value;
+                  const legacyDensity = label.trim() === "ค่าถพ." && !field.label.trim() && field.requestValueSource?.mode === "manual";
+                  onChange({
+                    ...field,
+                    label,
+                    requestValueSource: legacyDensity
+                      ? { mode: "collection", collectionName: "Result-Density", matchBatchField: "Batch", matchSampleNameField: "Sample name", valueField: "Density [g/cm³]" }
+                      : field.requestValueSource,
+                  });
+                }}
                 placeholder="เช่น ผล, ค่า, หมายเหตุ"
                 className="h-10"
               />
