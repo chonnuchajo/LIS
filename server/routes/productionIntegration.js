@@ -13,7 +13,8 @@ function authorized(req) {
   // ที่ย้ายไปส่ง X-API-Key แล้ว
   if (req.apiKey?.scopes?.includes('integration:write')) return true;
   const secret = process.env.PRODUCTION_INTEGRATION_TOKEN;
-  if (!secret) return true;
+  // Missing shared secret must fail closed. API keys remain supported above.
+  if (!secret) return process.env.NODE_ENV !== 'production';
   const header = req.get('authorization') || '';
   const bearer = header.match(/^Bearer\s+(.+)$/i)?.[1];
   return req.get('x-integration-token') === secret || bearer === secret;
