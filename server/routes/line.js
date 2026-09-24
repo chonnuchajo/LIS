@@ -292,12 +292,13 @@ async function handleEvent(event, deferJoinReply) {
 // RAW request body (captured as req.rawBody in index.js), then handles each event.
 router.post('/webhook', async (req, res) => {
   const signature = req.get('x-line-signature');
-  // If a channel secret is configured, enforce the signature. If not configured
-  // (dev), accept so the endpoint can still be exercised locally.
-  if (line.channelSecret()) {
-    if (!line.verifySignature(req.rawBody, signature)) {
-      return res.status(401).json({ error: { message: 'invalid signature' } });
+  // Production must never accept unsigned LINE webhooks.
+  if (!line.channelSecret()) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ error: { message: 'LINE webhook is not configured' } });
     }
+  } else if (!line.verifySignature(req.rawBody, signature)) {
+    return res.status(401).json({ error: { message: 'invalid signature' } });
   }
   // Ack immediately; LINE expects a fast 200 and does not read the body.
   res.status(200).json({ ok: true });
@@ -322,7 +323,7 @@ router.post('/ingest', async (req, res) => {
     if (!line.ingestSecret()) {
       return res.status(503).json({ error: { message: 'ingest ยังไม่ถูกตั้งค่า (LINE_INGEST_SECRET)' } });
     }
-    const key = req.get('x-lis-ingest-key') || req.query.key;
+    const key = req.get('x-lis-ingest-key') || (process.env.NODE_ENV === 'production' ? '' : req.query.key);
     if (!line.verifyIngestKey(key)) {
       return res.status(401).json({ error: { message: 'invalid ingest key' } });
     }
