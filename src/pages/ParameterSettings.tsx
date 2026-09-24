@@ -1326,10 +1326,13 @@ function ValueFieldEditor({
                   <SelectContent>{(requestCollectionsQuery.data ?? ["Result-Density"]).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
                 </Select>
                 {([['matchBatchField', 'Collection: field เทียบ Batch', field.requestValueSource?.matchBatchField ?? (field.label.trim() === "ค่าถพ." ? "Batch" : ""), 'collection'], ['matchSampleNameField', 'Collection: field เทียบ Sample name', field.requestValueSource?.matchSampleNameField ?? (field.label.trim() === "ค่าถพ." ? "Sample name" : ""), 'collection'], ['petitionBatchField', 'Petition: field อ้างอิง Batch', field.requestValueSource?.petitionBatchField ?? 'batchNo', 'petition'], ['petitionSampleNameField', 'Petition: field อ้างอิง Sample name', field.requestValueSource?.petitionSampleNameField ?? 'sampleName', 'petition'], ['valueField', 'Collection: field ที่นำมาแสดง', field.requestValueSource?.valueField ?? (field.label.trim() === "ค่าถพ." ? "Density [g/cm³]" : ""), 'collection']] as const).map(([key, label, value, source]) => (
-                  <Select key={key} value={value || "__none__"} onValueChange={(next) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", [key]: next === "__none__" ? null : next } })}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
-                    <SelectContent><SelectItem value="__none__">— {label} —</SelectItem>{source === 'petition' ? <><SelectItem value="batchNo">Batch</SelectItem><SelectItem value="sampleName">Sample name</SelectItem></> : (requestFieldsQuery.data ?? []).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{label}</Label>
+                    <Select value={value || "__none__"} onValueChange={(next) => onChange({ ...field, requestValueSource: { ...(field.requestValueSource ?? { mode: "collection" }), mode: "collection", [key]: next === "__none__" ? null : next } })}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
+                      <SelectContent><SelectItem value="__none__">— เลือก —</SelectItem>{source === 'petition' ? <><SelectItem value="batchNo">Batch</SelectItem><SelectItem value="sampleName">Sample name</SelectItem></> : Array.from(new Set(requestFieldsQuery.data ?? [])).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                 ))}
               </div>
             ) : null}
