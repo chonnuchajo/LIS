@@ -1433,6 +1433,14 @@ export type ParameterItem = {
   hasPhases?: boolean;
   // Parameter-level repeat — whole field set repeats into QCTestResult.entries.
   multiEntry?: boolean;
+  // Source used for the ค่า ถ.พ. column on service-request forms.
+  specificGravitySource?: {
+    mode: "link" | "reference" | "manual";
+    linkUrl?: string | null;
+    valuePath?: string | null;
+    refParameterId?: string | null;
+    refFieldLabel?: string | null;
+  };
   createdAt?: string;
   updatedAt?: string;
 };

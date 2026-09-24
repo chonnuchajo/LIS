@@ -204,6 +204,14 @@ const ParameterSchema = new mongoose.Schema({
   // Parameter-level repeat — when true the whole valueFields set repeats as
   // independent rows stored in QCTestResult.entries. Mutually exclusive with hasPhases.
   multiEntry: { type: Boolean, default: false, index: true },
+  // Source configuration for the hardcoded ค่า ถ.พ. display field.
+  specificGravitySource: {
+    mode: { type: String, enum: ['link', 'reference', 'manual'], default: 'link' },
+    linkUrl: { type: String, default: null },
+    valuePath: { type: String, default: null },
+    refParameterId: { type: String, default: null },
+    refFieldLabel: { type: String, default: null },
+  },
 }, { timestamps: true });
 
 ParameterSchema.pre('validate', function (next) {

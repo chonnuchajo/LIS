@@ -285,14 +285,14 @@ describe("StockDeduction item display", () => {
     await waitFor(() => expect(screen.queryByText("STD-001")).not.toBeInTheDocument());
   });
 
-  it("opens deduction details from a clicked row and shows the resolution action", async () => {
+  it("opens deduction details from a clicked row without the retired resolution action", async () => {
     renderPage();
 
     fireEvent.click(await screen.findByText("ABAMECTIN"));
 
     expect(await screen.findByRole("heading", { name: "รายละเอียดการเบิก" })).toBeInTheDocument();
     expect(screen.getAllByText("ABAMECTIN").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "แจ้งหมด/ปัญหา" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "แจ้งหมด/ปัญหา" })).not.toBeInTheDocument();
   });
 
   it("shows edit and delete actions only on today's own deductions", async () => {
