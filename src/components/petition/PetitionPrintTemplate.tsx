@@ -521,7 +521,7 @@ function PageTwo({ lr, petition, items, qcResults, sgParam, requestValues = {} }
                 <td>{item.testUnit ?? ''}</td>
                 <td>
                   {item.testItems ?? ''}
-                  {Object.entries(requestValues).filter(([key, value]) => key.endsWith(`\u0000${item.batchNo}\u0000${item.sampleName}`) && value !== '').map(([key, value]) => <div key={key} className="pr-note">{key.split('\u0000')[0]}: {String(value)}</div>)}
+                  {Object.entries(requestValues).filter(([key, value]) => !key.startsWith('ค่าถพ.\u0000') && key.endsWith(`\u0000${item.batchNo}\u0000${item.sampleName}`) && value !== '').map(([key, value]) => <div key={key} className="pr-note">{key.split('\u0000')[0]}: {String(value)}</div>)}
                 </td>
                 <td>{item.note ?? ''}</td>
                 <td>{item.sampleId ?? ''}</td>
