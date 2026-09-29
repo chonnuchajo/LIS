@@ -38,7 +38,7 @@ export default function QCTestingPage() {
   const [scanOpen, setScanOpen] = useState(false);
 
   const { data, loading, refresh } = usePetitionList({
-    status: 'sampleSent,pendingReview,inProgress',
+    status: 'sampleSent,pendingReview,inProgress,success',
     search,
     dept: dept || undefined,
     limit: 50,
@@ -181,8 +181,8 @@ export default function QCTestingPage() {
               e.stopPropagation();
               navigate(`/qc-testing/${p._id}`);
             }}
-          >
-            เข้าตรวจ
+            >
+            {p.qcCompletedAt ? 'แก้ไขผล QC' : 'เข้าตรวจ'}
           </Button>
         ) : (
           <span className="text-xs text-grey-400">รอสแกนรับ</span>
