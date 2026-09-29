@@ -10,6 +10,8 @@ export function isReceivedBeforeStatusAdvance(petition: Petition): boolean {
 
 export function isVisibleInQcTestingQueue(petition: Petition): boolean {
   if (!requiresQcTrack(petition)) return false;
+  // QC can revise submitted results until final approval.
+  if (petition.status === 'success') return Boolean(petition.qcCompletedAt && !petition.approvedAt);
   if (petition.status === 'deliveringQC') return Boolean(qcReceivedAt(petition));
   return OPEN_TESTING_STATUSES.includes(petition.status);
 }

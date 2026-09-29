@@ -854,11 +854,6 @@ export default function QCTestingDetailPage() {
     );
   }
 
-  // คำร้องที่บันทึกผลแล้ว (รอออกผล) ย้ายไปหน้าออกผลเฉพาะ — กันคนหลงเข้าฟอร์มที่ถูก lock
-  if (petition.status === "success") {
-    return <Navigate to={`/qc-approval/${petition._id}`} replace />;
-  }
-
   const items = petition.items ?? [];
 
   // 2-phase support
@@ -1022,7 +1017,7 @@ export default function QCTestingDetailPage() {
     setSubmitting(true);
     try {
       await autosaves.flush();
-      toast.success('บันทึกแบบร่างเรียบร้อย');
+      toast.success(petition.qcCompletedAt ? 'บันทึกการแก้ไขผล QC เรียบร้อย' : 'บันทึกแบบร่างเรียบร้อย');
       navigate('/qc-testing');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'บันทึกผลไม่สำเร็จ');
@@ -1066,9 +1061,9 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  // Locked once QC has submitted its results — read-only while waiting for Lab
-  // to finish (status==='success' petitions redirect to the approval page above).
-  const isLocked = !!petition.qcCompletedAt || !!pendingSample;
+  // Final approval/rejection locks the QC form; submitted results remain editable.
+  const isLocked = ['approved', 'rejected'].includes(petition.status) || !!pendingSample;
+  const hasSubmittedQc = !!petition.qcCompletedAt;
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -1602,14 +1597,14 @@ export default function QCTestingDetailPage() {
           status==='success' redirects to qc-approval above, so this is the
           waiting-for-Lab state. Hides the action footer so the locked page is a
           clean read-only view (back/nav stay usable) instead of a dead end. */}
-      {!!petition.qcCompletedAt && !pendingSample && petition.status !== 'approved' && petition.status !== 'rejected' && (
+      {hasSubmittedQc && !pendingSample && petition.status !== 'approved' && petition.status !== 'rejected' && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex flex-col items-center gap-2">
           <CheckCircle2 className="h-6 w-6 text-blue-500" />
           <p className="text-sm font-semibold text-blue-700">
             บันทึกผล QC แล้ว — รอ Lab ตรวจให้ครบ
           </p>
           <p className="text-xs text-blue-600">
-            ฟอร์มนี้ถูกล็อกเป็นแบบอ่านอย่างเดียว แก้ไขไม่ได้ — กด “ย้อนกลับ” เพื่อออก
+            ยังไม่มีการอนุมัติ QC — สามารถแก้ไขผลแล้วกดบันทึกได้
           </p>
         </div>
       )}
@@ -1632,8 +1627,7 @@ export default function QCTestingDetailPage() {
         </div>
       )}
 
-      {/* Action buttons — hidden once locked (qcCompletedAt set) so the read-only
-          page can't re-fire the submit→confirm→navigate cycle. */}
+      {/* Action buttons stay available until final approval. */}
       {items.length > 0 && !isLocked && (
         <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {abnormalCount > 0 && qcReceivedAt(petition) && (
@@ -1641,7 +1635,7 @@ export default function QCTestingDetailPage() {
           )}
           <Button
             variant={isComplete ? 'primary' : 'outline'}
-            onClick={isComplete ? handleSubmitResult : handleSaveDraft}
+            onClick={hasSubmittedQc ? handleSaveDraft : isComplete ? handleSubmitResult : handleSaveDraft}
             disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}
             className="gap-2"
           >
@@ -1652,7 +1646,7 @@ export default function QCTestingDetailPage() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
+            {hasSubmittedQc ? 'บันทึกการแก้ไข' : isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
           </Button>
         </div>
       )}
