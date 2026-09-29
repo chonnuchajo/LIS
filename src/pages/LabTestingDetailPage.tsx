@@ -882,7 +882,7 @@ export default function LabTestingDetailPage() {
     setSubmitting(true);
     try {
       await autosaves.flush();
-      toast.success('บันทึกแบบร่างเรียบร้อย');
+      toast.success(petition.labCompletedAt ? 'บันทึกการแก้ไขผล Lab เรียบร้อย' : 'บันทึกแบบร่างเรียบร้อย');
       navigate('/lab-testing');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'บันทึกผลไม่สำเร็จ');
@@ -938,7 +938,8 @@ export default function LabTestingDetailPage() {
 
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
-  const isLocked = petition.status === 'success' || !!petition.labCompletedAt || !isAssigned || !!pendingSample;
+  const isLocked = !!petition.labApprovedAt || petition.status === 'rejected' || !isAssigned || !!pendingSample;
+  const hasSubmittedLab = !!petition.labCompletedAt;
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
       (it) =>
@@ -1659,7 +1660,7 @@ export default function LabTestingDetailPage() {
           </div>
         )}
 
-        {/* Action buttons — เฉพาะตอนผู้ทดสอบยังไม่ยืนยัน */}
+        {/* Action buttons stay available until Lab approval. */}
         {labItems.length > 0 && !isLocked && (
           <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 border-t border-border bg-background/95 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             {abnormalCount > 0 && labReceivedAt(petition) && (
@@ -1667,12 +1668,12 @@ export default function LabTestingDetailPage() {
             )}
             <Button
               variant={isComplete ? 'primary' : 'outline'}
-              onClick={isComplete ? handleSubmitResult : handleSaveDraft}
+              onClick={hasSubmittedLab ? handleSaveDraft : isComplete ? handleSubmitResult : handleSaveDraft}
               disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}
               className="gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              {isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
+              {hasSubmittedLab ? 'บันทึกการแก้ไข' : isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
             </Button>
           </div>
         )}
