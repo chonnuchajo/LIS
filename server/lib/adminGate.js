@@ -20,7 +20,8 @@ function createAdminGate({ findUserByEmail, isDevBypass, warn = console.warn }) 
     try {
       user = await findUserByEmail(email);
     } catch (err) {
-      return res.status(500).json({ error: { message: `ตรวจสอบสิทธิ์ไม่สำเร็จ: ${err.message}` } });
+      warn('[adminGate] user lookup failed:', err.message);
+      return res.status(500).json({ error: { message: 'ตรวจสอบสิทธิ์ไม่สำเร็จ' } });
     }
     if (!user || !normalizeRoles(user).includes('admin')) {
       return res.status(403).json({ error: { message: 'เฉพาะผู้ดูแลระบบเท่านั้น' } });

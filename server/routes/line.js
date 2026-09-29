@@ -324,7 +324,7 @@ router.post('/ingest', async (req, res) => {
     if (!line.ingestSecret()) {
       return res.status(503).json({ error: { message: 'ingest ยังไม่ถูกตั้งค่า (LINE_INGEST_SECRET)' } });
     }
-    const key = req.get('x-lis-ingest-key') || (process.env.NODE_ENV === 'production' ? '' : req.query.key);
+    const key = req.get('x-lis-ingest-key') || '';
     if (!line.verifyIngestKey(key)) {
       return res.status(401).json({ error: { message: 'invalid ingest key' } });
     }
