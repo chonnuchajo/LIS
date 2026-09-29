@@ -16,6 +16,15 @@ const corsOrigins = String(process.env.CORS_ORIGINS || '')
 // ทุกราย — 'loopback' เชื่อ X-Forwarded-For เฉพาะ hop ที่มาจาก 127.0.0.1/::1 เท่านั้น (ตัว proxy จริง)
 app.set('trust proxy', 'loopback');
 
+// Baseline response protections; no dependency or frontend flow change.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 app.use(cors(corsOrigins.length ? {
   origin: (origin, callback) => callback(null, !origin || corsOrigins.includes(origin)),
   credentials: true,
