@@ -14,7 +14,11 @@ function authorized(req) {
   if (req.apiKey?.scopes?.includes('integration:write')) return true;
   const secret = process.env.PRODUCTION_INTEGRATION_TOKEN;
   // Missing shared secret must fail closed. API keys remain supported above.
-  if (!secret) return process.env.NODE_ENV !== 'production';
+  if (!secret) {
+    // Keep local development flow, but never expose an unauthenticated ingest endpoint remotely.
+    return process.env.NODE_ENV !== 'production' &&
+      ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req?.ip);
+  }
   const header = req.get('authorization') || '';
   const bearer = header.match(/^Bearer\s+(.+)$/i)?.[1];
   return req.get('x-integration-token') === secret || bearer === secret;

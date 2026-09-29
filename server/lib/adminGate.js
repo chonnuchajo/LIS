@@ -8,7 +8,7 @@ const User = require('../models/User');
 // ดู docs/superpowers/specs/2026-08-06-api-keys-and-api-protection-design.md ข้อ 4.4
 function createAdminGate({ findUserByEmail, isDevBypass, warn = console.warn }) {
   return async function requireAdminUser(req, res, next) {
-    if (isDevBypass()) {
+    if (isDevBypass(req)) {
       warn('[adminGate] ข้ามการตรวจสิทธิ์ (ALLOW_DEV_STATUS=true) — ห้ามตั้งค่านี้บน production');
       return next();
     }
@@ -32,7 +32,12 @@ function createAdminGate({ findUserByEmail, isDevBypass, warn = console.warn }) 
 
 const requireAdminUser = createAdminGate({
   findUserByEmail: (email) => User.findOne({ email }).lean(),
-  isDevBypass: () => process.env.ALLOW_DEV_STATUS === 'true',
+  // Keep local test convenience without exposing an unauthenticated admin bypass.
+  isDevBypass: (req) => (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.ALLOW_DEV_STATUS === 'true' &&
+    ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req?.ip)
+  ),
 });
 
 module.exports = { createAdminGate, requireAdminUser };
