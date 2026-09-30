@@ -22,11 +22,11 @@ export function sourceSiblingKey(label: string): string {
 }
 
 export function isSgValueKey(key: string): boolean {
-  return key === SG_VALUE_LABEL || (key.startsWith(SG_VALUE_KEY_PREFIX) && !key.endsWith('__source'));
+  return key === SG_VALUE_LABEL || key.startsWith(`${SG_VALUE_LABEL} —`) || (key.startsWith(SG_VALUE_KEY_PREFIX) && !key.endsWith('__source'));
 }
 
 export function isSgMachineUnitKey(key: string, label: string): boolean {
-  return isSgValueKey(key) || label === SG_VALUE_LABEL || label === SG_TEMP_LABEL;
+  return isSgValueKey(key) || label === SG_VALUE_LABEL || label.startsWith(`${SG_VALUE_LABEL} —`) || label === SG_TEMP_LABEL;
 }
 
 function firstDensityColumnValue(row: Record<string, unknown>, columns: string[]): unknown {
