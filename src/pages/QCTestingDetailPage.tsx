@@ -1328,15 +1328,19 @@ export default function QCTestingDetailPage() {
                       sgValueField?.requestValueSource?.mode === 'collection' &&
                       !!sgValueField &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
-                    const unitDisabled = fieldDisabled || isSgMachineField;
+                    // ค่า ถพ. เลือก/แก้ได้; อุณหภูมิยังคงอ่านจากเครื่องและล็อกไว้
+                    const unitDisabled = fieldDisabled || (isSgMachineField && unit.field.label !== SG_VALUE_LABEL);
                     const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
                     const isSgValueUnit = isSgMachineField && unit.field.label === SG_VALUE_LABEL;
                     const densityValue = srcValues[unit.key] == null ? '' : String(srcValues[unit.key]);
                     const densityControlKey = `${resultKey(item.seq, param._id!)}::${unit.key}`;
-                    const isManualDensity = isSgValueUnit && densityOptions.length > 0 &&
-                      (manualDensityKeys[densityControlKey] || (!!densityValue && !densityOptions.includes(densityValue)));
+                    const densityChoices = densityValue && !densityOptions.includes(densityValue)
+                      ? [...densityOptions, densityValue]
+                      : densityOptions;
+                    const isManualDensity = isSgValueUnit &&
+                      (manualDensityKeys[densityControlKey] || (!!densityValue && densityOptions.length > 0 && !densityOptions.includes(densityValue)));
 
-                    if (isSgValueUnit && densityOptions.length > 0) {
+                    if (isSgValueUnit) {
                       return (
                         <div key={unit.key} className="space-y-1">
                           <label className="text-sm font-medium text-grey-700">{unit.field.label}{unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}</label>
@@ -1352,7 +1356,7 @@ export default function QCTestingDetailPage() {
                             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="เลือกค่า ถพ. ..." /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">— เลือก —</SelectItem>
-                              {densityOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              {densityChoices.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
                               <SelectItem value="__manual__">กรอกค่าเอง</SelectItem>
                             </SelectContent>
                           </Select>
