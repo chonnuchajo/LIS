@@ -1331,7 +1331,8 @@ export default function QCTestingDetailPage() {
                     // ค่า ถพ. เลือก/แก้ได้; อุณหภูมิยังคงอ่านจากเครื่องและล็อกไว้
                     const unitDisabled = fieldDisabled || (isSgMachineField && unit.field.label !== SG_VALUE_LABEL);
                     const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
-                    const isSgValueUnit = isSgMachineField && unit.field.label === SG_VALUE_LABEL;
+                    // Match by label too: legacy SG parameters may not carry requestValueSource.
+                    const isSgValueUnit = unit.field.label === SG_VALUE_LABEL && !!sgValueField;
                     const densityValue = srcValues[unit.key] == null ? '' : String(srcValues[unit.key]);
                     const densityControlKey = `${resultKey(item.seq, param._id!)}::${unit.key}`;
                     const densityChoices = densityValue && !densityOptions.includes(densityValue)
@@ -1543,7 +1544,7 @@ export default function QCTestingDetailPage() {
                           };
                           return (
                             <div className="space-y-4">
-                              {isSgParam && (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL)?.requestValueSource?.mode === 'collection' && !fieldDisabled && (
+                              {isSgParam && !fieldDisabled && (
                                 <div>
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}
