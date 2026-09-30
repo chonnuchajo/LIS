@@ -18,6 +18,7 @@ import {
   findStandardBottleBySearch,
   requisitionUser,
   standardMatchesRequisitionSearch,
+  standardRequisitionSearchScore,
   standardRequisitionUnitLabelCode,
   sumWeights,
   validateWeights,
@@ -115,7 +116,10 @@ export default function StandardRequisitionDialog({ initialQrId, initialUnit, on
     [standards, usableByCode],
   );
   const visibleStandards = useMemo(
-    () => inStock.filter((stockStandard) => standardMatchesRequisitionSearch(stockStandard, usableByCode.get(stockStandard.code) ?? [], standardSearch)),
+    () => inStock.filter((stockStandard) => standardMatchesRequisitionSearch(stockStandard, usableByCode.get(stockStandard.code) ?? [], standardSearch))
+      .map((stockStandard) => ({ stockStandard, score: standardRequisitionSearchScore(stockStandard, usableByCode.get(stockStandard.code) ?? [], standardSearch) }))
+      .sort((left, right) => right.score - left.score)
+      .map(({ stockStandard }) => stockStandard),
     [inStock, standardSearch, usableByCode],
   );
   const standard = standards.find((s) => s.code === code) ?? null;

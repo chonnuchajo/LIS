@@ -8,7 +8,7 @@ const { isOpenAIConfigured, generateText } = require('../lib/openaiClient');
 
 const AUDIENCES = LineGroup.AUDIENCES;
 const AUDIENCE_LABELS = {
-  qc: 'QC', lab: 'Lab', production: 'แผนกผลิต', rm: 'แผนก RM', fg: 'แผนก FG', all: 'ทุกเหตุการณ์',
+  qc: 'QC', lab: 'Lab', production: 'แผนกผลิต', rm: 'แผนก RM', fg: 'แผนก FG', rd: 'แผนก R&D', all: 'ทุกเหตุการณ์',
 };
 
 // LINE source id: group > room > 1:1 user.
@@ -24,7 +24,7 @@ const HELP_TEXT = [
   '• งานค้าง → สรุปงานที่ยังไม่เสร็จ',
   '• งานวันนี้ → สรุปงานเข้า/เสร็จวันนี้',
   '• /ถาม <คำถาม> → ถามผู้ช่วย AI แบบภาษาธรรมชาติ (เช่น /ถาม P-2606-0018 ค้างที่ขั้นไหน)',
-  '• /ผูก <qc|lab|production|rm|fg|all> → ผูกกลุ่มนี้ให้รับแจ้งเตือน',
+  '• /ผูก <qc|lab|production|rm|fg|rd|all> → ผูกกลุ่มนี้ให้รับแจ้งเตือน',
   '• /ยกเลิก → ยกเลิกการรับแจ้งเตือนของกลุ่มนี้',
   '• /id → แสดงรหัสกลุ่ม (groupId)',
   '• /help → เมนูนี้',

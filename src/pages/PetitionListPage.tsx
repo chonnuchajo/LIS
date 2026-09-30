@@ -41,6 +41,7 @@ import { normalizeRoles } from '@/lib/roles';
 import { petitionStatusBadge } from '@/lib/statusBadge';
 import { formatStockQuantityWithUnit } from '@/lib/stockQuantity';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { rankSearchResults } from '@/lib/searchRanking';
 import { cn } from '@/lib/utils';
 import {
   PETITION_STATUS_CONFIG,
@@ -415,7 +416,7 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
   );
   const filtered = useMemo(() => {
     const q = sixMonthSearch.trim().toLowerCase();
-    return availableStockItems.filter((item) => {
+    const matches = availableStockItems.filter((item) => {
       const itemNo = item.itemNo.trim().toUpperCase();
       const matchesKind = kindFilter === 'all'
         || (kindFilter === 'rm' && itemNo.startsWith('R'))
@@ -428,6 +429,10 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
         item.lotNo,
       ].some((value) => (value ?? '').toLowerCase().includes(q));
     });
+    return rankSearchResults(matches, sixMonthSearch, (item) => ({
+      primary: [item.itemNo],
+      secondary: [item.commonName, item.lotNo],
+    }));
   }, [availableStockItems, sixMonthSearch, kindFilter]);
   const filteredKeys = useMemo(() => filtered.map(sixMonthStockRowKey), [filtered]);
   const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((key) => selectedRowKeys.has(key));

@@ -3,6 +3,7 @@ const router = express.Router();
 const ResultDensity = require('../models/ResultDensity');
 const { batchMatches, withDensityBatch } = require('../lib/densityBatch');
 const { sortLatestDensities } = require('../lib/resultDensitySort');
+const { rankSearchResults } = require('../lib/searchRanking');
 const { triggerDensitySync } = require('../lib/densitySyncTrigger');
 
 // POST /api/result-densities/sync — fire the n8n webhook that pulls fresh DMA 501
@@ -75,7 +76,10 @@ router.get('/', async (req, res) => {
       filter['Date & time'] = { $regex: `^${formatted.replace(/\//g, '\\/')}` };
     }
 
-    const allDocs = sortLatestDensities(await ResultDensity.find(filter).lean()).map(withDensityBatch);
+    const latestDocs = sortLatestDensities(await ResultDensity.find(filter).lean()).map(withDensityBatch);
+    const allDocs = search ? rankSearchResults(latestDocs, search, (row) => ({
+      primary: [row['Sample ID']], secondary: [row['Sample name']],
+    })) : latestDocs;
     const total = allDocs.length;
     const docs = allDocs.slice(skip, skip + limit);
 

@@ -74,6 +74,37 @@ describe("MasterItems interactions", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(["R", "Ri", "ri"])("ranks %s codes ahead of name/details matches before pagination", async (search) => {
+    const code = search.toUpperCase();
+    const earlierItems = Array.from({ length: 55 }, (_, index) => ({
+      item_no: `AA-${index}`,
+      item_name1: index % 2 === 0 ? `${search} name match` : "Alpha",
+      remark: index % 2 === 1 ? `${search} hidden detail` : "",
+    }));
+    const priorityCodes = [code, `${code}-100`, `${code}-200`, `X${code}-001`, `XX${code}-001`];
+    vi.mocked(api.get).mockImplementation(async (path: string) => ({
+      data: { data: path === "/master-items" ? [
+        ...earlierItems,
+        ...[...priorityCodes].reverse().map((item_no) => ({ item_no, item_name1: "Alpha" })),
+      ] : [] },
+    }));
+    renderMasterItems();
+
+    await screen.findByText("AA-0");
+    const input = screen.getByPlaceholderText("ค้นหารหัสสินค้า ชื่อสินค้า หรือชื่อสามัญ");
+    fireEvent.change(input, { target: { value: search } });
+
+    await waitFor(() => {
+      const rows = screen.getByRole("table").querySelectorAll("tbody tr");
+      expect(rows).toHaveLength(50);
+      const codes = Array.from(rows).map((row) => row.querySelector("td")?.textContent);
+      expect(codes.slice(0, 5)).toEqual([code, `${code}-200`, `${code}-100`, `X${code}-001`, `XX${code}-001`]);
+    });
+
+    fireEvent.change(input, { target: { value: "" } });
+    expect(screen.getByRole("table").querySelector("tbody tr td")).toHaveTextContent("AA-0");
+  });
+
   it("opens item details on row single click", async () => {
     renderMasterItems();
 
@@ -90,6 +121,22 @@ describe("MasterItems interactions", () => {
     });
 
     expect(screen.getByText("Kg/Unit")).toBeInTheDocument();
+  });
+
+  it("ranks alternate code fields ahead of hidden detail matches without dropping them", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => ({
+      data: { data: path === "/master-items" ? [
+        { item_no: "AA", item_name1: "Alpha", extra: { detail: "Ri" } },
+        { item_no: "ZZ", itemCode: "RI", item_name1: "Beta" },
+        { item_no: "BB", ITEM_CODE: "rI", item_name1: "Gamma" },
+        { item_no: "CC", item_name1: "Delta" },
+      ] : [] },
+    }));
+    renderMasterItems();
+    await screen.findByText("AA");
+    fireEvent.change(screen.getByPlaceholderText("ค้นหารหัสสินค้า ชื่อสินค้า หรือชื่อสามัญ"), { target: { value: "ri" } });
+    const rows = screen.getByRole("table").querySelectorAll("tbody tr");
+    expect(Array.from(rows).map((row) => row.querySelector("td")?.textContent)).toEqual(["ZZ", "BB", "AA"]);
   });
 
   it("shows MF_Before and MF_Lasted in additional info", async () => {

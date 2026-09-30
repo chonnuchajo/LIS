@@ -27,6 +27,7 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeRoles, type RoleHolder } from "@/lib/roles";
 import { requisitionUser } from "@/lib/standardRequisition";
@@ -200,12 +201,13 @@ function StandardsTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return data.filter(s => {
+    const matches = data.filter(s => {
       const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilters.size === 0) return true;
       return standardMatchesStatuses(sum, statusFilters);
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    return rankSearchResults(matches, search, (standard) => ({ primary: [standard.code], secondary: [standard.name] }));
   }, [data, search, statusFilters, now, unitsByCode]);
 
   const visibleStandards = data;
@@ -636,7 +638,7 @@ function SolventsTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+    return rankSearchResults(q ? data.filter(s => s.name.toLowerCase().includes(q)) : data, search, (solvent) => ({ primary: [solvent.name] }));
   }, [data, search]);
 
   const visibleSolvents = data;
@@ -813,7 +815,7 @@ function GlasswareTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+    return rankSearchResults(q ? data.filter(s => s.name.toLowerCase().includes(q)) : data, search, (glassware) => ({ primary: [glassware.name] }));
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)

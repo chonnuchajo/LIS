@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pencil, Search } from "lucide-react";
 
 import type { ParameterItem, ParameterScope } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import {
   type AdvancedCriteriaMode,
   buildConditionalCriteriaRows,
@@ -450,7 +451,7 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
   sortKey: CriteriaSortKey,
   parameterOrder: Map<string, number>,
 ) {
-  return rows
+  const filtered = rows
     .filter(
       (row) =>
         Boolean(parameterFilter) &&
@@ -459,6 +460,13 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
     )
     .slice()
     .sort(compareCriteriaRows(sortKey, parameterOrder));
+  return rankSearchResults(filtered, searchQuery, (row) => {
+    const searchable = row as unknown as Record<string, unknown>;
+    return {
+      primary: [normalizeCriteriaSearchText(row.itemNo || row.substance || searchable.ruleLabel || searchable.selectorText || row.parameterName)],
+      secondary: [row.searchText, ...SEARCHABLE_ROW_KEYS.map((key) => searchable[key])].map(normalizeCriteriaSearchText),
+    };
+  });
 }
 
 function matchesCriteriaSearch(row: SortableCriteriaRow, searchQuery: string) {

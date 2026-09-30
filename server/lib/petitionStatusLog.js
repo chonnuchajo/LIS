@@ -270,6 +270,7 @@ function buildTimeline(auditLogs, petition) {
 // lab-batch item. A petition may transition to `success` only when this holds —
 // so a single track finishing (Lab OR QC) never completes the petition alone.
 function isPetitionComplete(petition) {
+  if (petition?.additionalSampleRequests?.some(round => round.status !== 'received')) return false;
   const hasLabItem = hasLabTrack(petition);
   const qcDone = !!(petition ?? {}).qcCompletedAt;
   const labDone = !hasLabItem || !!(petition ?? {}).labApprovedAt;

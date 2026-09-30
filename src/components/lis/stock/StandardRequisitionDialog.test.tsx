@@ -48,9 +48,9 @@ const unit: StockUnitItem = {
   receivedDate: "2026-01-01T00:00:00.000Z",
 };
 
-function renderDialog(machinePrefix: "GC" | "HPLC") {
-  apiMock.getStandards.mockResolvedValue([standard]);
-  apiMock.getStockUnits.mockResolvedValue([unit]);
+function renderDialog(machinePrefix: "GC" | "HPLC", standards = [standard], units = [unit]) {
+  apiMock.getStandards.mockResolvedValue(standards);
+  apiMock.getStockUnits.mockResolvedValue(units);
   apiMock.getMethods.mockResolvedValue([
     {
       _id: "method1",
@@ -81,6 +81,31 @@ function renderDialog(machinePrefix: "GC" | "HPLC") {
 describe("StandardRequisitionDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each(["676902", "ุึุตจ/", "๖๗๖๙๐๒"])("ranks bottle identifiers before name matches for %s", async (query) => {
+    const choices = [
+      { ...standard, _id: "name", code: "OTHER", name: "676902 name" },
+      { ...standard, _id: "prefix", code: "PREFIX", name: "Prefix bottle" },
+      { ...standard, _id: "exact", code: "EXACT", name: "Exact bottle" },
+    ];
+    const bottles = choices.map((choice, index) => ({
+      ...unit, _id: choice._id, qrId: `qr-${choice._id}`, itemCode: choice.code,
+      itemName: choice.name, labelCode: ["111", "6769021", "676902"][index],
+    }));
+    renderDialog("HPLC", choices, bottles);
+
+    fireEvent.click(await screen.findByRole("combobox"));
+    const searchInput = await screen.findByPlaceholderText("ค้นหาชื่อ/code/เลขขวด");
+    fireEvent.change(searchInput, { target: { value: query } });
+    await waitFor(() => expect(screen.getAllByRole("option").map((option) => option.textContent?.split("1 ขวด")[0])).toEqual([
+      "Exact bottle", "Prefix bottle", "676902 name",
+    ]));
+
+    fireEvent.change(searchInput, { target: { value: "" } });
+    expect(screen.getAllByRole("option").map((option) => option.textContent?.split("1 ขวด")[0])).toEqual([
+      "676902 name", "Prefix bottle", "Exact bottle",
+    ]);
   });
 
   it.each([

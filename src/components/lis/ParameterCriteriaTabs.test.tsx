@@ -527,6 +527,30 @@ describe("ParameterCriteriaTabs", () => {
     expect(screen.queryByText("ABAMECTIN / 1%")).not.toBeInTheDocument();
   });
 
+  it("ranks item codes ahead of substance names after existing criteria sorting", () => {
+    renderCriteriaTabs({
+      value: "substance",
+      parameters: [{
+        _id: "ranked", name: "Density", scope: "qc", valueFields: [{
+          label: "Density", type: "number", substanceMode: true, substanceStandards: [
+            { substance: "A rising name", itemNo: "AA", operator: "gte", value: 1 },
+            { substance: "Z exact", itemNo: "RI", operator: "gte", value: 1 },
+            { substance: "M prefix", itemNo: "RI-100", operator: "gte", value: 1 },
+          ],
+        }],
+      }],
+    });
+    expect(bodyRows()[0]).toHaveTextContent("A rising name");
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "ri" } });
+    expect(bodyRows().map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Z exact"),
+      expect.stringContaining("M prefix"),
+      expect.stringContaining("A rising name"),
+    ]);
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "" } });
+    expect(bodyRows()[0]).toHaveTextContent("A rising name");
+  });
+
   it("matches substance search terms that exist only in indexed searchText", () => {
     renderCriteriaTabs({
       value: "substance",

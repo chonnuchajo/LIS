@@ -560,6 +560,12 @@ describe('PetitionListPage action cues', () => {
 
     expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
     expect(screen.queryByText('R-TEST-002')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'ประเภทสินค้า' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'ทั้งหมด' }));
+
+    expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.getByText('R-TEST-002')).toBeInTheDocument();
   });
 
   it('refreshes six-month medicine stock after pulling down from the top on touch screens', async () => {

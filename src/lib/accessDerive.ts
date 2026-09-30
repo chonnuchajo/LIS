@@ -1,4 +1,5 @@
 import { NAV_ITEMS } from "@/lib/navItems";
+import { rankSearchResults } from "@/lib/searchRanking";
 import type { AppUser, AccessGroup } from "@/components/lis/access/types";
 
 export function filterUsers(
@@ -6,7 +7,7 @@ export function filterUsers(
   f: { search?: string; dept?: string; role?: string; status?: string },
 ): AppUser[] {
   const q = (f.search ?? "").trim().toLowerCase();
-  return users.filter((u) => {
+  const matched = users.filter((u) => {
     if (q) {
       const hay = `${u.name} ${u.email} ${u.employeeId}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -16,6 +17,10 @@ export function filterUsers(
     if (f.status && u.status !== f.status) return false;
     return true;
   });
+  return rankSearchResults(matched, q, (user) => ({
+    primary: [user.employeeId || user.name, user.email],
+    secondary: [user.name],
+  }));
 }
 
 export function paginate<T>(list: T[], page: number, pageSize: number): { items: T[]; total: number; pageCount: number } {

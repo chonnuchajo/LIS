@@ -2,7 +2,9 @@
 // commonName เป็นตัวขับการจับคู่พารามิเตอร์ (classification-based เหมือน production — ดู
 // petitionTestItems.ts) และการจับคู่ simple-method ตอน assign เครื่องมือ จึงต้องมาจาก master item
 // ไม่ใช่พิมพ์เอง — ดู CLAUDE.md gotcha เรื่อง simple-method positional
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { defaultFilter } from 'cmdk';
+import { rankSearchResults } from '@/lib/searchRanking';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +36,16 @@ const MasterItemPicker = ({ options, loading, sampleName, onPick }: {
   onPick: (option: PetitionMasterItemOption) => void;
 }) => {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  useEffect(() => { if (!open) setSearch(''); }, [open]);
+  const rankedOptions = useMemo(() => rankSearchResults(
+    options.filter((option) => !search || defaultFilter(
+      [option.sampleName, option.commonName, option.packageUnit, option.itemNo].filter(Boolean).join(' ').trim(),
+      search,
+    ) > 0),
+    search,
+    (option) => ({ primary: [option.itemNo], secondary: [option.sampleName, option.commonName, option.packageUnit] }),
+  ), [options, search]);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -46,12 +58,12 @@ const MasterItemPicker = ({ options, loading, sampleName, onPick }: {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
+        <Command shouldFilter={false}>
+          <CommandInput value={search} onValueChange={setSearch} placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
           <CommandList>
             <CommandEmpty>ไม่พบชื่อตัวอย่างใน Master Item</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => (
+              {rankedOptions.map((option) => (
                 <CommandItem
                   key={`${option.itemNo}-${option.sampleName}-${option.commonName}-${option.packageUnit}`}
                   value={[option.sampleName, option.commonName, option.packageUnit, option.itemNo]

@@ -2,6 +2,7 @@
 
 import { standardLabelCodeFromStockUnit } from "./standardLabelCode";
 import { withThaiKedmaneeFallbacks } from "./keyboardLayout";
+import { getSearchScore } from "./searchRanking";
 
 interface StandardRequisitionSearchStandard {
   code?: string | number | null;
@@ -86,6 +87,18 @@ export function standardMatchesRequisitionSearch(
   if (normalizedQueries.length === 0) return true;
   const normalizedSearchText = normalizeSearchText(standardRequisitionSearchText(standard, units));
   return normalizedQueries.some((normalizedQuery) => normalizedSearchText.includes(normalizedQuery));
+}
+
+export function standardRequisitionSearchScore(
+  standard: StandardRequisitionSearchStandard,
+  units: StandardRequisitionSearchUnit[],
+  query: string,
+): number {
+  const fields = {
+    primary: [standard.code, ...units.flatMap((unit) => [unit.itemCode, ...stockUnitIdentifierTerms(unit)])],
+    secondary: [standard.name, ...units.map((unit) => unit.itemName), standardRequisitionSearchText(standard, units)],
+  };
+  return Math.max(0, ...withThaiKedmaneeFallbacks(query).map((candidate) => getSearchScore(candidate, fields)));
 }
 
 function stockUnitIdentifierTerms(unit: StandardRequisitionSearchUnit): string[] {

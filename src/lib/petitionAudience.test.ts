@@ -1,7 +1,17 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { audiencesForUser, readSeeAll, writeSeeAll, SEE_ALL_EVENT } from "./petitionAudience";
+import { LINE_AUDIENCES, lineAudienceLabel } from "./lineConfig";
 
 describe("audiencesForUser", () => {
+  it.each(["R&D", "R & D", "RD", "rd", "แผนก R & D"])("รองรับฝ่าย %s โดยไม่ส่งไปฝ่ายผลิต", (department) => {
+    expect(audiencesForUser({ department })).toEqual(["rd"]);
+  });
+
+  it("มีตัวเลือกกลุ่ม LINE สำหรับฝ่าย R&D", () => {
+    expect(LINE_AUDIENCES.find((audience) => audience.value === "rd")).toMatchObject({ label: "แผนก R&D" });
+    expect(lineAudienceLabel("rd")).toBe("แผนก R&D");
+  });
+
   it("แปลง role เป็น audience", () => {
     expect(audiencesForUser({ roles: ["qc-staff"] })).toEqual(["qc"]);
     expect(audiencesForUser({ roles: ["lab-analyze"] })).toEqual(["lab"]);

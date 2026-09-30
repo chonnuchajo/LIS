@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { isPublicPath, userCanAccessPath } from "@/lib/accessControl";
 import { PAGE_ITEMS, type NavItem } from "@/lib/navItems";
 import { unionPermissions } from "@/lib/roles";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { tabsFor } from "@/lib/tabRegistry";
 import type { AccessGroup, AppUser, Role } from "./types";
 
@@ -174,7 +175,7 @@ export default function PageAccessTab({ groups, roles, users, permissions }: Pag
   const filteredRows = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return rows;
-    return rows.filter((row) => {
+    const matched = rows.filter((row) => {
       const text = [
         row.label,
         row.path,
@@ -184,6 +185,10 @@ export default function PageAccessTab({ groups, roles, users, permissions }: Pag
       ].join(" ").toLowerCase();
       return text.includes(keyword);
     });
+    return rankSearchResults(matched, keyword, (row) => ({
+      primary: [row.path],
+      secondary: [row.label, row.owner.name, ...row.roles.map((role) => role.name), ...row.users.flatMap((user) => [user.name, user.email])],
+    }));
   }, [rows, search]);
 
   const publicCount = rows.filter((row) => row.owner.publicAccess).length;

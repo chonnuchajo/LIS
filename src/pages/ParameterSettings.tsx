@@ -90,6 +90,7 @@ import {
   productTypeLabels,
 } from "@/lib/productClassification";
 import { generateParameter } from "@/lib/aiApi";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { ParameterCriteriaTabs, type ParameterCriteriaTab } from "@/components/lis/ParameterCriteriaTabs";
 import type { AdvancedCriteriaMode } from "@/lib/parameterCriteriaRows";
 import { normalizeRoles } from "@/lib/roles";
@@ -436,6 +437,17 @@ function MultiSelectPopover({
   const display = (v: string) => (labelFor ? labelFor(v) : v);
   const matchFilter = (opt: string) =>
     !search.trim() || display(opt).toLowerCase().includes(search.toLowerCase());
+  const rankedGroups = rankSearchResults(
+    (groupedOptions ?? []).flatMap((group) => group.options.filter(matchFilter)
+      .map((option) => ({ label: group.label, option }))),
+    search,
+    ({ option }) => ({ primary: [option], secondary: [display(option)] }),
+  ).reduce<{ label: string; options: string[] }[]>((groups, entry) => {
+    const previous = groups.at(-1);
+    if (previous?.label === entry.label) previous.options.push(entry.option);
+    else groups.push({ label: entry.label, options: [entry.option] });
+    return groups;
+  }, []);
 
   const toggle = (value: string) => {
     if (values.includes(value)) onChange(values.filter((v) => v !== value));
@@ -534,15 +546,13 @@ function MultiSelectPopover({
                 {emptyText}
               </div>
             ) : groupedOptions ? (
-              groupedOptions.map((g) => {
-                const filtered = g.options.filter(matchFilter);
-                if (filtered.length === 0) return null;
+              rankedGroups.map((g, index) => {
                 return (
-                  <div key={g.label} className="mb-1">
+                  <div key={`${g.label}-${index}`} className="mb-1">
                     <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {g.label}
                     </div>
-                    {filtered.map((opt) => (
+                    {g.options.map((opt) => (
                       <OptionRow
                         key={opt}
                         value={opt}
@@ -555,7 +565,10 @@ function MultiSelectPopover({
                 );
               })
             ) : (
-              options.filter(matchFilter).map((opt) => (
+              rankSearchResults(options.filter(matchFilter), search, (option) => ({
+                primary: [option],
+                secondary: [display(option)],
+              })).map((opt) => (
                 <OptionRow
                   key={opt}
                   value={opt}
@@ -3044,8 +3057,8 @@ export default function ParameterSettings() {
     const sorted = [...scopedParameters].sort(
       (a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999),
     );
-    return sorted.filter((p) => {
-      const haystack = normalizeParameterSearchText([
+    const matches = sorted.map((p) => {
+      const searchValues = [
         p.name,
         p.note,
         ...(p.commonNames ?? []),
@@ -3065,14 +3078,19 @@ export default function ParameterSettings() {
         ...(p.excludeSubCategories ?? []),
         ...(p.excludeItemGroups ?? []),
         ...(p.valueFields ?? []).flatMap(parameterValueFieldSearchTokens),
-      ]
-        .filter(Boolean)
-        .join(" "));
+      ].filter(Boolean);
+      const haystack = normalizeParameterSearchText(searchValues.join(" "));
+      return { parameter: p, haystack, searchValues };
+    }).filter(({ parameter: p, haystack }) => {
       const matchesSearch = !q || haystack.includes(q);
       const matchesStatus =
         statusFilter === "all" || (p.status ?? "active") === statusFilter;
       return matchesSearch && matchesStatus;
     });
+    return rankSearchResults(matches, q, ({ parameter, searchValues }) => ({
+      primary: [normalizeParameterSearchText(parameter.name)],
+      secondary: searchValues.map(normalizeParameterSearchText),
+    })).map(({ parameter }) => parameter);
   }, [scopedParameters, search, statusFilter]);
 
   const viewing = viewingId

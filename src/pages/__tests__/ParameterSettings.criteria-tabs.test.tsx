@@ -624,6 +624,35 @@ describe("ParameterSettings criteria tabs", () => {
     expect(payload.commonNames).toEqual([]);
   });
 
+  it("ranks subcategory matches globally across warehouse groups and restores empty-query order", async () => {
+    const prefixes = ["RI", "RXI", "RXXI", "FI", "FXXI"];
+    vi.mocked(api.get).mockImplementation((path) => Promise.resolve({
+      data: { data: path === "/master-items" ? prefixes.map((prefix) => ({ item_no: `${prefix}-001` })) : [] },
+    } as Awaited<ReturnType<typeof api.get<unknown>>>));
+    vi.mocked(api.getParameters).mockResolvedValueOnce([{
+      _id: "p-group-ranking", name: "Grouped ranking", scope: "qc", status: "active",
+      applyAll: false, categories: ["RM", "FG"], valueFields: [{ label: "Result", type: "text" }],
+    }]);
+    renderPage();
+    const row = (await screen.findByText("Grouped ranking")).closest("tr")!;
+    fireEvent.click(within(row).getByTitle("แก้ไข"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "เลือก prefix เช่น F, FC, RO, RC ..." }));
+    const input = screen.getByPlaceholderText("ค้นหา...");
+    const optionOrder = () => screen.getAllByRole("button")
+      .map((button) => button.textContent?.trim())
+      .filter((text) => prefixes.includes(text ?? ""));
+    expect(optionOrder()).toEqual(prefixes);
+    for (const query of ["I", "i"]) {
+      fireEvent.change(input, { target: { value: query } });
+      expect(optionOrder()).toEqual(["RI", "FI", "RXI", "RXXI", "FXXI"]);
+      expect(screen.getAllByText("RM — หมวดย่อยจาก code").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("FG — หมวดย่อยจาก code").length).toBeGreaterThan(0);
+    }
+    fireEvent.change(input, { target: { value: "" } });
+    expect(optionOrder()).toEqual(prefixes);
+  });
+
   it("shows head criteria columns for admin in label tolerance tab", async () => {
     api.getParameters.mockResolvedValueOnce([
       {

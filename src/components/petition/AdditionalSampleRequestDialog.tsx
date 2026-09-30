@@ -1,0 +1,109 @@
+import { useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { api } from '@/lib/api';
+import { pendingAdditionalSample } from '@/lib/additionalSamples';
+import type { AdditionalSampleRequest, Petition, PetitionItem } from '@/types/petition.types';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+interface Props {
+  petition: Petition;
+  side: AdditionalSampleRequest['side'];
+  items: PetitionItem[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  beforeSubmit: () => Promise<void>;
+  onRequested: (petition: Petition) => void;
+}
+
+export default function AdditionalSampleRequestDialog({ petition, side, items, open, onOpenChange, beforeSubmit, onRequested }: Props) {
+  const [reason, setReason] = useState('');
+  const [quantities, setQuantities] = useState<Record<number, string>>({});
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
+  const pending = pendingAdditionalSample(petition, side);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (sending.current || pending) return;
+    if (!reason.trim()) { setError('กรุณาระบุเหตุผลที่ขอตัวอย่างเพิ่ม'); return; }
+    if (reason.trim().length > 2000) { setError('เหตุผลต้องยาวไม่เกิน 2000 ตัวอักษร'); return; }
+    const selected = items.filter((item) => quantities[item.seq] !== undefined)
+      .map((item) => ({ itemSeq: item.seq, quantity: Number(quantities[item.seq]) }));
+    if (!selected.length) { setError('กรุณาเลือกรายการอย่างน้อย 1 รายการ'); return; }
+    if (selected.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 1000)) {
+      setError('จำนวนตัวอย่างต้องเป็นจำนวนเต็ม 1–1000 ทุกรายการ');
+      return;
+    }
+    sending.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await beforeSubmit();
+      const response = await api.post<Petition & { additionalSampleNotificationWarning?: string }>(
+        '/petitions/' + petition._id + '/additional-samples',
+        { side, reason: reason.trim(), items: selected },
+      );
+      onRequested(response.data.data);
+      if (response.data.data.additionalSampleNotificationWarning) toast.warning(response.data.data.additionalSampleNotificationWarning);
+      onOpenChange(false);
+      setReason('');
+      setQuantities({});
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'ส่งคำขอไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!sending.current) onOpenChange(next); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>ขอตัวอย่างเพิ่ม ({side.toUpperCase()})</DialogTitle>
+          <DialogDescription>เลือกรายการและจำนวนที่ต้องตรวจซ้ำ การขอเพิ่มยังไม่ปิดผลตรวจ และจะรอรับตัวอย่างรอบใหม่</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} noValidate className="space-y-4">
+          <fieldset disabled={busy || !!pending} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="additional-sample-reason">เหตุผลที่ขอตัวอย่างเพิ่ม</Label>
+              <Textarea id="additional-sample-reason" required maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} />
+            </div>
+            <div className="rounded-lg border bg-card text-card-foreground divide-y">
+              {items.map((item) => (
+                <div key={item.seq} className="flex flex-wrap items-center gap-3 p-3">
+                  <Checkbox id={'sample-item-' + item.seq} checked={quantities[item.seq] !== undefined} disabled={busy || !!pending}
+                    onCheckedChange={(checked) => setQuantities((previous) => {
+                      const next = { ...previous };
+                      if (checked) next[item.seq] = '1';
+                      else delete next[item.seq];
+                      return next;
+                    })} />
+                  <Label htmlFor={'sample-item-' + item.seq} className="flex-1 min-w-0">รายการที่ {item.seq}: {item.sampleName}</Label>
+                  <Input type="number" step="1" min="1" max="1000" aria-label={'จำนวนรายการที่ ' + item.seq} className="w-24"
+                    value={quantities[item.seq] ?? ''} disabled={busy || !!pending || quantities[item.seq] === undefined}
+                    onChange={(event) => setQuantities((previous) => ({ ...previous, [item.seq]: event.target.value }))} />
+                  {item.testUnit && <span className="text-sm text-muted-foreground">{item.testUnit}</span>}
+                </div>
+              ))}
+            </div>
+          </fieldset>
+          {(pending || error) && <p role="alert" className="text-sm text-destructive">{pending ? 'มีคำขอที่รอรับตัวอย่างเพิ่มสำหรับฝั่งนี้แล้ว' : error}</p>}
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>ยกเลิก</Button>
+            <Button type="submit" disabled={busy || !!pending}>
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{busy ? 'กำลังส่งคำขอ...' : 'ส่งคำขอ'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

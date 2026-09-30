@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { api, type LabelToleranceRule, type ParameterValueField } from "@/lib/api";
-import { getItemNo, getPackSize, getRawCommonName, getSampleName, getTradeName } from "@/lib/masterItemFields";
+import { getItemNo, getPackSize, getRawCommonName, getSampleName, getTradeName, itemNoKeys } from "@/lib/masterItemFields";
 import { productTypeLabels } from "@/lib/productClassification";
 import { formatLabelToleranceNumber } from "@/lib/standardOperators";
 import { parseLabelPercent } from "@/lib/substances";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -474,7 +475,10 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                           placeholder="เช่น ABAMECTIN"
                         />
                         <datalist id={`label-tolerance-master-substances-${index}`}>
-                          {masterOptions.slice(0, 300).map((option) => (
+                          {rankSearchResults(masterOptions, rule.substance ?? "", (option) => ({
+                            primary: [option.itemNo || option.commonName, ...itemNoKeys.map((key) => option.row[key])],
+                            secondary: [option.commonName, option.packSize, option.itemName],
+                          })).slice(0, 300).map((option) => (
                             <option
                               key={option.key}
                               value={option.commonName}

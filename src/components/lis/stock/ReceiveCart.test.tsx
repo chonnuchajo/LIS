@@ -165,6 +165,61 @@ describe("ReceiveCart Thai copy", () => {
     expect(screen.queryByRole("option", { name: /STD-002 2,4-D Acid/ })).not.toBeInTheDocument();
   });
 
+  it("ranks code and barcode matches before names, preserving ties and empty-query order", async () => {
+    const choices = [
+      { code: "OTHER", name: "67 name only" },
+      { code: "XX67", name: "Late contains" },
+      { code: "X67", name: "Early contains" },
+      { code: "67B", name: "First prefix" },
+      { code: "67A", name: "Second prefix" },
+      { code: "67", name: "Exact code" },
+      { code: "ALIAS", name: "Exact barcode", barcodes: ["67"] },
+      { code: "UNRELATED", name: "No match" },
+    ];
+    apiMock.getStandards.mockResolvedValue(choices.map((choice) => ({
+      _id: choice.code, barcodes: [], primary: {}, supplier: {}, working: {}, ...choice,
+    })));
+    apiMock.getSolvents.mockResolvedValue([{ _id: "chemical", name: "Chemical alias", barcodes: ["67"] }]);
+    renderReceiveCart();
+
+    const searchInput = await screen.findByLabelText("ค้นหา / สแกน Barcode");
+    fireEvent.focus(searchInput);
+    fireEvent.change(searchInput, { target: { value: "67" } });
+
+    await waitFor(() => expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "67 Exact code", "ALIAS Exact barcode", "Chemical alias", "67B First prefix", "67A Second prefix",
+      "X67 Early contains", "XX67 Late contains", "OTHER 67 name only",
+    ]));
+
+    fireEvent.change(searchInput, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Standard\s+8/ }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(
+      choices.map((choice) => `${choice.code} ${choice.name}`),
+    );
+  });
+
+  it("ranks barcode-registration choices without widening their label-only filter", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "name", code: "OTHER", name: "67 name", primary: {}, supplier: {}, working: {} },
+      { _id: "prefix", code: "670", name: "Prefix", primary: {}, supplier: {}, working: {} },
+      { _id: "exact", code: "67", name: "Exact", primary: {}, supplier: {}, working: {} },
+      { _id: "barcode", code: "BARCODE", name: "Alias only", barcodes: ["67"], primary: {}, supplier: {}, working: {} },
+    ]);
+    apiMock.getSolvents.mockResolvedValue([{ _id: "chemical", name: "67", barcodes: [] }]);
+    renderReceiveCart();
+    const scanInput = await screen.findByLabelText("ค้นหา / สแกน Barcode");
+    fireEvent.change(scanInput, { target: { value: "NEW-BARCODE" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("combobox"));
+    const searchInput = await screen.findByPlaceholderText("ค้นหา code หรือชื่อ");
+    fireEvent.change(searchInput, { target: { value: "67" } });
+    await waitFor(() => expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "67 Exact", "67", "670 Prefix", "OTHER 67 name",
+    ]));
+    expect(screen.queryByRole("option", { name: /Alias only/ })).not.toBeInTheDocument();
+  });
+
   it("does not contain known Thai mojibake sequences", () => {
     const source = readFileSync(resolve("src/components/lis/stock/ReceiveCart.tsx"), "utf8");
 

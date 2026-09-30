@@ -3,6 +3,7 @@ const fs = require('fs');
 const router = express.Router();
 const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
+const { buildSearchRankingStages } = require('../lib/searchRanking');
 const ChemicalRequisition = require('../models/ChemicalRequisition');
 const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
@@ -1805,12 +1806,23 @@ router.delete('/transactions/:id/deduction', async (req, res) => {
 router.get('/transactions', async (req, res) => {
   try {
     const { limit = 200, skip = 0 } = req.query;
+    const search = String(req.query.search || '').trim();
     const filter = buildTransactionFilter(req.query);
-    const txs = await StockTransaction.find(filter)
-      .sort({ createdAt: -1, _id: -1 })
-      .skip(Math.max(0, Number.parseInt(skip, 10) || 0))
-      .limit(Math.min(Number(limit) || 200, 1000))
-      .lean();
+    const transactionQuery = StockTransaction.find(filter);
+    const txs = search
+      ? await StockTransaction.aggregate([
+        { $match: transactionQuery.cast(StockTransaction) },
+        ...buildSearchRankingStages(search, {
+          primary: ['itemCode'], secondary: ['itemName', 'userName', 'userEmail'],
+        }, { createdAt: -1, _id: -1 }),
+        { $skip: Math.max(0, Number.parseInt(skip, 10) || 0) },
+        { $limit: Math.min(Number(limit) || 200, 1000) },
+      ])
+      : await transactionQuery
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(Math.max(0, Number.parseInt(skip, 10) || 0))
+        .limit(Math.min(Number(limit) || 200, 1000))
+        .lean();
     const missingNameEmails = [...new Set(txs
       .filter((tx) => !normalizeActorFields({ email: tx.userEmail, name: tx.userName }).name && tx.userEmail)
       .map((tx) => String(tx.userEmail).trim().toLowerCase()))];

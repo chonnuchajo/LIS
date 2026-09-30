@@ -75,6 +75,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem, type ItemGroupItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { cn } from "@/lib/utils";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { parseSubstances } from "@/lib/substances";
 import { readSlotMethods, type MethodDoc } from "@/lib/methodRegistry";
 import { buildOverrideMap, normalizeCommonName, normalizeKey } from "@/lib/commonNameOverride";
@@ -1087,7 +1088,7 @@ export default function MasterItems() {
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return enrichedItems.filter(({ item, originalItemNo, rawCommonName, displayCommonName }) => {
+    const filtered = enrichedItems.filter(({ item, originalItemNo, rawCommonName, displayCommonName }) => {
       const matchesSearch =
         !q ||
         buildMasterItemSearchText({
@@ -1104,6 +1105,14 @@ export default function MasterItems() {
       const matchesStatus =
         statusFilter === "all" || isItemActive(item) === (statusFilter === "active");
       return matchesSearch && matchesCategory && matchesGroup && matchesStatus;
+    });
+    return rankSearchResults(filtered, q, (entry) => {
+      const secondary = [entry.rawCommonName, entry.displayCommonName];
+      collectSearchValues(entry.item, secondary);
+      return {
+        primary: [entry.originalItemNo, ...codeKeys.map((key) => entry.item[key])],
+        secondary,
+      };
     });
   }, [categoryFilter, enrichedItems, search, groupFilter, statusFilter, groupMembership]);
 
@@ -1557,9 +1566,11 @@ function MasterCommonNameItemsTab({
   const visibleRows = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
     if (!needle) return rows;
-    return rows.filter((row) => {
-      return row.commonName.toLowerCase().includes(needle);
-    });
+    return rankSearchResults(
+      rows.filter((row) => row.commonName.toLowerCase().includes(needle)),
+      needle,
+      (row) => ({ primary: [row.commonName] }),
+    );
   }, [rows, searchText]);
 
   return (
@@ -1813,7 +1824,7 @@ export function SimpleMethodPage() {
 
   const visibleRows = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
       if (exclusions.some((rule) => matchesExclusion(row.commonName, rule))) return false;
       if (needle) {
         const haystack = `${row.commonName} ${row.itemNos.join(" ")}`.toLowerCase();
@@ -1824,6 +1835,10 @@ export function SimpleMethodPage() {
       // otherwise statusFilter is a specific method code
       return row.assignments.some((slot) => slot.includes(statusFilter));
     });
+    return rankSearchResults(filtered, needle, (row) => ({
+      primary: row.itemNos,
+      secondary: [row.commonName],
+    }));
   }, [rows, searchText, statusFilter, exclusions]);
 
   const dirtyRows = useMemo(
@@ -3109,13 +3124,17 @@ function MachinesTab() {
 
   const filteredMachines = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return machines.filter((m) => {
+    const filtered = machines.filter((m) => {
       const matchesSearch = !q || [m.code, m.name, m.manufacturer, m.model, m.serialNo, m.registerNo, m.location]
         .some((v) => String(v ?? "").toLowerCase().includes(q));
       const matchesLocation = locationFilter === "all" || m.location === locationFilter;
       const matchesStatus = statusFilter === "all" || m.status === statusFilter;
       return matchesSearch && matchesLocation && matchesStatus;
     });
+    return rankSearchResults(filtered, q, (machine) => ({
+      primary: [machine.code],
+      secondary: [machine.name, machine.manufacturer, machine.model, machine.serialNo, machine.registerNo, machine.location],
+    }));
   }, [machines, search, locationFilter, statusFilter]);
 
   const handleRetire = async () => {

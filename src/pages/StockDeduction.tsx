@@ -319,8 +319,9 @@ const StockDeduction = () => {
       current.count += 1;
       rows.set(key, current);
     });
-    return Array.from(rows.values()).sort((a, b) => a.itemName.localeCompare(b.itemName, "th"));
-  }, [data]);
+    const summary = Array.from(rows.values());
+    return searchText ? summary : summary.sort((a, b) => a.itemName.localeCompare(b.itemName, "th"));
+  }, [data, searchText]);
 
   const columns: DataTableColumn<StockTransactionItem>[] = [
     {

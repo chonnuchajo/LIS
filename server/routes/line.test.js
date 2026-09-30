@@ -13,6 +13,8 @@ test('parseCommand: help / id / bind / unbind', () => {
   assert.deepStrictEqual(parseCommand('เมนู'), { type: 'help' });
   assert.deepStrictEqual(parseCommand('/id'), { type: 'id' });
   assert.deepStrictEqual(parseCommand('/ผูก qc'), { type: 'bind', audience: 'qc' });
+  assert.deepStrictEqual(parseCommand('/ผูก rd'), { type: 'bind', audience: 'rd' });
+  assert.deepStrictEqual(parseCommand('/bind RD'), { type: 'bind', audience: 'rd' });
   assert.deepStrictEqual(parseCommand('/bind LAB'), { type: 'bind', audience: 'lab' });
   assert.deepStrictEqual(parseCommand('/ยกเลิก'), { type: 'unbind' });
 });

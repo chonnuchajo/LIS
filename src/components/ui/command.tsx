@@ -1,17 +1,27 @@
 import * as React from "react";
 import { type DialogProps } from "@radix-ui/react-dialog";
-import { Command as CommandPrimitive } from "cmdk";
+import { Command as CommandPrimitive, defaultFilter } from "cmdk";
 import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getSearchScore } from "@/lib/searchRanking";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+
+const rankedCommandFilter: typeof defaultFilter = (value, search, keywords) => {
+  if (!search.trim()) return 1;
+  const fuzzyScore = defaultFilter(value, search, keywords);
+  if (!fuzzyScore) return 0;
+  const score = getSearchScore(search, { primary: [value], secondary: keywords });
+  return score ? score / 6 : Math.max(Number.MIN_VALUE, fuzzyScore * Number.EPSILON);
+};
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
->(({ className, ...props }, ref) => (
+>(({ className, filter = rankedCommandFilter, ...props }, ref) => (
   <CommandPrimitive
     ref={ref}
+    filter={filter}
     className={cn(
       "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
       className,

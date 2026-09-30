@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { usePetitionList } from "@/hooks/usePetition";
 import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import { rankSearchResults } from "@/lib/searchRanking";
 import type { Petition } from "@/types/petition.types";
 
 export default function LabResults() {
@@ -16,9 +17,16 @@ export default function LabResults() {
     const items = (data?.items ?? []) as Petition[];
     const q = search.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((p) =>
+    const matches = items.filter((p) =>
       `${p.petitionNo} ${p.submittedBy?.name ?? ""}`.toLowerCase().includes(q),
     );
+    return rankSearchResults(matches, search, (petition) => {
+      const itemNos = (petition.items ?? []).map((item) => item.itemNo).filter((itemNo) => itemNo?.trim());
+      return {
+        primary: itemNos.length ? itemNos : [petition.petitionNo],
+        secondary: [petition.petitionNo, petition.submittedBy?.name],
+      };
+    });
   }, [data, search]);
 
   return (

@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { buildMfGapMedicineRows, type MfGapMedicineRow } from "@/lib/mfGapMedicines";
 import { MF_CURRENT_API_URL, MF_HISTORICAL_API_URL } from "@/lib/mfItemDates";
 
@@ -77,7 +78,7 @@ export default function MfGapMedicinesPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return data.filter((item) => {
+    const matches = data.filter((item) => {
       const kind = itemKind(item.itemNo);
       const matchesKind = kindFilter === "all"
         || (kindFilter === "rm" && kind === "RM")
@@ -87,6 +88,10 @@ export default function MfGapMedicinesPage() {
       return [item.itemNo, item.itemName, item.commonName, item.category]
         .some((value) => value.toLowerCase().includes(query));
     });
+    return rankSearchResults(matches, query, (item) => ({
+      primary: [item.itemNo],
+      secondary: [item.itemName, item.commonName, item.category],
+    }));
   }, [data, kindFilter, search]);
 
   const errorMessage = error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ";

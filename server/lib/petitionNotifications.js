@@ -5,7 +5,7 @@
 // LINE groups can never drift apart. The bell tolerates finer-grained events than a
 // LINE group does, so the two events describeEvent deliberately skips (received /
 // resultEntered) get a bell-only fallback here.
-const { assigneeSide, describeEvent, itemsSummary } = require('./lineNotify');
+const { assigneeSide, describeEvent, itemsSummary, isAdditionalSampleEvent } = require('./lineNotify');
 const { hasLabTrack } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
 
@@ -26,6 +26,9 @@ function bothSides(petition) {
 
 function bellDescribe(petition, log) {
   const shared = describeEvent(petition, log);
+  if (shared && isAdditionalSampleEvent(log)) {
+    return { audiences: shared.audiences, recipientEmployeeIds: shared.recipientEmployeeIds, ...splitText(shared.text) };
+  }
   if (shared && log?.event === 'assigned') {
     const no = petition?.petitionNo || log?.petitionNo || '(ไม่ทราบเลข)';
     const assignee = log?.metadata?.assignee || petition?.assignedTo;
@@ -88,9 +91,15 @@ function bellDescribe(petition, log) {
 // petitionId is the newest — keep it, collapse the rest. Mutates seenPetitionIds (adds the
 // key the first time it is NOT a duplicate) so a caller can thread the same Set through a
 // full newest-first loop and have "first wins" fall out naturally.
+function additionalSampleKey(log, petitionId = log?.petitionId) {
+  if (!isAdditionalSampleEvent(log) || !petitionId) return null;
+  const { type, side, additionalSampleId } = log.metadata;
+  if (!['qc', 'lab'].includes(side) || typeof additionalSampleId !== 'string' || !additionalSampleId.trim()) return null;
+  return JSON.stringify(['additionalSample', String(petitionId), type, side, additionalSampleId]);
+}
+
 function isCollapsibleDuplicate(log, seenPetitionIds) {
-  if (log?.event !== 'resultEntered') return false;
-  const key = String(log?.petitionId || '');
+  const key = additionalSampleKey(log) || (log?.event === 'resultEntered' ? String(log?.petitionId || '') : '');
   if (!key) return false;
   if (seenPetitionIds.has(key)) return true;
   seenPetitionIds.add(key);
@@ -100,6 +109,11 @@ function isCollapsibleDuplicate(log, seenPetitionIds) {
 // Does this viewer care? Audience match OR it is their own job.
 function isRelevant(desc, petition, viewer) {
   if (viewer?.seeAll) return true;
+  if (desc?.recipientEmployeeIds) {
+    const employeeId = String(viewer?.employeeId || '').trim();
+    return (desc.audiences || []).some((audience) => (viewer?.audiences || []).includes(audience)) ||
+      Boolean(employeeId && desc.recipientEmployeeIds.includes(employeeId));
+  }
   if (desc?.targetEmployeeId) {
     return String(viewer?.employeeId || '').trim() === String(desc.targetEmployeeId).trim();
   }
@@ -146,7 +160,7 @@ function shouldPlayLabAssignedSound(petition, log, viewer) {
 function toNotification(petition, log, desc, viewer) {
   const petitionId = String(petition?._id ?? log?.petitionId ?? '');
   const notification = {
-    id: String(log?._id),
+    id: additionalSampleKey(log, petitionId) || String(log?._id),
     petitionId,
     petitionNo: petition?.petitionNo || log?.petitionNo || '',
     event: log?.event,

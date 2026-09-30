@@ -33,6 +33,33 @@ describe("filterUsers", () => {
   it("combines filters (AND)", () => {
     expect(filterUsers(users, { dept: "QC", status: "active", role: "qc" }).map((x) => x.id)).toEqual(["a"]);
   });
+  it("ranks identifiers before names and pagination without changing membership", () => {
+    const matches = [
+      u({ id: "name", name: "E1", employeeId: "Z" }),
+      u({ id: "late", employeeId: "XX-E1" }),
+      u({ id: "early", employeeId: "XE1" }),
+      u({ id: "prefix", employeeId: "E10" }),
+      u({ id: "exact", employeeId: "E1" }),
+      u({ id: "excluded", employeeId: "E1", status: "inactive" }),
+    ];
+    const ranked = filterUsers(matches, { search: " e1 ", status: "active" });
+    expect(ranked.map((user) => user.id)).toEqual(["exact", "prefix", "early", "late", "name"]);
+    expect(paginate(ranked, 1, 1).items[0].id).toBe("exact");
+    expect(matches[0].id).toBe("name");
+  });
+  it("keeps original order for blank searches, ties, and cross-field matches", () => {
+    const matches = [u({ id: "first" }), u({ id: "second" })];
+    expect(filterUsers(matches, { search: "   " })).toEqual(matches);
+    expect(filterUsers(matches, { search: "E01" })).toEqual(matches);
+    expect(filterUsers(matches, { search: "Somchai somchai@" })).toEqual(matches);
+  });
+  it("uses display names when employee identifiers are absent", () => {
+    const matches = [
+      u({ id: "contains", name: "X Alice", employeeId: "", email: "" }),
+      u({ id: "exact", name: "Alice", employeeId: "", email: "" }),
+    ];
+    expect(filterUsers(matches, { search: "alice" }).map((user) => user.id)).toEqual(["exact", "contains"]);
+  });
 });
 
 describe("paginate", () => {

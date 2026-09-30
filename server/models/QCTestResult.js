@@ -10,6 +10,7 @@ const qcTestResultSchema = new mongoose.Schema(
     commonName:    { type: String },
     parameterId:   { type: String, required: true },
     parameterName: { type: String },
+    sampleRoundId: { type: String, default: '' },
     values:        { type: mongoose.Schema.Types.Mixed, default: {} },
     // Phase 2 values — for 2-phase parameters only. Same field labels as `values`
     // but holding the "after" measurements. Regular (non-phased) parameters leave this empty.

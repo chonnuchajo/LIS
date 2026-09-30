@@ -1,5 +1,6 @@
 const express = require('express');
 const StandardTime = require('../models/StandardTime');
+const { buildSearchRankingStages } = require('../lib/searchRanking');
 
 const router = express.Router();
 
@@ -7,22 +8,32 @@ router.get('/', async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
+    const search = String(req.query.search || '').trim();
     const q = {};
 
     if (req.query.instrument) q.instrument = String(req.query.instrument);
     if (req.query.machineType) q.machineType = String(req.query.machineType).toUpperCase();
     if (req.query.hasData != null) q.hasData = String(req.query.hasData) === 'true';
-    if (req.query.search) {
-      const rx = new RegExp(String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    if (search) {
+      const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       q.$or = [{ analysisName: rx }, { instrument: rx }, { columnDimension: rx }];
     }
 
     const [items, total] = await Promise.all([
-      StandardTime.find(q)
-        .sort({ machineType: 1, instrument: 1, analysisName: 1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
+      search
+        ? StandardTime.aggregate([
+          { $match: q },
+          ...buildSearchRankingStages(search, {
+            primary: ['analysisName'], secondary: ['instrument', 'columnDimension'],
+          }, { machineType: 1, instrument: 1, analysisName: 1 }),
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+        ])
+        : StandardTime.find(q)
+          .sort({ machineType: 1, instrument: 1, analysisName: 1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
       StandardTime.countDocuments(q),
     ]);
     res.json({ items, total, page, limit });

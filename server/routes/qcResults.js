@@ -7,11 +7,50 @@ const Petition = require("../models/Petition");
 const { scheduleOrUnlockPhase2 } = require("../lib/phaseAdvance");
 const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { qcResultAuditEvent, qcResultNote } = require('../lib/auditEvents');
+const { pendingAdditionalSamples, requiredSampleRoundId } = require('../lib/additionalSamples');
+const { currentUser, canTestSide } = require('./additionalSamples');
+const { serializePetitionWrite } = require('../lib/petitionWriteQueue');
 const {
   computeAbnormalFlags,
   ensureRequestedIdsPresent,
   getEntryValuesJS,
 } = require('../lib/abnormalFlags');
+
+async function resultRoundContext(req, res, parameter) {
+  const petition = await Petition.findById(req.body.petitionId).lean();
+  if (!petition || !parameter) {
+    res.status(404).json({ error: 'ไม่พบคำขอหรือหัวข้อทดสอบ' });
+    return null;
+  }
+  const side = parameter.scope === 'lab' ? 'lab' : 'qc';
+  if (!Number.isInteger(req.body.itemSeq) || !petition.items?.some(item => item.seq === req.body.itemSeq)) {
+    res.status(400).json({ error: 'ไม่พบรายการตัวอย่างในคำขอนี้' });
+    return null;
+  }
+  const sampleRoundId = requiredSampleRoundId(petition, side, req.body.itemSeq);
+  if (pendingAdditionalSamples(petition, side).length || String(req.body.sampleRoundId || '') !== sampleRoundId) {
+    res.status(409).json({ error: 'รอบตัวอย่างเปลี่ยนแปลงหรือยังไม่ได้รับ กรุณาโหลดคำขอใหม่' });
+    return null;
+  }
+  if (petition.additionalSampleRequests?.length) {
+    const user = await currentUser(req);
+    if (!user || !canTestSide(user, petition, side)) {
+      res.status(user ? 403 : 401).json({ error: 'ไม่มีสิทธิ์บันทึกผลให้ฝ่ายนี้' });
+      return null;
+    }
+    if (['approved', 'rejected'].includes(petition.status) || petition[side + 'CompletedAt']) {
+      res.status(409).json({ error: 'ฝ่ายนี้ยืนยันผลแล้ว ไม่สามารถแก้ผลตรวจได้' });
+      return null;
+    }
+  }
+  const round = petition.additionalSampleRequests?.find(entry => String(entry._id) === sampleRoundId);
+  if (sampleRoundId && req.body.phase === 2 && round?.currentPhase !== 2) {
+    res.status(409).json({ error: 'ตัวอย่างรอบนี้ยังไม่เปิด Phase 2 กรุณารอเงื่อนไขของรอบใหม่' });
+    return null;
+  }
+  const allowedRoundIds = new Set(['', ...(petition.additionalSampleRequests || []).filter(round => round.side === side && round.status === 'received' && round.items.some(item => item.itemSeq === Number(req.body.itemSeq))).map(round => String(round._id))]);
+  return { sampleRoundId, allowedRoundIds };
+}
 
 // GET /api/qc-results/testers?petitionIds=id1,id2,...
 // Returns a map of petitionId → unique tester names (from enteredBy/updatedBy)
@@ -164,7 +203,7 @@ router.get("/:petitionId", async (req, res) => {
 });
 
 // PUT /api/qc-results — upsert a single field value
-router.put("/", async (req, res) => {
+router.put("/", serializePetitionWrite(async (req, res) => {
   try {
     const {
       petitionId, petitionNo,
@@ -186,6 +225,8 @@ router.put("/", async (req, res) => {
 
     // Reject saves for reference fields — their value is computed, not entered
     const paramForCheck = await Parameter.findById(parameterId).lean();
+    const roundContext = await resultRoundContext(req, res, paramForCheck);
+    if (!roundContext) return;
     const fieldDef = paramForCheck?.valueFields?.find((f) => f.label === fieldLabel);
     if (fieldDef?.type === 'reference') {
       return res.status(400).json({ error: "ช่องนี้ดึงค่าจาก parameter อื่นโดยอัตโนมัติ — บันทึกไม่ได้" });
@@ -198,14 +239,19 @@ router.put("/", async (req, res) => {
     const now = new Date();
 
     const existing = await QCTestResult.findOne(filter);
+    if (existing && !roundContext.allowedRoundIds.has(String(existing.sampleRoundId || ''))) return res.status(409).json({ error: 'ผลตรวจอยู่ในรอบใหม่กว่า กรุณาโหลดคำขอใหม่' });
+    const newRound = String(existing?.sampleRoundId || '') !== roundContext.sampleRoundId;
+    if (existing) filter.sampleRoundId = existing.sampleRoundId || { $in: ['', null] };
     const isNew = !existing;
 
     const baseSet = {
       petitionNo, sampleId, sampleName, commonName, parameterName,
       updatedBy: enteredBy,
       updatedAt: now,
+      sampleRoundId: roundContext.sampleRoundId,
     };
-    if (isNew || !existing?.enteredBy) {
+    if (newRound) Object.assign(baseSet, { values: {}, valuesPhase2: {}, entries: [] });
+    if (isNew || newRound || !existing?.enteredBy) {
       baseSet.enteredBy = enteredBy;
       baseSet.enteredAt = now;
     }
@@ -216,7 +262,7 @@ router.put("/", async (req, res) => {
     if (phaseNum === 1 && Number.isInteger(entryIndex) && entryIndex >= 0) {
       // multiEntry write: read-modify-write the entries array (avoids dot-path
       // numeric-index creating an object instead of an array)
-      const entries = Array.isArray(existing?.entries)
+      const entries = !newRound && Array.isArray(existing?.entries)
         ? existing.entries.map((e) => ({ ...(e || {}) }))
         : [];
       while (entries.length <= entryIndex) entries.push({});
@@ -224,14 +270,16 @@ router.put("/", async (req, res) => {
       entries[entryIndex][fieldLabel] = value;
       update.$set.entries = entries;
     } else {
-      existingFieldValue = existing?.[valuesKey]?.[fieldLabel];
-      update.$set[`${valuesKey}.${fieldLabel}`] = value;
+      existingFieldValue = newRound ? undefined : existing?.[valuesKey]?.[fieldLabel];
+      if (newRound) update.$set[valuesKey] = { [fieldLabel]: value };
+      else update.$set[`${valuesKey}.${fieldLabel}`] = value;
     }
 
     const doc = await QCTestResult.findOneAndUpdate(filter, update, {
-      upsert: true,
+      upsert: !existing,
       new: true,
     });
+    if (!doc) return res.status(409).json({ error: 'ผลตรวจเปลี่ยนรอบแล้ว กรุณาโหลดใหม่ก่อนบันทึก' });
 
     // ลง audit log ระดับ field ทุกครั้งที่บันทึก (fire-and-forget — ไม่ให้กระทบการบันทึกค่า)
     const auditEvent = qcResultAuditEvent({ existingFieldValue });
@@ -261,8 +309,10 @@ router.put("/", async (req, res) => {
           fieldLabel,
           value,
           itemSeq,
+          sampleRoundId: roundContext.sampleRoundId,
         });
       } catch (e) {
+        if (roundContext.sampleRoundId) throw e;
         console.error("[phase-advance] schedule failed:", e.message);
       }
     }
@@ -271,10 +321,10 @@ router.put("/", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 // PUT /api/qc-results/entries — replace the whole entries array (multiEntry add/remove)
-router.put("/entries", async (req, res) => {
+router.put("/entries", serializePetitionWrite(async (req, res) => {
   try {
     const {
       petitionId, petitionNo, itemSeq, sampleId, sampleName, commonName,
@@ -286,20 +336,29 @@ router.put("/entries", async (req, res) => {
     if (entries.length > 1001) {
       return res.status(400).json({ error: "entries เกินจำนวนที่อนุญาต" });
     }
+    const parameter = await Parameter.findById(parameterId).lean();
+    const roundContext = await resultRoundContext(req, res, parameter);
+    if (!roundContext) return;
     const filter = { petitionId, itemSeq, parameterId };
     const now = new Date();
     const existing = await QCTestResult.findOne(filter);
+    if (existing && !roundContext.allowedRoundIds.has(String(existing.sampleRoundId || ''))) return res.status(409).json({ error: 'ผลตรวจอยู่ในรอบใหม่กว่า กรุณาโหลดคำขอใหม่' });
+    const newRound = String(existing?.sampleRoundId || '') !== roundContext.sampleRoundId;
+    if (existing) filter.sampleRoundId = existing.sampleRoundId || { $in: ['', null] };
     const update = {
       $set: {
         petitionNo, sampleId, sampleName, commonName, parameterName,
         entries, updatedBy: enteredBy, updatedAt: now,
+        sampleRoundId: roundContext.sampleRoundId,
       },
     };
-    if (!existing || !existing.enteredBy) {
+    if (newRound) Object.assign(update.$set, { values: {}, valuesPhase2: {} });
+    if (!existing || newRound || !existing.enteredBy) {
       update.$set.enteredBy = enteredBy;
       update.$set.enteredAt = now;
     }
-    const doc = await QCTestResult.findOneAndUpdate(filter, update, { upsert: true, new: true });
+    const doc = await QCTestResult.findOneAndUpdate(filter, update, { upsert: !existing, new: true });
+    if (!doc) return res.status(409).json({ error: 'ผลตรวจเปลี่ยนรอบแล้ว กรุณาโหลดใหม่ก่อนบันทึก' });
 
     // audit (fire-and-forget) — entries array was replaced (add/remove/edit of multiEntry rows).
     // entry removal deletes recorded data, so it must be audited. event is enum-constrained
@@ -324,6 +383,6 @@ router.put("/entries", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 module.exports = router;

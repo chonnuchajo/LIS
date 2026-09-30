@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { usePetitionList } from "@/hooks/usePetition";
 import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import { rankSearchResults } from "@/lib/searchRanking";
 import type { Petition } from "@/types/petition.types";
 
 type ConclusionKey = "pass" | "accepted-oos" | "returned-to-requester";
@@ -29,7 +30,7 @@ export default function AnalysisResults() {
 
   const rows = useMemo(() => {
     const items = (data?.items ?? []) as Petition[];
-    return items
+    const matches = items
       .map((p) => ({ p, conclusion: resolveConclusion(p) }))
       .filter((r) => (filter === "all" ? true : r.conclusion === filter))
       .filter((r) =>
@@ -37,6 +38,13 @@ export default function AnalysisResults() {
           ? `${r.p.petitionNo} ${r.p.submittedBy?.name ?? ""}`.toLowerCase().includes(search.trim().toLowerCase())
           : true,
       );
+    return rankSearchResults(matches, search, ({ p }) => {
+      const itemNos = (p.items ?? []).map((item) => item.itemNo).filter((itemNo) => itemNo?.trim());
+      return {
+        primary: itemNos.length ? itemNos : [p.petitionNo],
+        secondary: [p.petitionNo, p.submittedBy?.name],
+      };
+    });
   }, [data, filter, search]);
 
   return (

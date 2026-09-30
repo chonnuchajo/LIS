@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Plus, Search, Trash2 } from "lucide-react";
 import { api, type ParameterValueField, type StandardOperator, type SubstanceStandard } from "@/lib/api";
-import { getItemNo, getPackSize, getSampleName, getTradeName, tradeNameKeys } from "@/lib/masterItemFields";
+import { getItemNo, getPackSize, getSampleName, getTradeName, itemNoKeys, tradeNameKeys } from "@/lib/masterItemFields";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { formatClassificationOption, getCommonName } from "@/lib/productClassification";
 import { OPERATOR_OPTIONS } from "@/lib/standardOperators";
 import {
@@ -162,7 +163,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
 
   const commonNameOptions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return categoryRows
+    const matches = categoryRows
       .filter((row) => pickField(row, COMMON_NAME_KEYS) && rowMatchesSearch(row, q))
       .sort((a, b) => {
         const aCtx = buildMasterItemContext(a);
@@ -173,6 +174,13 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
           aCtx.packSize.localeCompare(bCtx.packSize, ["th", "en"], { numeric: true })
         );
       });
+    return rankSearchResults(matches, q, (row) => {
+      const context = buildMasterItemContext(row);
+      return {
+        primary: [context.itemNo || context.commonName, ...itemNoKeys.map((key) => row[key])],
+        secondary: [context.commonName, context.packSize, context.itemName],
+      };
+    });
   }, [categoryRows, search]);
 
   const tradeNameOptions = useMemo(() => {
@@ -192,9 +200,13 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
       if (!byTrade.has(tradeName)) byTrade.set(tradeName, new Set());
       if (commonName) byTrade.get(tradeName)!.add(commonName);
     }
-    return [...byTrade.entries()]
+    const matches = [...byTrade.entries()]
       .map(([tradeName, commonNames]) => ({ tradeName, commonNames: buildCommonNameOptions([...commonNames]) }))
       .sort((a, b) => a.tradeName.localeCompare(b.tradeName, ["th", "en"]));
+    return rankSearchResults(matches, q, (item) => ({
+      primary: [item.tradeName],
+      secondary: item.commonNames,
+    }));
   }, [categoryRows, search]);
 
   const formulationCommonNameOptions = useMemo(() => {
@@ -217,9 +229,16 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
       rows.push(row);
       byCode.set(code, rows);
     }
-    return [...byCode.entries()]
+    const matches = [...byCode.entries()]
       .map(([code, rows]) => ({ code, rows }))
       .sort((a, b) => a.code.localeCompare(b.code, ["th", "en"]));
+    return rankSearchResults(matches, q, ({ code, rows }) => ({
+      primary: [code],
+      secondary: [formatClassificationOption(code), ...rows.flatMap((row) => {
+        const context = buildMasterItemContext(row);
+        return [context.commonName, context.itemName];
+      })],
+    }));
   }, [categoryRows, search]);
 
   const filterVisibleGroupCommonNames = (commonNames: string[] = [], groupName = "") => {
@@ -239,11 +258,15 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     const q = standardKey(listSearch);
     const all = list.map((std, index) => ({ std, index }));
     if (!q) return all;
-    return all.filter(({ std }) =>
+    const matches = all.filter(({ std }) =>
       [std.substance, std.itemNo ?? "", std.packSize ?? "", std.masterItemName ?? "", std.masterCommonName ?? ""].some((value) =>
         standardKey(value).includes(q),
       ),
     );
+    return rankSearchResults(matches, q, ({ std }) => ({
+      primary: [std.itemNo || std.substance],
+      secondary: [std.substance, std.packSize, std.masterItemName, std.masterCommonName].map(standardKey),
+    }));
   }, [list, listSearch]);
 
   useEffect(() => {
@@ -542,8 +565,15 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                   {safeGroups.length === 0 ? (
                     <p className="p-3 text-xs text-muted-foreground">ไม่พบกลุ่ม</p>
                   ) : (
-                    safeGroups.map((g) => {
-                      const commonNames = buildCommonNameOptions(filterVisibleGroupCommonNames(g.commonNames ?? [], g.name));
+                    rankSearchResults(safeGroups, search, (group) => ({
+                      primary: [group.name],
+                      secondary: filterVisibleGroupCommonNames(group.commonNames ?? [], group.name),
+                    })).map((g) => {
+                      const commonNames = rankSearchResults(
+                        buildCommonNameOptions(filterVisibleGroupCommonNames(g.commonNames ?? [], g.name)),
+                        search,
+                        (commonName) => ({ primary: [commonName] }),
+                      );
                       const allAdded = commonNames.length > 0 && commonNames.every((n) => selectedKeys.has(standardIdentity(n)));
                       return (
                         <button
