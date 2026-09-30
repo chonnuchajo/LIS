@@ -695,7 +695,7 @@ export default function QCTestingDetailPage() {
       if (pendingAdditionalSample(petition, 'qc') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       const fetchedAt = new Date().toISOString();
-      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL);
+      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL || field.label.startsWith(`${SG_VALUE_LABEL} —`));
       const sgValueKeys = sgValueField
         ? expandFieldForItem(sgValueField, item.commonName, { category: petitionCategory }).map((unit) => unit.key)
         : [SG_VALUE_LABEL];
@@ -1323,7 +1323,7 @@ export default function QCTestingDetailPage() {
 
                     // Specific-gravity (ค่า ถพ.) value + temperature are filled only by
                     // validated Result-Density rows, never typed by hand.
-                    const sgValueField = (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL);
+                    const sgValueField = (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL || f.label.startsWith(`${SG_VALUE_LABEL} —`));
                     const isSgMachineField =
                       sgValueField?.requestValueSource?.mode === 'collection' &&
                       !!sgValueField &&
@@ -1529,7 +1529,7 @@ export default function QCTestingDetailPage() {
                           // number of cards shown is user-driven (เพิ่มรายการ), never auto.
                           const savedRows = entriesByKey[k] ?? [];
                           const isSgParam = (param.valueFields ?? []).some(
-                            (f) => f.label === SG_VALUE_LABEL,
+                            (f) => f.label === SG_VALUE_LABEL || f.label.startsWith(`${SG_VALUE_LABEL} —`),
                           );
                           const sgTempField = (param.valueFields ?? []).find(
                             (f) => f.label === SG_TEMP_LABEL,
