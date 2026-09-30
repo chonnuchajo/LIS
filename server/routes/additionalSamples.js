@@ -103,6 +103,29 @@ router.post('/:id/additional-samples', serializePetitionWrite(async (req, res) =
   }
 }));
 
+// General QC follow-up request (process details or other topic).
+router.post('/:id/follow-up-request', serializePetitionWrite(async (req, res) => {
+  try {
+    const user = await currentUser(req);
+    if (!user) return fail(res, 401, 'กรุณาเข้าสู่ระบบ');
+    const petition = await Petition.findById(req.params.id);
+    if (!petition) return fail(res, 404, 'ไม่พบคำร้อง');
+    const { type, title, detail, audience = 'all' } = req.body || {};
+    if (!['process', 'other'].includes(type)) return fail(res, 400, 'ประเภทคำขอไม่ถูกต้อง');
+    if (!String(detail || '').trim() || (type === 'other' && !String(title || '').trim())) return fail(res, 400, 'กรุณากรอกข้อมูลให้ครบ');
+    const actor = actorOf(user);
+    const note = type === 'process' ? `เพิ่มกระบวนการ: ${String(detail).trim()}` : `${String(title).trim()}: ${String(detail).trim()}`;
+    const entry = { action: 'additional-request', reviewedBy: actor.name, reviewedAt: new Date(), note };
+    petition.reviewHistory.push(entry);
+    await petition.save();
+    const payload = { event: 'updated', toStatus: petition.status, actor: actor.name, note,
+      metadata: { type: type === 'process' ? 'additionalProcessRequested' : 'otherRequest', audience, title: String(title || '').trim(), detail: String(detail).trim() } };
+    await PetitionAuditLog.create({ petitionId: petition._id, petitionNo: petition.petitionNo, ...payload });
+    try { await notifyPetitionEvent(petition.toObject(), payload); } catch (error) { console.error('[follow-up-request] notification failed:', error.message); }
+    return res.status(201).json(petition);
+  } catch (error) { return fail(res, 400, error.message); }
+}));
+
 async function changeAdditionalSampleState(req, res, petition, action) {
   const user = await currentUser(req);
   const round = (petition.additionalSampleRequests || []).find(entry => String(entry._id) === String(req.body?.additionalSampleId || ''));
