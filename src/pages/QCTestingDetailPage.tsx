@@ -1329,7 +1329,7 @@ export default function QCTestingDetailPage() {
                       !!sgValueField &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
                     // ค่า ถพ. เลือก/แก้ได้; อุณหภูมิยังคงอ่านจากเครื่องและล็อกไว้
-                    const isSgValueUnit = unit.field.label.startsWith(SG_VALUE_LABEL) && !!sgValueField;
+                    const isSgValueUnit = unit.field.label.trim().startsWith(SG_VALUE_LABEL);
                     const unitDisabled = fieldDisabled || (isSgMachineField && !isSgValueUnit);
                     const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
                     // Match by label too: legacy SG parameters may not carry requestValueSource.
