@@ -6,6 +6,7 @@ export type ValidationSavedWork = {
   sections: Record<string, string>;
   project: ValidationProject;
 };
+export const validationDrugKey = (name: string) => name.trim().normalize("NFKC").toLowerCase();
 const key = (owner: string) => `lis-validation-library-v1:${owner.trim().toLowerCase()}`;
 
 export function loadValidationLibrary(owner: string, storage: Storage = localStorage): ValidationSavedWork[] {
@@ -26,7 +27,25 @@ export function saveValidationWork(owner: string, id: string, section: string, s
   const project = readValidationProject(JSON.stringify(source));
   const entries = loadValidationLibrary(owner, storage);
   const savedAt = new Date().toISOString();
-  const work: ValidationSavedWork = { id, savedAt, sections: { ...entries.find(entry => entry.id === id)?.sections, [section]: savedAt }, project };
-  storage.setItem(key(owner), JSON.stringify([work, ...entries.filter(entry => entry.id !== id)]));
+  if (!validationDrugKey(project.analyte)) throw new Error("กรุณาระบุชื่อยา");
+  const matching = entries.filter(entry => validationDrugKey(entry.project.analyte) === validationDrugKey(project.analyte));
+  const existing = matching[0] ?? entries.find(entry => entry.id === id);
+  const work: ValidationSavedWork = { id: existing?.id ?? id, savedAt, sections: { ...existing?.sections, ...Object.assign({}, ...matching.map(entry => entry.sections)), [section]: savedAt }, project };
+  storage.setItem(key(owner), JSON.stringify([work, ...entries.filter(entry => entry.id !== work.id && validationDrugKey(entry.project.analyte) !== validationDrugKey(project.analyte))]));
   return work;
+}
+
+export function clearValidationLibrary(owner: string, storage: Storage = localStorage) {
+  const source = storage.getItem(key(owner));
+  if (!source || !loadValidationLibrary(owner, storage).length) return;
+  storage.setItem(`${key(owner)}:recovery`, source);
+  storage.removeItem(key(owner));
+}
+export function restoreValidationLibrary(owner: string, storage: Storage = localStorage) {
+  const source = storage.getItem(`${key(owner)}:recovery`);
+  if (!source) return false;
+  if (loadValidationLibrary(owner, storage).length) throw new Error("คลังงานต้องว่างก่อนกู้คืน");
+  storage.setItem(key(owner), source);
+  storage.removeItem(`${key(owner)}:recovery`);
+  return true;
 }

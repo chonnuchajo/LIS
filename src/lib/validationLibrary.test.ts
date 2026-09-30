@@ -23,3 +23,25 @@ it("แจ้งข้อผิดพลาดเมื่อพื้นที�
   const full = { getItem: () => null, setItem: () => { throw new DOMException("full", "QuotaExceededError"); } } as unknown as Storage;
   expect(() => saveValidationWork("qa", "job", "STD", project, full)).toThrow("full");
 });
+it("อัปเดตยาชื่อเดิมแม้ใช้รหัสงานใหม่ และเก็บครบทุกหัวข้อ", () => {
+  saveValidationWork("qa", "first", "STD → linearity", project);
+  const updated = saveValidationWork("qa", "second", "Accuracy", { ...project, analyte: " test ", texts: ["", "0.1\t25", "0.1\t0.1\t0.101"] });
+  expect(updated.id).toBe("first");
+  const works = loadValidationLibrary("qa");
+  expect(works).toHaveLength(1);
+  expect(works[0].project.texts[1]).toBe("0.1\t25");
+  expect(works[0].project.texts[2]).toBe("0.1\t0.1\t0.101");
+  expect(Object.keys(works[0].sections)).toEqual(["STD → linearity", "Accuracy"]);
+  saveValidationWork("qa", "third", "STD", { ...project, analyte: "Other" });
+  expect(loadValidationLibrary("qa")).toHaveLength(2);
+});
+it("ล้างเฉพาะคลังบัญชีและกู้คืนได้", async () => {
+  const { clearValidationLibrary, restoreValidationLibrary } = await import("./validationLibrary");
+  saveValidationWork("qa", "one", "STD", project);
+  saveValidationWork("other", "two", "STD", project);
+  clearValidationLibrary("qa");
+  expect(loadValidationLibrary("qa")).toEqual([]);
+  expect(loadValidationLibrary("other")).toHaveLength(1);
+  expect(restoreValidationLibrary("qa")).toBe(true);
+  expect(loadValidationLibrary("qa")).toHaveLength(1);
+});
