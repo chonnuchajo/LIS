@@ -1,3 +1,4 @@
+import ValidationPrecisionDays from "./ValidationPrecisionDays";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import ValidationDataGrid from "./ValidationDataGrid";
@@ -19,11 +20,11 @@ export function PrecisionPanel({ settings, onChange, result, dailyLinked = false
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{([
       ["repeatabilityFactor", "ตัวคูณ Horwitz สำหรับ Repeatability"], ["repeatabilityLimit", "HorRat(r) ต้องน้อยกว่า"],
       ["intermediateLimit", "HorRat(IP) ต้องน้อยกว่า"], ["minDays", "จำนวนวันขั้นต่ำ"], ["minReplicates", "จำนวนซ้ำต่อระดับ/วันขั้นต่ำ"],
-    ] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input type="number" step="any" value={settings[key]} onChange={e => update(key, e.target.value)} /></label>)}</div>
+    ] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input type="number" step="any" readOnly={key === "minDays"} value={settings[key]} onChange={e => update(key, e.target.value)} /></label>)}</div>
     <p className="text-sm text-muted-foreground">Horwitz RSDR = 2^(1 − 0.5 log10 C) โดย C เป็น mass fraction ของสารในวัสดุที่ประเมิน (เช่น 25% w/w = 0.25) ไม่ใช่ mg/mL · ตัวคูณ 1 ใช้ Horwitz เดิม; 0.67 ใช้แนวทาง Repeatability ของ CIPAC 3807 ต้องเลือกให้ตรง SOP</p>
-    <div className="grid gap-4 lg:grid-cols-2">
-      <div className="space-y-2 text-sm">ฐาน Horwitz: Target level (mg/mL), C (g/g)<ValidationDataGrid label="ฐาน Horwitz" columns={["Target (mg/mL)", "C (g/g)"]} value={settings.massFractions} onChange={value => update("massFractions", value)} /><span className="block text-muted-foreground">กรอกหนึ่งแถวต่อระดับ เลือกฐาน C จากวิธีที่อนุมัติ ไม่แปลงจากความเข้มข้นใน vial อัตโนมัติ</span></div>
-      <div className="space-y-2 text-sm">ข้อมูลรายวัน: Day, Target level, Actual fortified, Found<ValidationDataGrid readOnly={dailyLinked} label="ข้อมูลรายวัน" columns={["วัน", "Target (mg/mL)", "Actual (mg/mL)", "Found (mg/mL)"]} value={settings.dailyData} onChange={value => update("dailyData", value)} /><span className="block text-muted-foreground">ความเข้มข้นเป็น mg/mL · หนึ่งแถวต่อตัวอย่างที่เตรียมแยกกัน · จำนวนซ้ำเท่ากันทุกวัน</span></div>
+    <div className="space-y-4">
+      <div className="space-y-2 text-sm">ฐาน Horwitz: Target level (mg/mL), C (g/g)<ValidationDataGrid label="ฐาน Horwitz" columns={["Target (mg/mL)", "C (g/g)"]} value={settings.massFractions} onChange={value => update("massFractions", value)} /><span className="block text-muted-foreground">เว้นว่างเพื่อใช้ C = Target ÷ 1,000 ตามตัวอย่าง (สมมติความหนาแน่น 1 g/mL) หรือกรอกหนึ่งแถวต่อระดับเพื่อใช้ฐาน C ตามวิธีที่อนุมัติ</span></div>
+      <div className="space-y-2 text-sm">ข้อมูลรายวัน: Day, Target level, Actual fortified, Found<ValidationPrecisionDays readOnly={dailyLinked} targets={result.summaries.map(row => row.level)} value={settings.dailyData} onChange={value => update("dailyData", value)} /><span className="block text-muted-foreground">ความเข้มข้นเป็น mg/mL · หนึ่งแถวต่อตัวอย่างที่เตรียมแยกกัน · จำนวนซ้ำเท่ากันทุกวัน</span></div>
     </div>
     <ValidationResults checks={result.checks} />
     <div className="overflow-x-auto rounded-lg border bg-card"><table className="w-full text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["ระดับ", "วัน", "Mean Recovery", "SD ภายในวัน", "SD ระหว่างวัน", "SD รวม", "RSD รวม"].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead><tbody className="divide-y">{result.summaries.map(s => <tr key={s.level}><td className="p-3">{s.level}</td><td className="p-3">{s.days.length}</td><td className="p-3">{fmt(s.anova?.mean)}</td><td className="p-3">{fmt(s.anova?.withinSd)}</td><td className="p-3">{fmt(s.anova?.betweenSd)}</td><td className="p-3">{fmt(s.anova?.sd)}</td><td className="p-3">{fmt(s.anova?.rsd)}%</td></tr>)}</tbody></table></div>

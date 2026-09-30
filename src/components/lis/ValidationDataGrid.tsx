@@ -6,11 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import ValidationImportDialog from "./ValidationImportDialog";
 
 /** Keep invalid and extra cells visible: editing must never silently discard evidence. */
-export default function ValidationDataGrid({ label, columns, value, onChange, placeholder, readOnly = false }: {
-  label: string; columns: string[]; value: string; onChange: (value: string) => void; placeholder?: string; readOnly?: boolean;
+export default function ValidationDataGrid({ label, columns, value, onChange, placeholder, readOnly = false, decimals }: {
+  label: string; columns: string[]; value: string; onChange: (value: string) => void; placeholder?: string; readOnly?: boolean; decimals?: number;
 }) {
   const id = useId();
   const [raw, setRaw] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const lines = value === "" ? [] : value.split(/\r?\n/);
   const rows = lines.map(line => line.split(/[,;\t]/));
   const width = Math.max(columns.length, ...rows.map(row => row.length));
@@ -36,7 +37,7 @@ export default function ValidationDataGrid({ label, columns, value, onChange, pl
             {Array.from({ length: width }, (_, column) => {
               const cell = row[column] ?? "";
               const invalid = column >= columns.length || cell.trim() === "" || !Number.isFinite(Number(cell)) || Number(cell) < 0;
-              return <td key={column} className="p-2"><Input readOnly={readOnly} aria-label={`${label} แถว ${rowIndex + 1} ${columns[column] ?? `ช่องเกิน ${column + 1}`}`} aria-invalid={invalid} title={invalid ? "ต้องเป็นตัวเลขไม่ติดลบและจำนวนช่องตรงกับหัวตาราง" : undefined} inputMode="decimal" className={`min-w-24 tabular-nums ${invalid ? "border-destructive" : ""}`} value={cell} onChange={event => edit(rowIndex, column, event.target.value)} /></td>;
+              return <td key={column} className="p-2"><Input readOnly={readOnly} aria-label={`${label} แถว ${rowIndex + 1} ${columns[column] ?? `ช่องเกิน ${column + 1}`}`} aria-invalid={invalid} title={invalid ? "ต้องเป็นตัวเลขไม่ติดลบและจำนวนช่องตรงกับหัวตาราง" : undefined} inputMode="decimal" className={`min-w-24 tabular-nums ${invalid ? "border-destructive" : ""}`} value={decimals != null && !invalid && editing !== `${rowIndex}:${column}` ? Number(cell).toFixed(decimals) : cell} onFocus={() => setEditing(`${rowIndex}:${column}`)} onBlur={() => setEditing(null)} onChange={event => edit(rowIndex, column, event.target.value)} /></td>;
             })}
             <td className="p-2"><Button type="button" size="icon" variant="ghost" disabled={readOnly} aria-label={`ลบ ${label} แถว ${rowIndex + 1}`} onClick={() => writeRows(rows.filter((_, index) => index !== rowIndex))}><Trash2 className="h-4 w-4" /></Button></td>
           </tr>)}</tbody>

@@ -4,6 +4,20 @@ import { describe, expect, it, vi } from "vitest";
 import ValidationPreparation from "../ValidationPreparation";
 import { defaultPreparationLevels, preparationTemplate, type PreparationLevel } from "@/lib/validationPreparation";
 
+it("แยก STD และ Matrix ตามหน้าที่เลือกและพิมพ์เฉพาะส่วนที่แสดง", () => {
+ const props = { stock: 2, stocks: [], levels: defaultPreparationLevels(), onChange: vi.fn(), analyte: "QA", method: "GC", matrixEnabled: true };
+ const { rerender } = render(<ValidationPreparation {...props} section="std" />);
+ expect(screen.getByLabelText("Final volume std")).toBeInTheDocument();
+ expect(screen.queryByText("คำนวณ Matrix จาก %ยา")).not.toBeInTheDocument();
+ rerender(<ValidationPreparation {...props} section="matrix" />);
+ expect(screen.queryByLabelText("Final volume std")).not.toBeInTheDocument();
+ expect(screen.getByText("คำนวณ Matrix จาก %ยา")).toBeInTheDocument();
+ fireEvent.click(screen.getByRole("button", { name: "พิมพ์ตารางคำนวณการเตรียมสาร" }));
+ const html = screen.getByTitle("ใบเตรียมสาร").getAttribute("srcdoc");
+ expect(html).toContain("เตรียมสารที่เติม Matrix");
+ expect(html).not.toContain("เตรียมสารมาตรฐาน (STD)");
+});
+
 function Fixture() {
   const [levels, setLevels] = useState([defaultPreparationLevels().find(level => level.purpose === "accuracy" && level.target === "0.5")!]);
   return <><ValidationPreparation matrixEnabled analyte="QA" method="GC" stock={2.01159} stocks={[]} levels={levels} onChange={setLevels} /><output data-testid="template">{preparationTemplate("accuracy", levels, 2.01159, [], 2)}</output></>;
