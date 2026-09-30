@@ -1329,7 +1329,7 @@ export default function QCTestingDetailPage() {
                       !!sgValueField &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
                     // ค่า ถพ. เลือก/แก้ได้; อุณหภูมิยังคงอ่านจากเครื่องและล็อกไว้
-                    const isSgValueUnit = (unit.field.label === SG_VALUE_LABEL || unit.field.label.startsWith(`${SG_VALUE_LABEL} —`)) && !!sgValueField;
+                    const isSgValueUnit = unit.field.label.startsWith(SG_VALUE_LABEL) && !!sgValueField;
                     const unitDisabled = fieldDisabled || (isSgMachineField && !isSgValueUnit);
                     const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
                     // Match by label too: legacy SG parameters may not carry requestValueSource.
@@ -1342,6 +1342,7 @@ export default function QCTestingDetailPage() {
                       (manualDensityKeys[densityControlKey] || (!!densityValue && densityOptions.length > 0 && !densityOptions.includes(densityValue)));
 
                     if (isSgValueUnit) {
+                      const densityControlDisabled = additionalSampleOpen || submitting;
                       return (
                         <div key={unit.key} className="space-y-1">
                           <label className="text-sm font-medium text-grey-700">{unit.field.label}{unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}</label>
@@ -1353,7 +1354,7 @@ export default function QCTestingDetailPage() {
                               setManualDensityKeys((prev) => ({ ...prev, [densityControlKey]: false }));
                               onUnitChange(unit.key, v);
                             }
-                          }} disabled={fieldDisabled}>
+                          }} disabled={densityControlDisabled}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="เลือกค่า ถพ. ..." /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">— เลือก —</SelectItem>
@@ -1361,7 +1362,7 @@ export default function QCTestingDetailPage() {
                               <SelectItem value="__manual__">กรอกค่าเอง</SelectItem>
                             </SelectContent>
                           </Select>
-                          {isManualDensity && <Input type="number" step="0.001" value={densityValue} onChange={(e) => onUnitChange(unit.key, e.target.value)} disabled={fieldDisabled} className="h-8 text-sm" placeholder="กรอกค่า ถพ. 3 ตำแหน่ง" />}
+                          {isManualDensity && <Input type="number" step="0.001" value={densityValue} onChange={(e) => onUnitChange(unit.key, e.target.value)} disabled={densityControlDisabled} className="h-8 text-sm" placeholder="กรอกค่า ถพ. 3 ตำแหน่ง" />}
                         </div>
                       );
                     }
