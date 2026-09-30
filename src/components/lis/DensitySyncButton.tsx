@@ -9,6 +9,7 @@ interface DensitySyncButtonProps {
   batchNo: string;
   /** Called with the selected matched rows. */
   onRows: (docs: Record<string, unknown>[]) => void;
+  onOptions?: (docs: Record<string, unknown>[]) => void;
   disabled?: boolean;
 }
 
@@ -19,7 +20,7 @@ const EMPTY_DENSITY_DOCS: Record<string, unknown>[] = [];
  * valid row is used immediately; multiple rows use the repeat-selection rule.
  */
 export default function DensitySyncButton({
-  batchNo, onRows, disabled = false,
+  batchNo, onRows, onOptions, disabled = false,
 }: DensitySyncButtonProps) {
   const appliedKeyRef = useRef('');
 
@@ -31,6 +32,10 @@ export default function DensitySyncButton({
   });
 
   const docs = data?.docs ?? EMPTY_DENSITY_DOCS;
+
+  useEffect(() => {
+    onOptions?.(docs);
+  }, [docs, onOptions]);
 
   useEffect(() => {
     appliedKeyRef.current = '';

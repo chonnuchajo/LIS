@@ -52,6 +52,7 @@ import {
   SG_VALUE_LABEL,
   SG_TEMP_LABEL,
   densityRowToEntry,
+  formatDensity3,
   formatTSetComparison,
   isSgMachineUnitKey,
 } from '@/lib/densitySync';
@@ -355,6 +356,8 @@ export default function QCTestingDetailPage() {
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
   // Local mirror of QCTestResult.entries for multiEntry params, keyed by resultKey.
   const [entriesByKey, setEntriesByKey] = useState<Record<string, Record<string, unknown>[]>>({});
+  const [densityOptionsByKey, setDensityOptionsByKey] = useState<Record<string, string[]>>({});
+  const [manualDensityKeys, setManualDensityKeys] = useState<Record<string, boolean>>({});
   // How many entry cards to show per multiEntry resultKey (user-driven via "เพิ่มรายการ").
   // Effective count = max(this, savedEntries.length, 1) — never hides saved data, always ≥1 empty form.
   const [entryRowCounts, setEntryRowCounts] = useState<Record<string, number>>({});
@@ -1326,6 +1329,37 @@ export default function QCTestingDetailPage() {
                       !!sgValueField &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
                     const unitDisabled = fieldDisabled || isSgMachineField;
+                    const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
+                    const isSgValueUnit = isSgMachineField && unit.field.label === SG_VALUE_LABEL;
+                    const densityValue = srcValues[unit.key] == null ? '' : String(srcValues[unit.key]);
+                    const densityControlKey = `${resultKey(item.seq, param._id!)}::${unit.key}`;
+                    const isManualDensity = isSgValueUnit && densityOptions.length > 0 &&
+                      (manualDensityKeys[densityControlKey] || (!!densityValue && !densityOptions.includes(densityValue)));
+
+                    if (isSgValueUnit && densityOptions.length > 0) {
+                      return (
+                        <div key={unit.key} className="space-y-1">
+                          <label className="text-sm font-medium text-grey-700">{unit.field.label}{unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}</label>
+                          <Select value={isManualDensity ? '__manual__' : densityValue || '__none__'} onValueChange={(v) => {
+                            if (v === '__manual__') {
+                              setManualDensityKeys((prev) => ({ ...prev, [densityControlKey]: true }));
+                              onUnitChange(unit.key, '');
+                            } else if (v !== '__none__') {
+                              setManualDensityKeys((prev) => ({ ...prev, [densityControlKey]: false }));
+                              onUnitChange(unit.key, v);
+                            }
+                          }} disabled={fieldDisabled}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="เลือกค่า ถพ. ..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— เลือก —</SelectItem>
+                              {densityOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              <SelectItem value="__manual__">กรอกค่าเอง</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {isManualDensity && <Input type="number" step="0.001" value={densityValue} onChange={(e) => onUnitChange(unit.key, e.target.value)} disabled={fieldDisabled} className="h-8 text-sm" placeholder="กรอกค่า ถพ. 3 ตำแหน่ง" />}
+                        </div>
+                      );
+                    }
 
                     // Field-level `multiple` — repeatable list of inputs sharing the
                     // same markup. The field value is the WHOLE array.
@@ -1510,6 +1544,10 @@ export default function QCTestingDetailPage() {
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}
                                     onRows={(docs) => applyDensityRows(petition, item, param, docs)}
+                                    onOptions={(docs) => {
+                                      const options = Array.from(new Set(docs.map((doc) => formatDensity3(doc)).filter(Boolean)));
+                                      setDensityOptionsByKey((prev) => ({ ...prev, [k]: options }));
+                                    }}
                                   />
                                 </div>
                               )}
