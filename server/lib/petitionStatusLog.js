@@ -235,6 +235,11 @@ function timelineLabel(log, petition) {
       const p = md.parameterName || md.parameterId || '';
       return p ? `QC แก้ไขผล — ${p}` : 'QC แก้ไขผล';
     }
+    case 'updated':
+      if (md.type === 'additionalSampleRequested') return 'ต้องการตัวอย่างเพิ่ม';
+      if (md.type === 'additionalProcessRequested') return 'ขอเพิ่มกระบวนการ';
+      if (md.type === 'otherRequest') return 'แจ้งคำขออื่นๆ';
+      return null;
     case 'statusChanged':
       if (log.toStatus === 'sampleSent') return 'ส่งตัวอย่าง';
       if (log.toStatus === 'success') return 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน';

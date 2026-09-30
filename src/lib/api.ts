@@ -133,6 +133,7 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
     const base = API_BASES[i];
     const res = await fetch(`${base}${path}`, {
       ...options,
+      credentials: "include",
       headers: { "Content-Type": "application/json", ...identityHeaders(), ...options?.headers },
     });
     const contentType = res.headers.get("content-type") || "";
@@ -209,6 +210,7 @@ async function fetchBlob(path: string, options?: RequestInit): Promise<Blob> {
     const base = API_BASES[i];
     const res = await fetch(`${base}${path}`, {
       ...options,
+      credentials: "include",
       headers: { "Content-Type": "application/json", ...identityHeaders(), ...options?.headers },
     });
     const contentType = res.headers.get("content-type") || "";
