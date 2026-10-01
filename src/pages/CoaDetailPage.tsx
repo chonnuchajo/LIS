@@ -8,6 +8,7 @@ import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import CoaAuditTimeline from "@/components/coa/CoaAuditTimeline";
+import CoaManualDialog from "@/components/coa/CoaManualDialog";
 import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
 import CoaStatusBadge from "@/components/coa/CoaStatusBadge";
 import { api } from "@/lib/api";
@@ -24,6 +25,7 @@ export default function CoaDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [printOpen, setPrintOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [remark, setRemark] = useState("");
   const pdfRef = useRef<HTMLDivElement>(null);
@@ -128,10 +130,12 @@ export default function CoaDetailPage() {
         {actions.includes("save") && (
           <section className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
             <h2 className="mb-3 font-semibold text-foreground">ข้อมูลในฟอร์ม COA</h2>
+            {doc.sourceType === "erpManual" && <Button variant="outline" className="mb-3" onClick={() => setManualOpen(true)}>แก้ไขข้อมูลและผลทดสอบ</Button>}
             <Textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="หมายเหตุหรือข้อมูลประกอบในฟอร์ม COA" />
           </section>
         )}
         <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เหตุผลสำหรับไม่อนุมัติหรือยกเลิก" />
+        {doc.sourceType === "erpManual" && actions.includes("save") && <CoaManualDialog open={manualOpen} onOpenChange={setManualOpen} request={doc} onSaved={() => { void invalidate(); void queryClient.invalidateQueries({ queryKey: ["coa"] }); }} />}
         <section className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
           <h2 className="mb-3 font-semibold text-foreground">ตัวอย่างและผลทดสอบ</h2>
           {doc.sampleSnapshots.map((sample) => (

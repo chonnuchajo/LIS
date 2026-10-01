@@ -122,6 +122,8 @@ vi.mock("@/lib/api", () => ({
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
+    createManualCoaDocument: vi.fn().mockResolvedValue({}),
+    updateCoaDocument: vi.fn().mockResolvedValue({}),
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
@@ -229,10 +231,9 @@ describe("CoaCenterPage", () => {
 
     expect(await screen.findByText("ออกเอกสาร COA")).toBeInTheDocument();
     expect(await screen.findByText("00012026")).toBeInTheDocument();
-    expect(container.querySelector(".bg-sky-50")).toBeInTheDocument();
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("space-y-4");
     const notificationButton = screen.getByRole("button", { name: "แจ้งเตือน COA 5 รายการ" });
-    expect(notificationButton).toHaveClass("bg-violet-50");
-    expect(notificationButton.querySelector("svg")).toHaveClass("text-violet-600");
+    expect(notificationButton).toHaveAttribute("aria-controls", "coa-notification-panel");
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Document No" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();
@@ -295,8 +296,6 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("row", { name: /00022026/ })).not.toBeInTheDocument();
     const tabButtons = Array.from(container.querySelectorAll("button[aria-pressed]:not([aria-label])"));
     expect(tabButtons).toHaveLength(2);
-    expect(tabButtons[0]).toHaveClass("bg-sky-100");
-    expect(tabButtons[1]).toHaveClass("bg-blue-100");
     expect(tabButtons[0]).toHaveAttribute("aria-pressed", "true");
     expect(tabButtons[1]).toHaveAttribute("aria-pressed", "false");
 
@@ -371,7 +370,7 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
   });
 
-  it("shows ERP COA requests without opening the create dialog", async () => {
+  it("opens manual creation for ERP requests without loading Lab petitions", async () => {
     vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
       items: [{
         _id: "external-coa-request-SO26040020-10000",
@@ -399,9 +398,39 @@ describe("CoaCenterPage", () => {
     expect(within(requestedRow).getByText("คำขอจาก ERP")).toBeInTheDocument();
     expect(within(requestedRow).getByText("pending shipment")).toBeInTheDocument();
     expect(within(requestedRow).getByText("ERP")).toBeInTheDocument();
-    expect(within(requestedRow).queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
+    expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
 
     fireEvent.click(requestedRow);
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("สร้าง COA แบบกรอกเอง");
+    expect(screen.getByLabelText("ชื่อการค้า *")).toHaveValue("Carval");
+    expect(screen.getByLabelText("ชื่อสามัญ *")).toHaveValue("SPIRODICLOFEN 24 % W/V SC");
+    expect(screen.getByRole("button", { name: "บันทึกร่าง COA" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-ERP-1" } });
+    fireEvent.change(screen.getByLabelText("วันที่ผลิต *"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("รายการทดสอบ *"), { target: { value: "Appearance" } });
+    fireEvent.change(screen.getByLabelText("เกณฑ์มาตรฐาน *"), { target: { value: "Clear liquid" } });
+    fireEvent.change(screen.getByLabelText("ผลทดสอบ *"), { target: { value: "Conform" } });
+    vi.mocked(api.createManualCoaDocument).mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
+    fireEvent.click(screen.getByRole("button", { name: "บันทึกร่าง COA" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("บันทึกไม่สำเร็จ");
+    expect(api.createManualCoaDocument).toHaveBeenCalledWith(expect.objectContaining({
+      externalRequestId: "external-coa-request-SO26040020-10000",
+      sample: expect.objectContaining({ batchNo: "B-ERP-1", productionDate: "2026-10-01" }),
+      results: [expect.objectContaining({ testItem: "Appearance", criteria: "Clear liquid", result: "Conform" })],
+    }));
+    const entered = vi.mocked(api.createManualCoaDocument).mock.calls.at(-1)![0];
+    vi.mocked(api.createManualCoaDocument).mockResolvedValueOnce({
+      _id: "manual-coa-1", sourceType: "erpManual", externalRequestId: entered.externalRequestId,
+      status: "draft", revision: 0, petitionId: "", petitionNoSnapshot: "SO26040020",
+      selectedItemSeqs: [10000], sampleSnapshots: [entered.sample], resultSnapshots: entered.results,
+      createdAt: new Date().toISOString(),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึกร่าง COA" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("row", { name: /Carval.*B-ERP-1/ })).toBeInTheDocument();
 
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
   });
@@ -531,7 +560,7 @@ describe("CoaCenterPage", () => {
     fireEvent.click(within(pendingApprovalRow).getByRole("button", { name: "QC Head อนุมัติ COA 00042026" }));
 
     expect(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-sky-50");
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("space-y-4");
     const approvedRow = await screen.findByRole("row", { name: /00042026/ });
     expect(within(approvedRow).getByText("Red Wax Block")).toBeInTheDocument();
     expect(within(approvedRow).getByRole("button", { name: "พิมพ์ COA 00042026" })).toBeEnabled();
@@ -541,14 +570,14 @@ describe("CoaCenterPage", () => {
     renderPage();
 
     expect(await screen.findByText("00012026")).toBeInTheDocument();
-    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-sky-50");
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("space-y-4");
     expect(screen.queryByRole("columnheader", { name: "พิมพ์" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "พิมพ์ COA 00032026" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
     expect(await screen.findByText("00032026")).toBeInTheDocument();
-    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-sky-50");
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("space-y-4");
     expect(screen.getByTestId("coa-center-page")).not.toHaveClass("bg-green-50");
     expect(screen.queryByRole("columnheader", { name: "Document No" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();

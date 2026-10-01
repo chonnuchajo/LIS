@@ -71,6 +71,65 @@ function stubActorLookup({
   };
 }
 
+test('ERP manual creation, editing, submit, approval and revision preserve entered results without Lab lookup', async () => {
+  const originals = { fetch: global.fetch, create: CoaDocument.create, findById: CoaDocument.findById,
+    auditCreate: CoaAuditLog.create, petitionFindById: Petition.findById };
+  const restoreActor = stubActorLookup();
+  let document;
+  const erpRow = { SaleOrderNo: 'SO-1', Line: 10000, CustomerName: 'ERP Customer', remark: 'COA' };
+  try {
+    global.fetch = async () => ({ ok: true, text: async () => JSON.stringify([erpRow]) });
+    Petition.findById = () => { throw new Error('Manual COA must not load a petition'); };
+    CoaAuditLog.create = async () => {};
+    CoaDocument.create = async (payload) => {
+      document = { _id: '507f1f77bcf86cd799439032', ...payload, $locals: {},
+        set(update) { Object.assign(this, update); }, save: async () => {} };
+      return document;
+    };
+    CoaDocument.findById = () => ({ then: (resolve) => resolve(document), lean: async () => document });
+    const body = { externalRequestId: 'external-coa-request-SO-1-10000',
+      sample: { sampleName: 'Trade', commonName: 'Chemical', batchNo: 'B1', productionDate: '2026-10-01' },
+      results: [{ testItem: 'Appearance', criteria: 'Clear', result: 'Conform' }], _user: { email: 'qc@example.com' } };
+    const missing = await invoke('/erp-manual', 'post', { body: { ...body, externalRequestId: 'missing' } });
+    assert.equal(missing.statusCode, 404);
+    const invalid = await invoke('/erp-manual', 'post', { body: { ...body, results: [] } });
+    assert.equal(invalid.statusCode, 400);
+    const created = await invoke('/erp-manual', 'post', { body });
+    assert.equal(created.statusCode, 201);
+    assert.equal(document.customerSnapshot.name, 'ERP Customer');
+    assert.equal(document.petitionId, undefined);
+    assert.equal(document.sourceType, 'erpManual');
+    assert.equal(document.status, 'draft');
+    const edited = await invoke('/:id', 'patch', { params: { id: document._id }, body: {
+      ...body, results: [{ testItem: 'Appearance', criteria: 'Amber liquid', result: 'Conform', method: 'Visual' }],
+    } });
+    assert.equal(edited.statusCode, 200);
+    assert.equal(document.resultSnapshots[0].criteria, 'Amber liquid');
+    const expected = structuredClone(document.resultSnapshots);
+    const submitted = await invoke('/:id/submit', 'post', { params: { id: document._id }, body });
+    assert.equal(submitted.statusCode, 200);
+    assert.equal(document.status, 'pendingApproval');
+    // An existing number avoids exercising the unrelated number allocator here.
+    document.coaNo = '00012026';
+    const approved = await invoke('/:id/approve', 'post', { params: { id: document._id }, body });
+    assert.equal(approved.statusCode, 200);
+    assert.equal(document.status, 'approved');
+    assert.deepEqual(document.resultSnapshots, expected);
+    const blockedEdit = await invoke('/:id', 'patch', { params: { id: document._id }, body });
+    assert.equal(blockedEdit.statusCode, 400);
+    const revised = await invoke('/:id/revise', 'post', { params: { id: document._id }, body });
+    assert.equal(revised.statusCode, 201);
+    assert.equal(document.sourceType, 'erpManual');
+    assert.equal(document.externalRequestId, body.externalRequestId);
+    assert.equal(document.status, 'revisionDraft');
+    assert.deepEqual(document.resultSnapshots, expected);
+  } finally {
+    global.fetch = originals.fetch; CoaDocument.create = originals.create;
+    CoaDocument.findById = originals.findById; CoaAuditLog.create = originals.auditCreate;
+    Petition.findById = originals.petitionFindById; restoreActor();
+  }
+});
+
 test('selectedItemsFromPetition returns only requested item seqs in petition order', () => {
   const petition = {
     items: [

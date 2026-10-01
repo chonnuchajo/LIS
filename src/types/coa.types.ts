@@ -92,13 +92,15 @@ export type ExternalCoaRequestSnapshot = {
 };
 
 export type CoaDocument = {
+  sourceType?: "lab" | "erpManual";
+  externalRequestId?: string;
   _id: string;
   coaNo?: string | null;
   coaYear?: number;
   sequence?: number;
   revision: number;
   status: CoaStatus;
-  petitionId: string;
+  petitionId?: string;
   petitionNoSnapshot?: string;
   selectedItemSeqs: number[];
   sourceCoaId?: string;
@@ -126,6 +128,14 @@ export type CoaDocument = {
   createdAt?: string;
   updatedAt?: string;
   externalCoaRequest?: ExternalCoaRequestSnapshot;
+};
+
+export type ManualCoaInput = {
+  externalRequestId: string;
+  sample: CoaSampleSnapshot;
+  results: CoaResultSnapshot[];
+  remark?: string;
+  _user?: unknown;
 };
 
 export type EligibleCoaPetition = {

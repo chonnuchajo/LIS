@@ -135,7 +135,7 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
     return {
       ...sample,
       rows: rowsWithAiCriteria,
-      selectedResultsOnly: Boolean(doc.formSelections?.some((selection) => selection.itemSeq === sample.itemSeq && Array.isArray(selection.resultKeys))),
+      selectedResultsOnly: doc.sourceType === "erpManual" || Boolean(doc.formSelections?.some((selection) => selection.itemSeq === sample.itemSeq && Array.isArray(selection.resultKeys))),
       product: productLabel(sample),
       manufacturingDate: formatGregorianDate(sample.productionDate),
       expiredDate: addYears(sample.productionDate, 2),

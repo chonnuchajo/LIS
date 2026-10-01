@@ -33,7 +33,7 @@ import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboard
 import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
-import type { CoaDocument, CoaFormSelection, CoaSourceResult, EligibleCoaPetition } from "@/types/coa.types";
+import type { CoaDocument, CoaFormSelection, CoaSourceResult, EligibleCoaPetition, ManualCoaInput } from "@/types/coa.types";
 import type { PetitionAuditEvent, PetitionStatus } from "@/types/petition.types";
 import type {
   ApiKeyItem,
@@ -940,12 +940,14 @@ export const api = {
     return request<{ items: CoaDocument[] }>(`/coa-documents${q.toString() ? `?${q}` : ""}`);
   },
   getEligibleCoaPetitions: () => request<{ items: EligibleCoaPetition[] }>("/coa-documents/eligible-petitions"),
+  createManualCoaDocument: (body: ManualCoaInput) =>
+    request<CoaDocument>("/coa-documents/erp-manual", { method: "POST", body: JSON.stringify(body) }),
   getCoaSourceData: (petitionId: string, itemSeqs: number[]) =>
     request<{ results: CoaSourceResult[] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),
   createCoaDocument: (body: { petitionId: string; selectedItemSeqs: number[]; formSelections?: CoaFormSelection[]; remark?: string; _user?: unknown }) =>
     request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),
   getCoaDocument: (id: string) => request<CoaDocument>(`/coa-documents/${id}`),
-  updateCoaDocument: (id: string, body: { selectedItemSeqs?: number[]; remark?: string; _user?: unknown }) =>
+  updateCoaDocument: (id: string, body: { selectedItemSeqs?: number[]; remark?: string; _user?: unknown } & Partial<Pick<ManualCoaInput, "sample" | "results">>) =>
     request<CoaDocument>(`/coa-documents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   submitCoaDocument: (id: string, body: { _user?: unknown }) =>
     request<CoaDocument>(`/coa-documents/${id}/submit`, { method: "POST", body: JSON.stringify(body) }),

@@ -9,6 +9,7 @@ const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
+const { manualCoaSnapshots, validateManualCoa } = require('../lib/coaManual');
 const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const {
@@ -498,6 +499,33 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.post('/erp-manual', async (req, res) => {
+  try {
+    const actor = await actorFromRequest(req.body);
+    const requests = await fetchExternalCoaDocuments();
+    const source = requests.find((row) => row._id === req.body.externalRequestId);
+    if (!source) throw errorWithStatus('ไม่พบคำขอ COA จาก ERP กรุณาโหลดรายการใหม่', 404);
+    const snapshots = manualCoaSnapshots(req.body, source.selectedItemSeqs[0]);
+    const doc = await withCoaTransaction(async (session) => {
+      const created = await createCoaDocument({
+        sourceType: 'erpManual', externalRequestId: source._id,
+        externalCoaRequest: source.externalCoaRequest,
+        petitionNoSnapshot: source.petitionNoSnapshot, selectedItemSeqs: source.selectedItemSeqs,
+        customerSnapshot: source.customerSnapshot, ...snapshots,
+        remark: String(req.body.remark || '').slice(0, 3000), status: 'draft',
+        createdBy: actor, updatedBy: actor,
+      }, session);
+      await writeCoaAuditEvent(created, 'created', actor, 'สร้างร่าง COA จาก ERP โดยกรอกผลเอง', {
+        externalRequestId: source._id,
+      }, CoaAuditLog, session);
+      return created;
+    });
+    res.status(201).json(doc);
+  } catch (error) {
+    res.status(errorStatus(error)).json({ error: error.message });
+  }
+});
+
 router.get('/eligible-petitions', async (_req, res) => {
   try {
     const petitions = await Petition.find({ labApprovedAt: { $exists: true, $ne: null } })
@@ -627,7 +655,10 @@ router.patch('/:id', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'update', actor);
-    if (req.body.selectedItemSeqs) {
+    if (doc.sourceType === 'erpManual' && req.body.sample) {
+      doc.set(manualCoaSnapshots(req.body, doc.selectedItemSeqs[0]));
+    }
+    if (req.body.selectedItemSeqs && doc.sourceType !== 'erpManual') {
       const petition = await assertLabApprovedPetition(doc.petitionId);
       doc.selectedItemSeqs = selectedItemsFromPetition(petition, req.body.selectedItemSeqs)
         .map((item) => item.seq);
@@ -652,7 +683,8 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
+    const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
+      : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
@@ -676,9 +708,10 @@ router.post('/:id/approve', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
-    await assertLabApprovedPetition(doc.petitionId);
+    if (doc.sourceType !== 'erpManual') await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
-    const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections) : {};
+    const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
+      : missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections) : {};
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -759,6 +792,9 @@ router.post('/:id/revise', async (req, res) => {
         revision: Number(source.revision || 0) + 1,
         status: 'revisionDraft',
         petitionId: source.petitionId,
+        sourceType: source.sourceType,
+        externalRequestId: source.externalRequestId,
+        externalCoaRequest: source.externalCoaRequest,
         petitionNoSnapshot: source.petitionNoSnapshot,
         selectedItemSeqs: source.selectedItemSeqs,
         customerSnapshot: source.customerSnapshot,

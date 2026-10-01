@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import CoaCreateDialog from "@/components/coa/CoaCreateDialog";
+import CoaManualDialog from "@/components/coa/CoaManualDialog";
 import CoaSamplePreview from "@/components/coa/CoaSamplePreview";
 import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -271,7 +272,7 @@ function isCoaApprovedDocument(doc: CoaDocument) {
 }
 
 function isExternalCoaRequestDocument(doc: CoaDocument) {
-  return Boolean(doc.externalCoaRequest);
+  return Boolean(doc.externalCoaRequest) && doc.status === "requested";
 }
 
 function addDocumentToDuplicateGroup(groups: Map<string, CoaDuplicateGroup>, key: string, label: string, doc: CoaDocument) {
@@ -662,6 +663,11 @@ export default function CoaCenterPage() {
   }
 
   function handleEdit(doc: CoaDocument) {
+    if (doc.sourceType === "erpManual") {
+      setCreateRequest(doc);
+      setCreateOpen(true);
+      return;
+    }
     if (isDemoCoaDocument(doc)) {
       setDemoEditForm(makeDemoCoaEditForm(doc));
       setDemoEditDoc(doc);
@@ -1178,9 +1184,9 @@ export default function CoaCenterPage() {
                   return (
                   <tr
                     key={doc._id}
-                    className={`${externalRequest ? "" : "cursor-pointer"} text-foreground transition-colors hover:bg-accent`}
+                    className="cursor-pointer text-foreground transition-colors hover:bg-accent"
                     onClick={() => {
-                      if (externalRequest) return;
+                      if (externalRequest) { handleCreate(doc); return; }
                       if (isDemoCoaDocument(doc)) {
                         setPreviewDoc(doc);
                         return;
@@ -1238,6 +1244,10 @@ export default function CoaCenterPage() {
                         {externalRequest ? (
                           <div className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
                             <Badge variant="blue-soft">ERP</Badge>
+                            <Button type="button" size="sm" aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
+                              onClick={(event) => { event.stopPropagation(); handleCreate(doc); }}>
+                              สร้าง COA
+                            </Button>
                             {externalRequest.shipmentDate && <span>กำหนดส่ง {formatProductionDate(externalRequest.shipmentDate)}</span>}
                           </div>
                         ) : workflowStageFor(doc) === "requested" && (
@@ -1508,7 +1518,9 @@ export default function CoaCenterPage() {
       >
         <CoaReportTemplate pages={previewPages} />
       </PrintPreviewDialog>
-      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />
+      {createRequest && (isExternalCoaRequestDocument(createRequest) || createRequest.sourceType === "erpManual")
+        ? <CoaManualDialog open={createOpen} onOpenChange={setCreateOpen} onSaved={handleCreated} request={createRequest} />
+        : <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />}
     </AppLayout>
   );
 }
