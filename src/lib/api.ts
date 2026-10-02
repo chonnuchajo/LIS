@@ -944,6 +944,15 @@ export const api = {
     request<{ results: CoaSourceResult[] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),
   createCoaDocument: (body: { petitionId: string; selectedItemSeqs: number[]; formSelections?: CoaFormSelection[]; remark?: string; _user?: unknown }) =>
     request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),
+  createManualCoaDocument: (body: {
+    petitionId: string;
+    selectedItemSeqs: number[];
+    customerSnapshot?: CoaDocument["customerSnapshot"];
+    sampleSnapshots: CoaDocument["sampleSnapshots"];
+    resultSnapshots: CoaDocument["resultSnapshots"];
+    remark?: string;
+    _user?: unknown;
+  }) => request<CoaDocument>("/coa-documents/manual", { method: "POST", body: JSON.stringify(body) }),
   getCoaDocument: (id: string) => request<CoaDocument>(`/coa-documents/${id}`),
   updateCoaDocument: (id: string, body: { selectedItemSeqs?: number[]; remark?: string; _user?: unknown }) =>
     request<CoaDocument>(`/coa-documents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),

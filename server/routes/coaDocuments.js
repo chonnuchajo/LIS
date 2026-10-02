@@ -46,6 +46,85 @@ function errorStatus(error) {
   return error.message.startsWith('QC Head required') ? 403 : 400;
 }
 
+function manualText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function manualPercent(value) {
+  const match = manualText(value).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildManualSnapshots(petition, selectedItemSeqs, body = {}) {
+  const selectedItems = selectedItemsFromPetition(petition, selectedItemSeqs);
+  const selectedSeqs = selectedItems.map((item) => Number(item.seq));
+  const selectedSet = new Set(selectedSeqs);
+  const samples = Array.isArray(body.sampleSnapshots) ? body.sampleSnapshots : [];
+  if (samples.length !== selectedSeqs.length) throw errorWithStatus('กรุณากรอกข้อมูลตัวอย่างให้ครบทุกตัวอย่าง', 400);
+
+  const sampleBySeq = new Map();
+  for (const sample of samples) {
+    const itemSeq = Number(sample?.itemSeq);
+    if (!selectedSet.has(itemSeq) || sampleBySeq.has(itemSeq)) {
+      throw errorWithStatus('ข้อมูลตัวอย่างไม่ตรงกับรายการที่เลือก', 400);
+    }
+    const normalized = {
+      itemSeq,
+      sampleName: manualText(sample.sampleName),
+      commonName: manualText(sample.commonName),
+      batchNo: manualText(sample.batchNo),
+      lotNo: manualText(sample.lotNo),
+      productionDate: manualText(sample.productionDate),
+      sampleId: manualText(sample.sampleId),
+      condition: manualText(sample.condition),
+      manufacturer: manualText(sample.manufacturer),
+    };
+    if (!normalized.sampleName || !normalized.commonName || !normalized.batchNo || !normalized.productionDate) {
+      throw errorWithStatus('กรุณากรอกชื่อตัวอย่าง ชื่อสามัญ Batch No. และวันที่ผลิตให้ครบ', 400);
+    }
+    sampleBySeq.set(itemSeq, normalized);
+  }
+  if (sampleBySeq.size !== selectedSeqs.length) throw errorWithStatus('กรุณากรอกข้อมูลตัวอย่างให้ครบทุกตัวอย่าง', 400);
+
+  const results = Array.isArray(body.resultSnapshots) ? body.resultSnapshots : [];
+  if (!results.length) throw errorWithStatus('กรุณากรอกผลทดสอบอย่างน้อยหนึ่งรายการ', 400);
+  const resultSnapshots = results.map((row) => {
+    const itemSeq = Number(row?.itemSeq);
+    const normalized = {
+      itemSeq,
+      testItem: manualText(row?.testItem),
+      result: manualText(row?.result),
+      criteria: manualText(row?.criteria),
+      method: manualText(row?.method),
+      unit: manualText(row?.unit),
+    };
+    if (!selectedSet.has(itemSeq) || !normalized.testItem || !normalized.result) {
+      throw errorWithStatus('รายการผลทดสอบไม่ถูกต้องหรือกรอกไม่ครบ', 400);
+    }
+    return normalized;
+  });
+  for (const itemSeq of selectedSeqs) {
+    if (!resultSnapshots.some((row) => row.itemSeq === itemSeq)) {
+      throw errorWithStatus('กรุณากรอกผลทดสอบให้ครบทุกตัวอย่าง', 400);
+    }
+  }
+
+  const sampleSnapshots = selectedSeqs.map((itemSeq) => sampleBySeq.get(itemSeq));
+  const trendSnapshots = sampleSnapshots.map((sample) => {
+    const ai = resultSnapshots.find((row) => row.itemSeq === sample.itemSeq && /%?ai\s*content/i.test(row.testItem));
+    return {
+      itemSeq: sample.itemSeq,
+      sampleName: sample.sampleName,
+      commonName: sample.commonName,
+      aiResultText: ai?.result || '',
+      aiResultPercent: manualPercent(ai?.result),
+    };
+  });
+  return { sampleSnapshots, resultSnapshots, trendSnapshots };
+}
+
 function normalizeCoaMatchValue(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -619,6 +698,42 @@ router.get('/source-data/:petitionId', async (req, res) => {
   }
 });
 
+router.post('/manual', async (req, res) => {
+  try {
+    const actor = await actorFromRequest(req.body);
+    const petition = await assertLabApprovedPetition(req.body.petitionId);
+    const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
+    const selectedItemSeqs = selectedItems.map((item) => item.seq);
+    const snapshots = buildManualSnapshots(petition, selectedItemSeqs, req.body);
+    const customerSnapshot = Object.fromEntries(
+      ['name', 'company', 'department', 'email', 'phone']
+        .map((key) => [key, manualText(req.body.customerSnapshot?.[key])]),
+    );
+    const doc = await withCoaTransaction(async (session) => {
+      const created = await createCoaDocument({
+        entryMode: 'manual',
+        petitionId: petition._id,
+        petitionNoSnapshot: petition.petitionNo,
+        selectedItemSeqs,
+        customerSnapshot,
+        ...snapshots,
+        remark: manualText(req.body.remark),
+        status: 'draft',
+        createdBy: actor,
+        updatedBy: actor,
+      }, session);
+      await writeCoaAuditEvent(created, 'created', actor, 'สร้างร่าง COA จากแบบกรอกข้อมูล', {
+        selectedItemSeqs: created.selectedItemSeqs,
+        entryMode: 'manual',
+      }, CoaAuditLog, session);
+      return created;
+    });
+    res.status(201).json(doc);
+  } catch (error) {
+    res.status(errorStatus(error)).json({ error: error.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const actor = await actorFromRequest(req.body);
@@ -628,6 +743,7 @@ router.post('/', async (req, res) => {
     const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs, req.body.formSelections);
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
+        entryMode: 'source',
         petitionId: petition._id,
         petitionNoSnapshot: petition.petitionNo,
         selectedItemSeqs,
@@ -690,7 +806,9 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
+    const snapshots = doc.entryMode === 'manual'
+      ? {}
+      : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
@@ -716,7 +834,9 @@ router.post('/:id/approve', async (req, res) => {
     assertCanTransition(doc.status, 'approve', actor);
     await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
-    const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections) : {};
+    const snapshots = doc.entryMode === 'manual' || !missingSnapshots
+      ? {}
+      : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -791,6 +911,7 @@ router.post('/:id/revise', async (req, res) => {
     assertCanTransition(source.status, 'revise', actor);
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
+        entryMode: source.entryMode || 'source',
         coaNo: source.coaNo,
         coaYear: source.coaYear,
         sequence: source.sequence,

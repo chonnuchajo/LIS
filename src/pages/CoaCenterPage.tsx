@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import CoaCreateDialog from "@/components/coa/CoaCreateDialog";
+import CoaManualRequestDialog from "@/components/coa/CoaManualRequestDialog";
 import CoaSamplePreview from "@/components/coa/CoaSamplePreview";
 import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -567,6 +568,7 @@ export default function CoaCenterPage() {
   const { user } = useAuth();
   const demoCoaEnabled = DEV_MODE && searchParams.get("demoCoa") === "bromadiolone";
   const [createOpen, setCreateOpen] = useState(false);
+  const [manualRequestOpen, setManualRequestOpen] = useState(false);
   const [createRequest, setCreateRequest] = useState<CoaDocument | null>(null);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<CoaTab>("today");
@@ -903,20 +905,26 @@ export default function CoaCenterPage() {
               </span>
             )}
             actions={(
-              <Button
-                type="button"
-                variant="outline"
-                aria-label={`แจ้งเตือน COA ${notificationButtonCount} รายการ`}
-                aria-controls="coa-notification-panel"
-                className="gap-2"
-                onClick={focusCoaNotifications}
-              >
-                <BellRing className="h-4 w-4" />
-                <span className="hidden sm:inline">แจ้งเตือน</span>
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary-500 px-1.5 py-0.5 text-xs font-bold text-white">
-                  {notificationButtonCount}
-                </span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" className="gap-2 bg-primary-500 text-white hover:bg-primary-600" aria-label="เปิดแบบฟอร์มคำขอ COA" onClick={() => setManualRequestOpen(true)}>
+                  <FilePlus2 className="h-4 w-4" />
+                  <span>คำขอ COA</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label={`แจ้งเตือน COA ${notificationButtonCount} รายการ`}
+                  aria-controls="coa-notification-panel"
+                  className="gap-2"
+                  onClick={focusCoaNotifications}
+                >
+                  <BellRing className="h-4 w-4" />
+                  <span className="hidden sm:inline">แจ้งเตือน</span>
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                    {notificationButtonCount}
+                  </span>
+                </Button>
+              </div>
             )}
           />
 
@@ -1509,6 +1517,7 @@ export default function CoaCenterPage() {
         <CoaReportTemplate pages={previewPages} />
       </PrintPreviewDialog>
       <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />
+      <CoaManualRequestDialog open={manualRequestOpen} onOpenChange={setManualRequestOpen} onCreated={handleCreated} />
     </AppLayout>
   );
 }

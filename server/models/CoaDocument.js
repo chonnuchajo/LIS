@@ -227,6 +227,7 @@ const CoaDocumentSchema = new mongoose.Schema(
     sequence: Number,
     revision: { type: Number, default: 0 },
     status: { type: String, enum: STATUS, required: true, default: 'draft', index: true },
+    entryMode: { type: String, enum: ['source', 'manual'], default: 'source', index: true },
     petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: true, index: true },
     petitionNoSnapshot: String,
     selectedItemSeqs: { type: [Number], default: [] },

@@ -98,6 +98,7 @@ export type CoaDocument = {
   sequence?: number;
   revision: number;
   status: CoaStatus;
+  entryMode?: "source" | "manual";
   petitionId: string;
   petitionNoSnapshot?: string;
   selectedItemSeqs: number[];

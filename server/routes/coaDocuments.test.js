@@ -600,6 +600,64 @@ test('create route validates actor before insert and stores review snapshots', a
   }
 });
 
+test('manual route stores typed snapshots, rejects incomplete input, and submit keeps them', async () => {
+  const originals = {
+    create: CoaDocument.create, findById: CoaDocument.findById, auditCreate: CoaAuditLog.create,
+    petitionFindById: Petition.findById, qcResultFind: QCTestResult.find,
+  };
+  const restoreActor = stubActorLookup({
+    user: { name: 'QC Staff', email: 'qc@example.com', role: 'qc-staff', roles: ['qc-staff'], status: 'active' },
+  });
+  const petitionId = '507f1f77bcf86cd799439031';
+  const writes = [];
+  let qcReads = 0;
+  try {
+    Petition.findById = () => ({ lean: async () => ({ _id: petitionId, petitionNo: 'P-1', labApprovedAt: new Date(), items: [{ seq: 1, commonName: 'Wrong Name' }] }) });
+    QCTestResult.find = () => { qcReads += 1; return { lean: async () => [] }; };
+    CoaDocument.create = async (payload) => { writes.push(payload); return { _id: '507f1f77bcf86cd799439099', ...payload }; };
+    CoaAuditLog.create = async () => {};
+    const user = { name: 'QC Staff', email: 'qc@example.com', role: 'qc-staff' };
+    const sample = { itemSeq: 1, sampleName: 'Trade A', commonName: 'Glyphosate 48% SL', batchNo: 'B-9', productionDate: '2026-09-01' };
+
+    const incomplete = await invoke('/manual', 'post', { body: { petitionId, selectedItemSeqs: [1], sampleSnapshots: [{ ...sample, batchNo: ' ' }], resultSnapshots: [{ itemSeq: 1, testItem: 'pH', result: '7' }], _user: user } });
+    assert.equal(incomplete.statusCode, 400);
+    const noResult = await invoke('/manual', 'post', { body: { petitionId, selectedItemSeqs: [1], sampleSnapshots: [sample], resultSnapshots: [], _user: user } });
+    assert.equal(noResult.statusCode, 400);
+    assert.equal(writes.length, 0);
+
+    const res = await invoke('/manual', 'post', { body: {
+      petitionId, selectedItemSeqs: [1],
+      customerSnapshot: { company: ' ACME ' },
+      sampleSnapshots: [sample],
+      resultSnapshots: [{ itemSeq: 1, testItem: '%AI content', result: ' 47.9% ', criteria: '48% +/- 2.40' }],
+      _user: user,
+    } });
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.entryMode, 'manual');
+    assert.equal(res.body.status, 'draft');
+    assert.equal(res.body.customerSnapshot.company, 'ACME');
+    assert.equal(res.body.sampleSnapshots[0].commonName, 'Glyphosate 48% SL');
+    assert.equal(res.body.resultSnapshots[0].result, '47.9%');
+    assert.equal(res.body.trendSnapshots[0].aiResultPercent, 47.9);
+    assert.equal(qcReads, 0);
+
+    const saved = { ...writes[0], _id: '507f1f77bcf86cd799439099', approval: {}, $locals: {}, set(update) { Object.assign(this, update); }, async save() { return this; } };
+    CoaDocument.findById = async () => saved;
+    const submitted = await invoke('/:id/submit', 'post', { params: { id: '507f1f77bcf86cd799439099' }, body: { _user: user } });
+    assert.equal(submitted.statusCode, 200);
+    assert.equal(submitted.body.status, 'pendingApproval');
+    assert.equal(submitted.body.sampleSnapshots[0].commonName, 'Glyphosate 48% SL');
+    assert.equal(qcReads, 0);
+  } finally {
+    CoaDocument.create = originals.create;
+    CoaDocument.findById = originals.findById;
+    CoaAuditLog.create = originals.auditCreate;
+    Petition.findById = originals.petitionFindById;
+    QCTestResult.find = originals.qcResultFind;
+    restoreActor();
+  }
+});
+
 test('source selection survives create, submit and revision without accepting stale physical descriptions', async () => {
   const originals = {
     create: CoaDocument.create, findById: CoaDocument.findById, auditCreate: CoaAuditLog.create,
