@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const User = require('./models/User');
+const { getLisSessionUserId } = require('./lib/lisSessionCookie');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
@@ -16,6 +18,15 @@ const corsOrigins = String(process.env.CORS_ORIGINS || '')
 // ทุกราย — 'loopback' เชื่อ X-Forwarded-For เฉพาะ hop ที่มาจาก 127.0.0.1/::1 เท่านั้น (ตัว proxy จริง)
 app.set('trust proxy', 'loopback');
 
+// Baseline response protections; no dependency or frontend flow change.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 app.use(cors(corsOrigins.length ? {
   origin: (origin, callback) => callback(null, !origin || corsOrigins.includes(origin)),
   credentials: true,
@@ -28,6 +39,20 @@ app.use(express.json({
 }));
 
 // Serve uploaded QC photos as static assets
+async function requireUploadSession(req, res, next) {
+  if (!req.path.startsWith('/param-files/')) return next();
+  const userId = getLisSessionUserId(req);
+  if (!userId) return res.status(401).end();
+  try {
+    const user = await User.findById(userId).select('_id status').lean();
+    if (!user || user.status === 'inactive') return res.status(401).end();
+    return next();
+  } catch {
+    return res.status(503).end();
+  }
+}
+app.use('/LIS/uploads', requireUploadSession);
+app.use('/uploads', requireUploadSession);
 app.use('/LIS/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -91,8 +116,9 @@ mountApi('/validation-ai', require('./routes/validationAi'));
 mountApi('/line', require('./routes/line')); // LINE webhook + group registry
 mountApi('/dev', require('./routes/dev')); // dev-only helpers (gated by ALLOW_DEV_STATUS)
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
-app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
+const healthHandler = (_req, res) => res.json({ status: 'ok' });
+app.get('/api/health', healthHandler);
+app.get('/LIS/api/health', healthHandler);
 
 // GET /api/list — browsable page of every mounted API endpoint (read-only introspection).
 // ?format=json returns the raw list instead. Rendered server-side because /LIS/api/* is
@@ -101,6 +127,7 @@ app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.c
 const { extractRoutes } = require('./lib/listRoutes');
 const { renderRoutesPage } = require('./lib/routesPage');
 const listRoutesHandler = (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).end();
   const routes = extractRoutes(app);
   if (req.query.format === 'json') return res.json({ data: routes });
   res.type('html').send(renderRoutesPage(routes));

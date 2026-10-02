@@ -92,7 +92,7 @@ export default function LabTestingPage() {
   }, []);
 
   const { data, loading, refresh } = usePetitionList({
-    status: 'sampleSent,pendingReview,inProgress',
+    status: 'sampleSent,pendingReview,inProgress,success',
     search,
     dept: dept || undefined,
     assignedToEmployeeId,
@@ -222,7 +222,7 @@ export default function LabTestingPage() {
               navigate(`/lab-testing/${p._id}`);
             }}
           >
-            เข้าตรวจ
+            {p.labCompletedAt ? 'แก้ไขผล Lab' : 'เข้าตรวจ'}
           </Button>
         ) : (
           <span className="text-xs text-grey-400">รอสแกนรับ</span>

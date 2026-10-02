@@ -52,6 +52,7 @@ import {
   SG_VALUE_LABEL,
   SG_TEMP_LABEL,
   densityRowToEntry,
+  formatDensity3,
   formatTSetComparison,
   isSgMachineUnitKey,
 } from '@/lib/densitySync';
@@ -355,6 +356,8 @@ export default function QCTestingDetailPage() {
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
   // Local mirror of QCTestResult.entries for multiEntry params, keyed by resultKey.
   const [entriesByKey, setEntriesByKey] = useState<Record<string, Record<string, unknown>[]>>({});
+  const [densityOptionsByKey, setDensityOptionsByKey] = useState<Record<string, string[]>>({});
+  const [manualDensityKeys, setManualDensityKeys] = useState<Record<string, boolean>>({});
   // How many entry cards to show per multiEntry resultKey (user-driven via "เพิ่มรายการ").
   // Effective count = max(this, savedEntries.length, 1) — never hides saved data, always ≥1 empty form.
   const [entryRowCounts, setEntryRowCounts] = useState<Record<string, number>>({});
@@ -692,7 +695,7 @@ export default function QCTestingDetailPage() {
       if (pendingAdditionalSample(petition, 'qc') || additionalSampleOpen || submitting) return;
       const k = resultKey(item.seq, param._id!);
       const fetchedAt = new Date().toISOString();
-      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL);
+      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL || field.label.startsWith(`${SG_VALUE_LABEL} —`));
       const sgValueKeys = sgValueField
         ? expandFieldForItem(sgValueField, item.commonName, { category: petitionCategory }).map((unit) => unit.key)
         : [SG_VALUE_LABEL];
@@ -852,11 +855,6 @@ export default function QCTestingDetailPage() {
         </div>
       </AppLayout>
     );
-  }
-
-  // คำร้องที่บันทึกผลแล้ว (รอออกผล) ย้ายไปหน้าออกผลเฉพาะ — กันคนหลงเข้าฟอร์มที่ถูก lock
-  if (petition.status === "success") {
-    return <Navigate to={`/qc-approval/${petition._id}`} replace />;
   }
 
   const items = petition.items ?? [];
@@ -1022,7 +1020,7 @@ export default function QCTestingDetailPage() {
     setSubmitting(true);
     try {
       await autosaves.flush();
-      toast.success('บันทึกแบบร่างเรียบร้อย');
+      toast.success(petition.qcCompletedAt ? 'บันทึกการแก้ไขผล QC เรียบร้อย' : 'บันทึกแบบร่างเรียบร้อย');
       navigate('/qc-testing');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'บันทึกผลไม่สำเร็จ');
@@ -1066,9 +1064,9 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  // Locked once QC has submitted its results — read-only while waiting for Lab
-  // to finish (status==='success' petitions redirect to the approval page above).
-  const isLocked = !!petition.qcCompletedAt || !!pendingSample;
+  // Final approval/rejection locks the QC form; submitted results remain editable.
+  const isLocked = ['approved', 'rejected'].includes(petition.status) || !!pendingSample;
+  const hasSubmittedQc = !!petition.qcCompletedAt;
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -1325,12 +1323,52 @@ export default function QCTestingDetailPage() {
 
                     // Specific-gravity (ค่า ถพ.) value + temperature are filled only by
                     // validated Result-Density rows, never typed by hand.
-                    const sgValueField = (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL);
+                    const sgValueField = (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL || f.label.startsWith(`${SG_VALUE_LABEL} —`));
                     const isSgMachineField =
                       sgValueField?.requestValueSource?.mode === 'collection' &&
                       !!sgValueField &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
-                    const unitDisabled = fieldDisabled || isSgMachineField;
+                    // ค่า ถพ. เลือก/แก้ได้; อุณหภูมิยังคงอ่านจากเครื่องและล็อกไว้
+                    const isSgValueUnit = (
+                      unit.field.label.trim().startsWith(SG_VALUE_LABEL) ||
+                      (param.name ?? '').includes('ถพ.')
+                    ) && !unit.field.label.includes(SG_TEMP_LABEL);
+                    const unitDisabled = fieldDisabled || (isSgMachineField && !isSgValueUnit);
+                    const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
+                    // Match by label too: legacy SG parameters may not carry requestValueSource.
+                    const densityValue = srcValues[unit.key] == null ? '' : String(srcValues[unit.key]);
+                    const densityControlKey = `${resultKey(item.seq, param._id!)}::${unit.key}`;
+                    const densityChoices = densityValue && !densityOptions.includes(densityValue)
+                      ? [...densityOptions, densityValue]
+                      : densityOptions;
+                    const isManualDensity = isSgValueUnit &&
+                      (manualDensityKeys[densityControlKey] || (!!densityValue && densityOptions.length > 0 && !densityOptions.includes(densityValue)));
+
+                    if (isSgValueUnit) {
+                      const densityControlDisabled = additionalSampleOpen || submitting;
+                      return (
+                        <div key={unit.key} className="space-y-1">
+                          <label className="text-sm font-medium text-grey-700">{unit.field.label}{unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}</label>
+                          <Select value={isManualDensity ? '__manual__' : densityValue || '__none__'} onValueChange={(v) => {
+                            if (v === '__manual__') {
+                              setManualDensityKeys((prev) => ({ ...prev, [densityControlKey]: true }));
+                              onUnitChange(unit.key, '');
+                            } else if (v !== '__none__') {
+                              setManualDensityKeys((prev) => ({ ...prev, [densityControlKey]: false }));
+                              onUnitChange(unit.key, v);
+                            }
+                          }} disabled={densityControlDisabled}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="เลือกค่า ถพ. ..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— เลือก —</SelectItem>
+                              {densityChoices.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              <SelectItem value="__manual__">กรอกค่าเอง</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {isManualDensity && <Input type="number" step="0.001" value={densityValue} onChange={(e) => onUnitChange(unit.key, e.target.value)} disabled={densityControlDisabled} className="h-8 text-sm" placeholder="กรอกค่า ถพ. 3 ตำแหน่ง" />}
+                        </div>
+                      );
+                    }
 
                     // Field-level `multiple` — repeatable list of inputs sharing the
                     // same markup. The field value is the WHOLE array.
@@ -1495,7 +1533,7 @@ export default function QCTestingDetailPage() {
                           // number of cards shown is user-driven (เพิ่มรายการ), never auto.
                           const savedRows = entriesByKey[k] ?? [];
                           const isSgParam = (param.valueFields ?? []).some(
-                            (f) => f.label === SG_VALUE_LABEL,
+                            (f) => f.label === SG_VALUE_LABEL || f.label.startsWith(`${SG_VALUE_LABEL} —`),
                           );
                           const sgTempField = (param.valueFields ?? []).find(
                             (f) => f.label === SG_TEMP_LABEL,
@@ -1510,11 +1548,15 @@ export default function QCTestingDetailPage() {
                           };
                           return (
                             <div className="space-y-4">
-                              {isSgParam && (param.valueFields ?? []).find((f) => f.label === SG_VALUE_LABEL)?.requestValueSource?.mode === 'collection' && !fieldDisabled && (
+                              {isSgParam && !fieldDisabled && (
                                 <div>
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}
                                     onRows={(docs) => applyDensityRows(petition, item, param, docs)}
+                                    onOptions={(docs) => {
+                                      const options = Array.from(new Set(docs.map((doc) => formatDensity3(doc)).filter(Boolean)));
+                                      setDensityOptionsByKey((prev) => ({ ...prev, [k]: options }));
+                                    }}
                                   />
                                 </div>
                               )}
@@ -1602,14 +1644,14 @@ export default function QCTestingDetailPage() {
           status==='success' redirects to qc-approval above, so this is the
           waiting-for-Lab state. Hides the action footer so the locked page is a
           clean read-only view (back/nav stay usable) instead of a dead end. */}
-      {!!petition.qcCompletedAt && !pendingSample && petition.status !== 'approved' && petition.status !== 'rejected' && (
+      {hasSubmittedQc && !pendingSample && petition.status !== 'approved' && petition.status !== 'rejected' && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex flex-col items-center gap-2">
           <CheckCircle2 className="h-6 w-6 text-blue-500" />
           <p className="text-sm font-semibold text-blue-700">
             บันทึกผล QC แล้ว — รอ Lab ตรวจให้ครบ
           </p>
           <p className="text-xs text-blue-600">
-            ฟอร์มนี้ถูกล็อกเป็นแบบอ่านอย่างเดียว แก้ไขไม่ได้ — กด “ย้อนกลับ” เพื่อออก
+            ยังไม่มีการอนุมัติ QC — สามารถแก้ไขผลแล้วกดบันทึกได้
           </p>
         </div>
       )}
@@ -1632,16 +1674,15 @@ export default function QCTestingDetailPage() {
         </div>
       )}
 
-      {/* Action buttons — hidden once locked (qcCompletedAt set) so the read-only
-          page can't re-fire the submit→confirm→navigate cycle. */}
+      {/* Action buttons stay available until final approval. */}
       {items.length > 0 && !isLocked && (
         <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-          {abnormalCount > 0 && qcReceivedAt(petition) && (
+          {qcReceivedAt(petition) && (
             <Button variant="outline" onClick={() => setAdditionalSampleOpen(true)} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}>ขอตัวอย่างเพิ่ม</Button>
           )}
           <Button
             variant={isComplete ? 'primary' : 'outline'}
-            onClick={isComplete ? handleSubmitResult : handleSaveDraft}
+            onClick={hasSubmittedQc ? handleSaveDraft : isComplete ? handleSubmitResult : handleSaveDraft}
             disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}
             className="gap-2"
           >
@@ -1652,7 +1693,7 @@ export default function QCTestingDetailPage() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
+            {hasSubmittedQc ? 'บันทึกการแก้ไข' : isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
           </Button>
         </div>
       )}

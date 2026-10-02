@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface Props {
   petition: Petition;
@@ -26,12 +27,23 @@ export default function AdditionalSampleRequestDialog({ petition, side, items, o
   const [weights, setWeights] = useState<Record<number, string[]>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<'sample' | 'process' | 'other'>('sample');
+  const [title, setTitle] = useState('');
+  const [audience, setAudience] = useState('all');
   const sending = useRef(false);
   const pending = pendingAdditionalSample(petition, side);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (sending.current || pending) return;
+    if (mode !== 'sample') {
+      if (!reason.trim() || (mode === 'other' && !title.trim())) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
+      setBusy(true); setError('');
+      try { await api.post('/petitions/' + petition._id + '/follow-up-request', { type: mode, title, detail: reason, audience }); onOpenChange(false); setReason(''); setTitle(''); toast.success('ส่งคำขอแล้ว'); }
+      catch (failure) { setError(failure instanceof Error ? failure.message : 'ส่งคำขอไม่สำเร็จ'); }
+      finally { setBusy(false); }
+      return;
+    }
     if (!reason.trim()) { setError('กรุณาระบุเหตุผลที่ขอตัวอย่างเพิ่ม'); return; }
     if (reason.trim().length > 2000) { setError('เหตุผลต้องยาวไม่เกิน 2000 ตัวอักษร'); return; }
     const selected = items.filter((item) => weights[item.seq] !== undefined)
@@ -67,11 +79,20 @@ export default function AdditionalSampleRequestDialog({ petition, side, items, o
     <Dialog open={open} onOpenChange={(next) => { if (!sending.current) onOpenChange(next); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>ขอตัวอย่างเพิ่ม ({side.toUpperCase()})</DialogTitle>
-          <DialogDescription>เลือกรายการและน้ำหนักแต่ละตัวอย่าง พิมพ์ 1 ฉลากต่อตัวอย่าง ไม่ใช่ตามน้ำหนัก การขอเพิ่มยังไม่ปิดผลตรวจ และจะรอรับตัวอย่างรอบใหม่</DialogDescription>
+        <DialogTitle>แจ้งคำขอเพิ่มเติม</DialogTitle>
+        <DialogDescription>เลือกประเภทคำขอ และระบุรายละเอียด</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="space-y-4">
           <fieldset disabled={busy || !!pending} className="space-y-4">
+            <RadioGroup value={mode} onValueChange={(value) => setMode(value as typeof mode)} className="grid gap-2">
+              {[['sample','ขอตัวอย่างเพิ่ม'],['process','เพิ่มกระบวนการ'],['other','อื่นๆ']].map(([value,label]) => <label key={value} className="flex items-center gap-2"><RadioGroupItem value={value} />{label}</label>)}
+            </RadioGroup>
+            {mode !== 'sample' && <>
+              {mode === 'other' && <div className="space-y-2"><Label htmlFor="follow-up-title">หัวข้อ</Label><Input id="follow-up-title" value={title} onChange={e => setTitle(e.target.value)} /></div>}
+              <div className="space-y-2"><Label htmlFor="follow-up-detail">รายละเอียด</Label><Textarea id="follow-up-detail" value={reason} onChange={e => setReason(e.target.value)} /></div>
+              <RadioGroup value={audience} onValueChange={setAudience} className="gap-2"><Label>แจ้งเตือน</Label>{[['all','ทุกคนที่เกี่ยวข้อง'],['lab','LAB'],['requester','ผู้ยื่น']].map(([value,label]) => <label key={value} className="flex items-center gap-2"><RadioGroupItem value={value} />{label}</label>)}</RadioGroup>
+            </>}
+            {mode === 'sample' && <>
             <div className="space-y-2">
               <Label htmlFor="additional-sample-reason">เหตุผลที่ขอตัวอย่างเพิ่ม</Label>
               <Textarea id="additional-sample-reason" required maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} />
@@ -113,6 +134,7 @@ export default function AdditionalSampleRequestDialog({ petition, side, items, o
                 </div>
               ))}
             </div>
+            </>}
           </fieldset>
           {(pending || error) && <p role="alert" className="text-sm text-destructive">{pending ? 'มีคำขอที่รอรับตัวอย่างเพิ่มสำหรับฝั่งนี้แล้ว' : error}</p>}
           <DialogFooter className="gap-2">

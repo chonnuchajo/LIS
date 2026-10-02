@@ -1,3 +1,4 @@
+import { validationChartSvg } from "./validationCharts";
 import reference from "./templates/method-validation-reference.json";
 import type { ValidationReportInput } from "./validationReport";
 import { parseMeasurements, regression, stats } from "./validationCalculator";
@@ -147,7 +148,7 @@ export function renderSourceTemplate(input: ValidationReportInput, calculatedHtm
   const textHtml = sourceTextHtml;
   const tableSlot = (n: number) => {
     if (n === 1) return table(["ลำดับ","ตัวอย่าง","RT (min)","RT %CV","Mean Area","SD","Area %CV"], [[1,"Blank (diluent)","ดูผล Specificity","—","—","—","—"],[2,input.analyte,data.specificityResult.rt?.mean,data.specificityResult.rt?.rsd,data.specificityResult.area?.mean,data.specificityResult.area?.sd,data.specificityResult.area?.rsd]]);
-    if (n === 2) return table(["Level","Actual (mg/mL)","Area 1","Area 2","Area 3","Mean Area","SD","%RSD"], data.linear.prepared.map((row,i) => { const areas=data.linear.groups[i].map(r=>r[1]); const s=stats(areas);return [i+1,row.actual?.toFixed(3),areas[0],areas[1],areas[2],s?.mean,s?.sd,s?.rsd]; })) + (calculatedHtml.match(/<figure>[\s\S]*?<\/figure>/g)?.slice(0,2).join("") ?? "");
+    if (n === 2) return table(["Level","Actual (mg/mL)","Area 1","Area 2","Area 3","Mean Area","SD","%RSD"], data.linear.prepared.map((row,i) => { const areas=data.linear.groups[i].map(r=>r[1]); const s=stats(areas);return [i+1,row.actual?.toFixed(3),areas[0],areas[1],areas[2],s?.mean,s?.sd,s?.rsd]; })) + (data.fit ? `<figure>${validationChartSvg(data.fit, input.analyte)}</figure><figure>${validationChartSvg(data.fit, input.analyte, true)}</figure>` : `<p>ยังสร้างกราฟ Linearity ไม่ได้: กรุณากรอก Actual และ Area ให้ครบและถูกต้องในหัวข้อ Linearity</p>`);
     if (n === 3) return referenceAccuracyTable(input, parseMeasurements(input.texts[2],3).rows);
     if (n === 4) return referenceAccuracyTable(input, input.precision.rawDaily, true);
     if (n === 5) return table(["Validation Parameter","Acceptance Criteria","Results","Acceptance Status"], input.checks.map(check=>[check.name,check.criteria,check.value,check.pass == null ? "รอตรวจสอบ" : check.pass ? "Passed" : "Failed"]));

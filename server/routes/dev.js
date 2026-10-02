@@ -16,15 +16,17 @@ const VALID_STATUSES = [
 
 // Dev-only helpers. Gated by ALLOW_DEV_STATUS=true so the raw mutators below can
 // never run in production (prod .env must NOT set the flag).
-function devEnabled() {
-  return process.env.ALLOW_DEV_STATUS === 'true';
+function devEnabled(req) {
+  return process.env.NODE_ENV !== 'production' &&
+    process.env.ALLOW_DEV_STATUS === 'true' &&
+    ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req?.ip);
 }
 
 // PATCH /api/dev/petition-status/:id  → raw-set petition.status (bypass every
 // business guard). For local testing of status-dependent UI only. Intentionally
 // does NOT touch companion fields (receive timestamps, assignee, …).
 router.patch('/petition-status/:id', async (req, res) => {
-  if (!devEnabled()) {
+  if (!devEnabled(req)) {
     return res.status(403).json({ error: { message: 'dev status setter is disabled (set ALLOW_DEV_STATUS=true)' } });
   }
   try {

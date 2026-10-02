@@ -7,6 +7,25 @@ const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles'
 const { clearLisSessionCookie, getLisSessionUserId, setLisSessionCookie } = require('../lib/lisSessionCookie');
 const { requireAdminUser } = require('../lib/adminGate');
 
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 60 * 1000;
+const LOGIN_LIMIT = 10;
+
+function loginRateLimited(req) {
+  const key = `${req.ip || 'unknown'}:${String(req.body?.email || '').trim().toLowerCase()}`;
+  const now = Date.now();
+  for (const [entryKey, entry] of loginAttempts) {
+    if (now - entry.startedAt >= LOGIN_WINDOW_MS) loginAttempts.delete(entryKey);
+  }
+  const current = loginAttempts.get(key);
+  if (!current || now - current.startedAt >= LOGIN_WINDOW_MS) {
+    loginAttempts.set(key, { startedAt: now, count: 1 });
+    return false;
+  }
+  current.count += 1;
+  return current.count > LOGIN_LIMIT;
+}
+
 function b64urlDecode(value) {
   const padded = value + '='.repeat((4 - (value.length % 4)) % 4);
   return Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
@@ -62,14 +81,17 @@ function formatSsoUser(user, permissions = []) {
 
 router.post('/login', async (req, res) => {
   try {
+    if (loginRateLimited(req)) {
+      return res.status(429).json({ error: 'ลองเข้าสู่ระบบใหม่ภายหลัง' });
+    }
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'กรุณากรอกอีเมลและรหัสผ่าน' });
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return res.status(401).json({ error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบ' });
+    if (!user) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
 
     const ok = await user.comparePassword(password);
-    if (!ok) return res.status(401).json({ error: 'รหัสผ่านไม่ถูกต้อง' });
+    if (!ok) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
 
     res.json({ email: user.email, name: user.name, role: user.role });
   } catch (err) {
