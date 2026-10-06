@@ -19,8 +19,10 @@ const erpRequest = {
   externalCoaRequest: { saleOrderNo: "SO1", line: 10000, itemNo: "FC-1", appearance: "เม็ดยาสีแดง" },
 } as CoaDocument;
 const resultOptions: CoaSourceResult[] = [
-  { itemSeq: 1, kind: "result", key: "ai", label: "%AI / ชุดที่ 1", testItem: "%AI content", result: "48.1", unit: "%" },
-  { itemSeq: 1, kind: "result", key: "physical", label: "กายภาพ - ลักษณะ / ขั้นที่ 1 ชุดที่ 1", testItem: "กายภาพ - ลักษณะ", result: "เม็ดทรงกระบอก" },
+  { itemSeq: 1, kind: "ai", key: "ai", label: "%AI / ชุดที่ 1", result: "48.1%" },
+  { itemSeq: 1, kind: "appearance", key: "physical", label: "กายภาพ / ชุดที่ 1", result: "ของเหลวใส", suggestedEnglish: "Clear liquid" },
+  { itemSeq: 1, kind: "density", key: "density", label: "Density / ชุดที่ 1", result: "1.120" },
+  { itemSeq: 1, kind: "result", key: "ph", label: "pH / ชุดที่ 1", testItem: "pH", result: "7.0" },
 ];
 
 beforeEach(() => {
@@ -38,22 +40,19 @@ function renderDialog(currentRequest: CoaDocument = request) {
 }
 
 describe("CoaCreateDialog", () => {
-  it("prefills every Lab value as editable COA rows and saves the edited form", async () => {
+  it("prefills fixed COA fields from Lab and saves edited values", async () => {
     renderDialog();
-    expect(await screen.findByDisplayValue("เม็ดทรงกระบอก")).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: /กายภาพ/ })).not.toBeInTheDocument();
-    expect(screen.getByDisplayValue("48% ± 2.40")).toBeInTheDocument();
-    expect(screen.getByLabelText("Batch No. *")).toHaveValue("B-1");
-    expect(screen.queryByLabelText("บริษัท")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByDisplayValue("เม็ดทรงกระบอก"), { target: { value: "เม็ดสีแดง" } });
-    fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-2" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "ลบผลนี้" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "เพิ่มผล" }));
-    const testItems = screen.getAllByLabelText("รายการทดสอบ *");
-    fireEvent.change(testItems[testItems.length - 1], { target: { value: "pH" } });
-    const resultsInputs = screen.getAllByLabelText("ผลทดสอบ *");
-    expect(screen.getByRole("button", { name: "สร้างร่าง COA" })).toBeDisabled();
-    fireEvent.change(resultsInputs[resultsInputs.length - 1], { target: { value: "7.0" } });
+    expect(await screen.findByLabelText("% AI *")).toHaveValue("48.1%");
+    expect(screen.getByLabelText("เกณฑ์ความคลาดเคลื่อน")).toHaveValue("48% ± 2.40");
+    expect(screen.getByLabelText("Appearance")).toHaveValue("Clear liquid");
+    expect(screen.getByLabelText("Density at 30°C (g/cm³)")).toHaveValue("1.120");
+    expect(screen.getByLabelText("Batch *")).toHaveValue("B-1");
+    expect(screen.getByLabelText("MANUFACTURING DATE *")).toHaveValue("2026-09-01");
+    expect(screen.queryByLabelText("รายการทดสอบ *")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "เพิ่มผล" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Batch *"), { target: { value: "B-2" } });
+    fireEvent.change(screen.getByLabelText("% AI *"), { target: { value: "48.3" } });
+    fireEvent.change(screen.getByLabelText("Date of analysis"), { target: { value: "2026-09-05" } });
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
     await waitFor(() => expect(mocks.created).toHaveBeenCalledWith(expect.objectContaining({ _id: "coa-1" })));
     expect(mocks.createManual).toHaveBeenCalledWith(expect.objectContaining({
@@ -62,37 +61,36 @@ describe("CoaCreateDialog", () => {
       customerSnapshot: { name: "Requester", company: "ICP" },
       sampleSnapshots: [expect.objectContaining({ itemSeq: 1, sampleName: "Trade A", batchNo: "B-2", productionDate: "2026-09-01" })],
       resultSnapshots: [
-        { itemSeq: 1, testItem: "กายภาพ - ลักษณะ", result: "เม็ดสีแดง", criteria: "", unit: "", method: "" },
-        { itemSeq: 1, testItem: "pH", result: "7.0", criteria: "", unit: "", method: "" },
+        { itemSeq: 1, testItem: "Appearance", result: "Conform", criteria: "Clear liquid" },
+        { itemSeq: 1, testItem: "%AI content", result: "48.3%", criteria: "48% ± 2.40", unit: "%" },
+        { itemSeq: 1, testItem: "Density at 30°C (g/cm³)", result: "1.120", unit: "g/cm³" },
+        { itemSeq: 1, testItem: "Date of analysis", result: "2026-09-05" },
       ],
       externalCoaRequest: undefined,
     }));
     expect(mocks.openChange).toHaveBeenCalledWith(false);
   });
 
-  it("keeps the form when saving fails and blocks a sample without result rows", async () => {
+  it("keeps the form when saving fails and blocks create without %AI", async () => {
     mocks.createManual.mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
     renderDialog();
-    fireEvent.click((await screen.findAllByRole("button", { name: "ลบผลนี้" }))[0]);
-    fireEvent.click(screen.getByRole("button", { name: "ลบผลนี้" }));
+    fireEvent.change(await screen.findByLabelText("% AI *"), { target: { value: "" } });
     expect(screen.getByRole("button", { name: "สร้างร่าง COA" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "เพิ่มผล" }));
-    fireEvent.change(screen.getByLabelText("รายการทดสอบ *"), { target: { value: "pH" } });
-    fireEvent.change(screen.getByLabelText("ผลทดสอบ *"), { target: { value: "7.1" } });
+    fireEvent.change(screen.getByLabelText("% AI *"), { target: { value: "47.9" } });
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
     expect(await screen.findByText("บันทึกไม่สำเร็จ")).toBeInTheDocument();
-    expect(screen.getByLabelText("ผลทดสอบ *")).toHaveValue("7.1");
+    expect(screen.getByLabelText("% AI *")).toHaveValue("47.9");
     expect(mocks.openChange).not.toHaveBeenCalled();
   });
 
-  it("offers a manual result template when the Lab has no values and retries a failed load", async () => {
+  it("leaves fields empty for manual entry when the Lab has no values and retries a failed load", async () => {
     mocks.source.mockRejectedValueOnce(new Error("โหลดผลไม่สำเร็จ"));
     mocks.source.mockResolvedValue({ results: [] });
     renderDialog();
     fireEvent.click(await screen.findByRole("button", { name: "โหลดผลอีกครั้ง" }));
     expect(await screen.findByText(/ไม่พบค่าพารามิเตอร์จากผล Lab/)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Appearance")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("%AI content")).toBeInTheDocument();
+    expect(screen.getByLabelText("% AI *")).toHaveValue("");
+    expect(screen.getByLabelText("เกณฑ์ความคลาดเคลื่อน")).toHaveValue("48% ± 2.40");
     expect(screen.getByRole("button", { name: "สร้างร่าง COA" })).toBeDisabled();
   });
 
@@ -101,8 +99,8 @@ describe("CoaCreateDialog", () => {
     renderDialog(erpRequest);
     expect(await screen.findByText(/จับคู่กับคำร้อง P-1/)).toBeInTheDocument();
     expect(await screen.findByLabelText("ชื่อการค้า *")).toHaveValue("Trade ERP");
-    expect(await screen.findByDisplayValue("เม็ดทรงกระบอก")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("เม็ดยาสีแดง")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("48.1%")).toBeInTheDocument();
+    expect(screen.getByLabelText("Appearance")).toHaveValue("เม็ดยาสีแดง");
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
     await waitFor(() => expect(mocks.createManual).toHaveBeenCalled());
     expect(mocks.createManual).toHaveBeenCalledWith(expect.objectContaining({
@@ -119,15 +117,13 @@ describe("CoaCreateDialog", () => {
     renderDialog(erpRequest);
     expect(await screen.findByText(/ยังไม่พบคำร้องที่ตรงกัน/)).toBeInTheDocument();
     expect(screen.getByLabelText("ชื่อสามัญ *")).toHaveValue("Glyphosate 48% SL");
-    expect(screen.getByDisplayValue("เม็ดยาสีแดง")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("48% ± 2.40")).toBeInTheDocument();
+    expect(screen.getByLabelText("Appearance")).toHaveValue("เม็ดยาสีแดง");
+    expect(screen.getByLabelText("เกณฑ์ความคลาดเคลื่อน")).toHaveValue("48% ± 2.40");
     const createButton = screen.getByRole("button", { name: "สร้างร่าง COA" });
     expect(createButton).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-9" } });
-    fireEvent.change(screen.getByLabelText("วันที่ผลิต *"), { target: { value: "2026-09-01" } });
-    const results = screen.getAllByLabelText("ผลทดสอบ *");
-    fireEvent.change(results[0], { target: { value: "Conform" } });
-    fireEvent.change(results[1], { target: { value: "48.1" } });
+    fireEvent.change(screen.getByLabelText("Batch *"), { target: { value: "B-9" } });
+    fireEvent.change(screen.getByLabelText("MANUFACTURING DATE *"), { target: { value: "2026-09-01" } });
+    fireEvent.change(screen.getByLabelText("% AI *"), { target: { value: "48.1" } });
     fireEvent.click(createButton);
     await waitFor(() => expect(mocks.createManual).toHaveBeenCalled());
     expect(mocks.createManual).toHaveBeenCalledWith(expect.objectContaining({
@@ -136,8 +132,8 @@ describe("CoaCreateDialog", () => {
       customerSnapshot: { name: "Customer ERP" },
       sampleSnapshots: [expect.objectContaining({ sampleName: "Trade ERP", batchNo: "B-9", productionDate: "2026-09-01" })],
       resultSnapshots: [
-        expect.objectContaining({ testItem: "Appearance", result: "Conform", criteria: "เม็ดยาสีแดง" }),
-        expect.objectContaining({ testItem: "%AI content", result: "48.1", criteria: "48% ± 2.40" }),
+        { itemSeq: 10000, testItem: "Appearance", result: "Conform", criteria: "เม็ดยาสีแดง" },
+        { itemSeq: 10000, testItem: "%AI content", result: "48.1%", criteria: "48% ± 2.40", unit: "%" },
       ],
       externalCoaRequest: { saleOrderNo: "SO1", line: 10000, itemNo: "FC-1" },
     }));

@@ -151,7 +151,7 @@ describe("CoaCenterPage", () => {
       items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001", productionDate: "2026-09-01" }],
     }] });
     vi.mocked(api.getCoaSourceData).mockResolvedValueOnce({ results: [{
-      itemSeq: 1, kind: "result", key: "ph", label: "pH", result: "7.1",
+      itemSeq: 1, kind: "ai", key: "ai", label: "%AI", result: "48.1%",
     }] });
     const createdDoc: CoaDocument = {
       _id: "new-draft", revision: 0, status: "draft", petitionId: "p5", selectedItemSeqs: [1],
@@ -165,7 +165,7 @@ describe("CoaCenterPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
     fireEvent.change(screen.getByPlaceholderText("ค้นหา COA / คำร้อง"), { target: { value: "P-2608-0004" } });
     fireEvent.click(await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" }));
-    await screen.findByDisplayValue("7.1");
+    await screen.findByDisplayValue("48.1%");
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FilePlus2, Plus, Trash2 } from "lucide-react";
+import { FilePlus2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { aiToleranceCriteriaForCommonName, isAiContentTestItem } from "@/lib/aiToleranceCriteria";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,22 +15,29 @@ import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot, CoaSourceResult
 
 type Customer = NonNullable<CoaDocument["customerSnapshot"]>;
 type SampleField = Exclude<keyof CoaSampleSnapshot, "itemSeq">;
-type ResultField = Exclude<keyof CoaResultSnapshot, "itemSeq">;
+type CoaField = "aiResult" | "aiCriteria" | "appearance" | "density" | "analysisDate";
+type FormField = SampleField | CoaField;
 
-const sampleFields: Array<[SampleField, string, boolean]> = [
+const sampleFields: Array<[FormField, string, boolean]> = [
   ["sampleName", "ชื่อการค้า", true],
   ["commonName", "ชื่อสามัญ", true],
-  ["batchNo", "Batch No.", true],
   ["lotNo", "Lot No.", false],
-  ["productionDate", "วันที่ผลิต", true],
 ];
-const resultFields: Array<[ResultField, string, boolean]> = [
-  ["testItem", "รายการทดสอบ", true],
-  ["result", "ผลทดสอบ", true],
-  ["criteria", "เกณฑ์", false],
-  ["unit", "หน่วย", false],
-  ["method", "วิธีทดสอบ", false],
+const coaFields: Array<[FormField, string, boolean]> = [
+  ["batchNo", "Batch", true],
+  ["aiResult", "% AI", true],
+  ["aiCriteria", "เกณฑ์ความคลาดเคลื่อน", false],
+  ["appearance", "Appearance", false],
+  ["density", "Density at 30°C (g/cm³)", false],
+  ["analysisDate", "Date of analysis", false],
+  ["productionDate", "MANUFACTURING DATE", true],
 ];
+const coaFieldNames: CoaField[] = ["aiResult", "aiCriteria", "appearance", "density", "analysisDate"];
+const dateFields: FormField[] = ["productionDate", "analysisDate"];
+
+function isCoaField(field: FormField): field is CoaField {
+  return coaFieldNames.includes(field as CoaField);
+}
 
 function filled<T extends object>(value?: T) {
   return Object.fromEntries(Object.entries(value ?? {}).filter(([, entry]) => entry)) as Partial<T>;
@@ -38,11 +45,6 @@ function filled<T extends object>(value?: T) {
 
 function matchKey(value?: string) {
   return (value || "").toLowerCase().replace(/\s+/g, "");
-}
-
-function defaultCriteria(testItem = "", commonName?: string, appearance?: string) {
-  if (isAiContentTestItem(testItem)) return aiToleranceCriteriaForCommonName(commonName) || "";
-  return /appearance|กายภาพ|ลักษณะ|สี/i.test(testItem) ? appearance || "" : "";
 }
 
 function findErpMatch(petitions: EligibleCoaPetition[], sample?: CoaSampleSnapshot) {
@@ -54,23 +56,32 @@ function findErpMatch(petitions: EligibleCoaPetition[], sample?: CoaSampleSnapsh
   return candidates.find((candidate) => candidate.sameTradeName) ?? candidates[0] ?? null;
 }
 
-function templateRows(itemSeq: number, commonName?: string, appearance?: string): CoaResultSnapshot[] {
-  return [
-    { itemSeq, testItem: "Appearance", result: "", criteria: appearance || "", unit: "", method: "" },
-    { itemSeq, testItem: "%AI content", result: "", criteria: defaultCriteria("%AI content", commonName), unit: "%", method: "" },
-  ];
+function coaDefaults(options: CoaSourceResult[], commonName?: string, erpAppearance?: string): Record<CoaField, string> {
+  const ai = options.find((option) => option.kind === "ai")
+    ?? options.find((option) => option.kind === "result" && option.unit === "%" && isAiContentTestItem(option.testItem));
+  const physical = options.find((option) => option.kind === "appearance")
+    ?? options.find((option) => option.kind === "result" && /appearance|กายภาพ|ลักษณะ/i.test(option.testItem ?? ""));
+  const density = options.find((option) => option.kind === "density")
+    ?? options.find((option) => option.kind === "result" && /density/i.test(option.testItem ?? ""));
+  return {
+    aiResult: ai?.result ?? "",
+    aiCriteria: aiToleranceCriteriaForCommonName(commonName) || ai?.criteria || "",
+    appearance: erpAppearance || physical?.suggestedEnglish || physical?.result || "",
+    density: density?.result ?? "",
+    analysisDate: "",
+  };
 }
 
-function sourceRows(itemSeq: number, options: CoaSourceResult[], commonName?: string, appearance?: string): CoaResultSnapshot[] {
-  const rows = options.map((option) => ({
-    itemSeq,
-    testItem: option.testItem || option.label,
-    result: option.result,
-    criteria: option.criteria || defaultCriteria(option.testItem || option.label, commonName, appearance),
-    unit: option.unit || "",
-    method: "",
-  }));
-  return rows.length ? rows : templateRows(itemSeq, commonName, appearance);
+// ponytail: Appearance prints as the specification with result "Conform"; add a result field when "Not conform" must be issued.
+function coaRows(itemSeq: number, form: Record<CoaField, string>): CoaResultSnapshot[] {
+  const value = (field: CoaField) => form[field].trim();
+  const ai = value("aiResult");
+  return [
+    { itemSeq, testItem: "Appearance", result: value("appearance") && "Conform", criteria: value("appearance") },
+    { itemSeq, testItem: "%AI content", result: /^\d+(\.\d+)?$/.test(ai) ? `${ai}%` : ai, criteria: value("aiCriteria"), unit: "%" },
+    { itemSeq, testItem: "Density at 30°C (g/cm³)", result: value("density"), unit: "g/cm³" },
+    { itemSeq, testItem: "Date of analysis", result: value("analysisDate") },
+  ].filter((row) => row.result);
 }
 
 function dateInputValue(value?: string | null) {
@@ -101,7 +112,7 @@ export default function CoaCreateDialog({
   const [petitionId, setPetitionId] = useState("");
   const [selectedSeqs, setSelectedSeqs] = useState<number[]>([]);
   const [sampleEdits, setSampleEdits] = useState<Record<number, Partial<CoaSampleSnapshot>>>({});
-  const [resultsBySeq, setResultsBySeq] = useState<Record<number, CoaResultSnapshot[]>>({});
+  const [coaEdits, setCoaEdits] = useState<Record<number, Partial<Record<CoaField, string>>>>({});
   const [erpMatchChecked, setErpMatchChecked] = useState(false);
   const erp = request?.externalCoaRequest;
   const erpSeq = erp?.line || 1;
@@ -143,16 +154,16 @@ export default function CoaCreateDialog({
       ...erpBase,
       ...sampleEdits[item.seq],
     }));
-  const rowsFor = (sample: CoaSampleSnapshot) => resultsBySeq[sample.itemSeq] ?? (manualMode
-    ? templateRows(sample.itemSeq, sample.commonName, erp?.appearance)
-    : sourceRows(sample.itemSeq, sourceData?.results.filter((option) => option.kind === "result" && option.itemSeq === sample.itemSeq) ?? [], sample.commonName, erp?.appearance));
-  const activeRows = activeSamples.flatMap(rowsFor);
+  const coaFormFor = (sample: CoaSampleSnapshot) => ({
+    ...coaDefaults(manualMode ? [] : sourceData?.results.filter((option) => option.itemSeq === sample.itemSeq) ?? [], sample.commonName, erp?.appearance),
+    ...coaEdits[sample.itemSeq],
+  });
+  const fieldValue = (sample: CoaSampleSnapshot, field: FormField) => (isCoaField(field) ? coaFormFor(sample)[field] : sample[field]) ?? "";
+  const activeRows = activeSamples.flatMap((sample) => coaRows(sample.itemSeq, coaFormFor(sample)));
   const formCustomer: Customer = { ...sourceData?.customerSnapshot, ...(erp ? filled(request?.customerSnapshot) : {}) };
   const showForm = manualMode || (Boolean(sourceData) && !source.isFetching && !source.isError);
   const formComplete = activeSamples.length > 0
-    && activeSamples.every((sample) => sampleFields.every(([field, , required]) => !required || sample[field]?.trim())
-      && rowsFor(sample).length > 0)
-    && activeRows.every((row) => Boolean(row.testItem?.trim() && row.result?.trim()));
+    && activeSamples.every((sample) => [...sampleFields, ...coaFields].every(([field, , required]) => !required || fieldValue(sample, field).trim()));
   const canCreate = showForm && formComplete && !isFetching && !loadError;
   const reusableActiveCoaFields = useMemo(() => {
     if (!reusableActiveCoa) return "ชื่อสามัญ/Batch/วันที่ผลิตนี้";
@@ -207,7 +218,7 @@ export default function CoaCreateDialog({
     setPetitionId(requestErp ? "" : request?.petitionId || "");
     setSelectedSeqs(requestErp ? [] : request?.selectedItemSeqs || []);
     setSampleEdits({});
-    setResultsBySeq({});
+    setCoaEdits({});
     setErpMatchChecked(false);
     resetCreate();
     resetSubmitExisting();
@@ -231,53 +242,22 @@ export default function CoaCreateDialog({
     setSelectedSeqs((value) => (value.includes(seq) ? value.filter((item) => item !== seq) : [...value, seq]));
   }
 
-  function renderSampleFields(sample: CoaSampleSnapshot) {
+  function renderFields(sample: CoaSampleSnapshot, fields: Array<[FormField, string, boolean]>) {
     return (
       <div className="grid gap-3 sm:grid-cols-2">
-        {sampleFields.map(([field, label, required]) => (
+        {fields.map(([field, label, required]) => (
           <div key={field} className="space-y-1">
             <Label htmlFor={`coa-sample-${sample.itemSeq}-${field}`}>{label}{required ? " *" : ""}</Label>
             <Input
               id={`coa-sample-${sample.itemSeq}-${field}`}
-              type={field === "productionDate" ? "date" : "text"}
-              value={field === "productionDate" ? dateInputValue(sample[field]) : sample[field] ?? ""}
-              onChange={(event) => setSampleEdits((current) => ({ ...current, [sample.itemSeq]: { ...current[sample.itemSeq], [field]: event.target.value } }))}
+              type={dateFields.includes(field) ? "date" : "text"}
+              value={dateFields.includes(field) ? dateInputValue(fieldValue(sample, field)) : fieldValue(sample, field)}
+              onChange={(event) => {
+                const { value } = event.target;
+                if (isCoaField(field)) setCoaEdits((current) => ({ ...current, [sample.itemSeq]: { ...current[sample.itemSeq], [field]: value } }));
+                else setSampleEdits((current) => ({ ...current, [sample.itemSeq]: { ...current[sample.itemSeq], [field]: value } }));
+              }}
             />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function renderResultRows(sample: CoaSampleSnapshot) {
-    const { itemSeq } = sample;
-    const rows = rowsFor(sample);
-    const updateRows = (update: (current: CoaResultSnapshot[]) => CoaResultSnapshot[]) => setResultsBySeq((current) => ({ ...current, [itemSeq]: update(rows) }));
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold text-foreground">ผลที่จะแสดงใน COA</h4>
-          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => updateRows((current) => [...current, { itemSeq, testItem: "", result: "", criteria: "", unit: "", method: "" }])}>
-            <Plus className="h-4 w-4" />
-            เพิ่มผล
-          </Button>
-        </div>
-        {rows.map((row, index) => (
-          <div key={index} className="grid gap-2 rounded-md border bg-muted/50 p-3 sm:grid-cols-2">
-            {resultFields.map(([field, label, required]) => (
-              <div key={field} className="space-y-1">
-                <Label htmlFor={`coa-result-${itemSeq}-${index}-${field}`}>{label}{required ? " *" : ""}</Label>
-                <Input
-                  id={`coa-result-${itemSeq}-${index}-${field}`}
-                  value={row[field] ?? ""}
-                  onChange={(event) => updateRows((current) => current.map((entry, rowIndex) => (rowIndex === index ? { ...entry, [field]: event.target.value } : entry)))}
-                />
-              </div>
-            ))}
-            <Button type="button" variant="outline" size="sm" className="gap-2 justify-self-start" onClick={() => updateRows((current) => current.filter((_entry, rowIndex) => rowIndex !== index))}>
-              <Trash2 className="h-4 w-4" />
-              ลบผลนี้
-            </Button>
           </div>
         ))}
       </div>
@@ -289,7 +269,7 @@ export default function CoaCreateDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>สร้าง COA</DialogTitle>
-          <DialogDescription>ระบบเติมข้อมูลจากผล Lab และ ERP ให้ก่อน แก้ไข เพิ่ม หรือลบรายการในฟอร์ม COA ได้ทุกช่องก่อนสร้างร่าง</DialogDescription>
+          <DialogDescription>ระบบเติมข้อมูลจากผล Lab และ ERP ให้ก่อน แก้ไขได้ทุกช่องก่อนสร้างร่าง</DialogDescription>
         </DialogHeader>
         {isFetching && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดคำร้อง...</p>}
         {loadError && <div role="alert" className="text-sm text-destructive">โหลดคำร้องไม่สำเร็จ <Button variant="outline" onClick={() => refetch()}>ลองใหม่</Button></div>}
@@ -326,7 +306,7 @@ export default function CoaCreateDialog({
                   setPetitionId(petition._id);
                   setSelectedSeqs([]);
                   if (!erp) setSampleEdits({});
-                  setResultsBySeq((current) => (erp && current[erpSeq] ? { [erpSeq]: current[erpSeq] } : {}));
+                  setCoaEdits((current) => (erp && current[erpSeq] ? { [erpSeq]: current[erpSeq] } : {}));
                 }}
               >
                 <div className="font-medium">{petition.petitionNo}</div>
@@ -361,14 +341,17 @@ export default function CoaCreateDialog({
             {showForm && activeSamples.map((sample) => (
               <section key={sample.itemSeq} className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
                 <h3 className="text-base font-semibold">{manualMode ? "ข้อมูลตัวอย่างจาก ERP" : `${sample.commonName || "ยังไม่ระบุชื่อสามัญ"} · ${sample.batchNo || sample.lotNo || "-"}`}</h3>
-                {renderSampleFields(sample)}
+                {renderFields(sample, sampleFields)}
                 {!manualMode && !sourceData?.results.some((option) => option.kind === "result" && option.itemSeq === sample.itemSeq) && (
                   <p className="text-sm text-muted-foreground">ไม่พบค่าพารามิเตอร์จากผล Lab กรอกผลเองได้</p>
                 )}
-                {renderResultRows(sample)}
+                <div className="space-y-3 rounded-md border bg-muted/50 p-3">
+                  <h4 className="text-sm font-semibold text-foreground">ผลที่จะแสดงใน COA</h4>
+                  {renderFields(sample, coaFields)}
+                </div>
               </section>
             ))}
-            {showForm && <p className="text-xs text-muted-foreground">ช่องที่มี * ต้องกรอก และต้องมีผลอย่างน้อย 1 รายการต่อตัวอย่าง</p>}
+            {showForm && <p className="text-xs text-muted-foreground">ช่องที่มี * ต้องกรอก</p>}
           </fieldset>
         )}
         {(create.error || submitExisting.error) && <p role="alert" className="text-sm text-destructive">{(create.error || submitExisting.error)?.message}</p>}

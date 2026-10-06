@@ -46,7 +46,7 @@ describe("CoaReportTemplate", () => {
         aiContentCriteria: "48% ± 2.40",
         densityResult: "-",
         waxBlockSizeResult: "-",
-        dateOfAnalysis: "-",
+        dateOfAnalysis: "05/09/2026",
         rows: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "48.2%" }],
       }],
       remark: "",
@@ -63,6 +63,7 @@ describe("CoaReportTemplate", () => {
     expect(screen.getByText("BATCH NO.")).toBeInTheDocument();
     expect(screen.getByText("48% ± 2.40")).toBeInTheDocument();
     expect(screen.getByText("48.2%")).toBeInTheDocument();
+    expect(screen.getByText("Date of analysis").nextElementSibling).toHaveTextContent("05/09/2026");
   });
 
   it("renders the liquid formulation COA form", () => {
