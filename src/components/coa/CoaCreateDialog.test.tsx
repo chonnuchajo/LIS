@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoaDocument, CoaSourceResult } from "@/types/coa.types";
 import CoaCreateDialog from "./CoaCreateDialog";
 
-const mocks = vi.hoisted(() => ({ eligible: vi.fn(), source: vi.fn(), create: vi.fn(), created: vi.fn(), openChange: vi.fn() }));
-vi.mock("@/lib/api", () => ({ api: { getEligibleCoaPetitions: mocks.eligible, getCoaSourceData: mocks.source, createCoaDocument: mocks.create } }));
+const mocks = vi.hoisted(() => ({ eligible: vi.fn(), source: vi.fn(), create: vi.fn(), createManual: vi.fn(), created: vi.fn(), openChange: vi.fn() }));
+vi.mock("@/lib/api", () => ({ api: { getEligibleCoaPetitions: mocks.eligible, getCoaSourceData: mocks.source, createCoaDocument: mocks.create, createManualCoaDocument: mocks.createManual } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { name: "QC Staff", email: "qc@example.com", role: "qc-staff", roles: ["qc-staff"] } }) }));
 
 const request = {
@@ -26,9 +26,16 @@ beforeEach(() => {
   mocks.create.mockResolvedValue({ ...request, _id: "coa-1", status: "draft" });
 });
 
-function renderDialog() {
+const erpRequest = {
+  _id: "external-coa-request-SO1-10000", petitionId: "external-coa-request-SO1-10000", selectedItemSeqs: [10000], status: "requested", revision: 0,
+  petitionNoSnapshot: "SO1", customerSnapshot: { name: "Customer ERP" },
+  sampleSnapshots: [{ itemSeq: 10000, sampleName: "Trade ERP", commonName: "Glyphosate 48% SL" }], resultSnapshots: [],
+  externalCoaRequest: { saleOrderNo: "SO1", line: 10000, itemNo: "FC-1", appearance: "เม็ดยาสีแดง" },
+} as CoaDocument;
+
+function renderDialog(currentRequest: CoaDocument = request) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<CoaCreateDialog open request={request} onCreated={mocks.created} onOpenChange={mocks.openChange} />, {
+  return render(<CoaCreateDialog open request={currentRequest} onCreated={mocks.created} onOpenChange={mocks.openChange} />, {
     wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
   });
 }
@@ -77,6 +84,52 @@ describe("CoaCreateDialog", () => {
       customerSnapshot: { name: "Requester", company: "ICP" },
       sampleSnapshots: [expect.objectContaining({ itemSeq: 1, batchNo: "B-2", productionDate: "2026-09-01" })],
       resultSnapshots: [{ itemSeq: 1, testItem: "%AI / ชุดที่ 2", result: "48.0", criteria: "", unit: "%", method: "" }],
+    }));
+  });
+
+  it("matches an ERP request to a petition by common name and keeps ERP names", async () => {
+    mocks.eligible.mockResolvedValueOnce({ items: [{ _id: "p1", petitionNo: "P-1", items: [{ seq: 1, sampleName: "Trade A", commonName: "glyphosate 48% sl", batchNo: "B-1", productionDate: "2026-09-01" }] }] });
+    renderDialog(erpRequest);
+    expect(await screen.findByText(/จับคู่กับคำร้อง P-1/)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.source).toHaveBeenCalledWith("p1", [1]));
+    expect(await screen.findByLabelText("ชื่อตัวอย่าง *")).toHaveValue("Trade ERP");
+    expect(screen.getByLabelText("Batch No. *")).toHaveValue("B-1");
+    fireEvent.click(await screen.findByRole("checkbox", { name: /%AI \/ ชุดที่ 2/ }));
+    fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
+    await waitFor(() => expect(mocks.create).toHaveBeenCalled());
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      petitionId: "p1",
+      externalCoaRequest: { saleOrderNo: "SO1", line: 10000, itemNo: "FC-1" },
+      sampleSnapshots: [expect.objectContaining({ sampleName: "Trade ERP", batchNo: "B-1" })],
+    }));
+  });
+
+  it("lets an unmatched ERP request be filled manually", async () => {
+    mocks.eligible.mockResolvedValueOnce({ items: [] });
+    mocks.createManual.mockResolvedValueOnce({ ...erpRequest, _id: "coa-erp", status: "draft" });
+    renderDialog(erpRequest);
+    expect(await screen.findByText(/ยังไม่พบคำร้องที่ตรงกัน/)).toBeInTheDocument();
+    expect(screen.getByLabelText("ชื่อสามัญ *")).toHaveValue("Glyphosate 48% SL");
+    expect(screen.getByDisplayValue("เม็ดยาสีแดง")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("48% ± 2.40")).toBeInTheDocument();
+    const createButton = screen.getByRole("button", { name: "สร้างร่าง COA" });
+    expect(createButton).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-9" } });
+    fireEvent.change(screen.getByLabelText("วันที่ผลิต *"), { target: { value: "2026-09-01" } });
+    const results = screen.getAllByLabelText("ผลทดสอบ *");
+    fireEvent.change(results[0], { target: { value: "Conform" } });
+    fireEvent.change(results[1], { target: { value: "48.1" } });
+    fireEvent.click(createButton);
+    await waitFor(() => expect(mocks.createManual).toHaveBeenCalled());
+    expect(mocks.createManual).toHaveBeenCalledWith(expect.objectContaining({
+      selectedItemSeqs: [10000],
+      customerSnapshot: { name: "Customer ERP" },
+      sampleSnapshots: [expect.objectContaining({ sampleName: "Trade ERP", batchNo: "B-9", productionDate: "2026-09-01" })],
+      resultSnapshots: [
+        expect.objectContaining({ testItem: "Appearance", result: "Conform", criteria: "เม็ดยาสีแดง" }),
+        expect.objectContaining({ testItem: "%AI content", result: "48.1", criteria: "48% ± 2.40" }),
+      ],
+      externalCoaRequest: { saleOrderNo: "SO1", line: 10000, itemNo: "FC-1" },
     }));
   });
 

@@ -81,6 +81,7 @@ export type ExternalCoaRequestSnapshot = {
   line?: number;
   saleOrderDate?: string;
   itemNo?: string;
+  appearance?: string;
   packingSize?: string;
   quantity?: number;
   outstandingQty?: number;

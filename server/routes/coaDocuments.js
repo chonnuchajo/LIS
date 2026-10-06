@@ -126,6 +126,28 @@ function buildManualSnapshots(petition, selectedItemSeqs, body = {}) {
   return { sampleSnapshots, resultSnapshots, trendSnapshots };
 }
 
+function externalCoaLink(body = {}) {
+  const saleOrderNo = manualText(body.externalCoaRequest?.saleOrderNo);
+  if (!saleOrderNo) return undefined;
+  return {
+    saleOrderNo,
+    line: Number(body.externalCoaRequest.line) || undefined,
+    itemNo: manualText(body.externalCoaRequest.itemNo),
+  };
+}
+
+function externalCoaKey(link) {
+  return `${link?.saleOrderNo || ''}:${link?.line ?? ''}`;
+}
+
+async function assertExternalCoaRequest(link) {
+  if (!link) return;
+  const rows = await fetchExternalCoaDocuments();
+  if (!rows.some((row) => externalCoaKey(row.externalCoaRequest) === externalCoaKey(link))) {
+    throw errorWithStatus('ไม่พบคำขอ COA จาก ERP', 404);
+  }
+}
+
 function manualCustomerSnapshot(body = {}) {
   return Object.fromEntries(
     ['name', 'company', 'department', 'email', 'phone']
@@ -216,6 +238,13 @@ function externalCoaRemark(row) {
   return firstExternalValue(row, ['remark', 'Remark']);
 }
 
+// ponytail: ERP has no appearance field, so read it from the free-text remark; switch to a real field when ERP adds one.
+function externalAppearance(remark) {
+  return remark.split('/').map((part) => part.trim())
+    .filter((part) => /สี|เม็ด|ผง|ของเหลว|เกล็ด|ก้อน/.test(part))
+    .join(' ');
+}
+
 function isExternalCoaRequest(row) {
   return /\bcoa\b/i.test(externalCoaRemark(row));
 }
@@ -273,6 +302,7 @@ function externalCoaRowToDocument(row) {
       line: itemSeq,
       saleOrderDate: firstExternalValue(row, ['SaleOrderDate']),
       itemNo,
+      appearance: externalAppearance(externalCoaRemark(row)),
       packingSize: firstExternalValue(row, ['PackingSize']),
       quantity: externalNumber(row, ['Quantity']),
       outstandingQty: externalNumber(row, ['OutstandingQty']),
@@ -611,11 +641,18 @@ router.get('/', async (req, res) => {
         : Promise.resolve([]),
       externalPromise,
     ]);
+    const linkedExternalKeys = new Set(externalRows.length
+      ? (await CoaDocument.find({
+          'externalCoaRequest.saleOrderNo': { $in: externalRows.map((row) => row.externalCoaRequest.saleOrderNo) },
+          status: { $nin: ['cancelled', 'superseded', 'rejected'] },
+        }).sort({ updatedAt: -1 }).lean()).map((doc) => externalCoaKey(doc.externalCoaRequest))
+      : []);
     res.json({
       items: sortCoaRows([
         ...documents,
         ...requestedRows,
-        ...filterExternalCoaDocuments(externalRows, req.query),
+        ...filterExternalCoaDocuments(externalRows, req.query)
+          .filter((row) => !linkedExternalKeys.has(externalCoaKey(row.externalCoaRequest))),
       ]).slice(0, 200),
     });
   } catch (error) {
@@ -710,7 +747,11 @@ router.get('/source-data/:petitionId', async (req, res) => {
 router.post('/manual', async (req, res) => {
   try {
     const actor = await actorFromRequest(req.body);
-    const petition = await assertLabApprovedPetition(req.body.petitionId);
+    const externalLink = externalCoaLink(req.body);
+    await assertExternalCoaRequest(externalLink);
+    const petition = req.body.petitionId || !externalLink
+      ? await assertLabApprovedPetition(req.body.petitionId)
+      : { petitionNo: externalLink.saleOrderNo, items: [{ seq: externalLink.line || 1 }] };
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
     const selectedItemSeqs = selectedItems.map((item) => item.seq);
     const snapshots = buildManualSnapshots(petition, selectedItemSeqs, req.body);
@@ -720,6 +761,7 @@ router.post('/manual', async (req, res) => {
         entryMode: 'manual',
         petitionId: petition._id,
         petitionNoSnapshot: petition.petitionNo,
+        externalCoaRequest: externalLink,
         selectedItemSeqs,
         customerSnapshot,
         ...snapshots,
@@ -743,6 +785,8 @@ router.post('/manual', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const actor = await actorFromRequest(req.body);
+    const externalLink = externalCoaLink(req.body);
+    await assertExternalCoaRequest(externalLink);
     const petition = await assertLabApprovedPetition(req.body.petitionId);
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
     const selectedItemSeqs = selectedItems.map((item) => item.seq);
@@ -758,6 +802,7 @@ router.post('/', async (req, res) => {
         entryMode: edited ? 'manual' : 'source',
         petitionId: petition._id,
         petitionNoSnapshot: petition.petitionNo,
+        externalCoaRequest: externalLink,
         selectedItemSeqs,
         ...snapshots,
         remark: String(req.body.remark || ''),
@@ -844,7 +889,7 @@ router.post('/:id/approve', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
-    await assertLabApprovedPetition(doc.petitionId);
+    if (doc.petitionId) await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
     const snapshots = doc.entryMode === 'manual' || !missingSnapshots
       ? {}
@@ -931,6 +976,7 @@ router.post('/:id/revise', async (req, res) => {
         status: 'revisionDraft',
         petitionId: source.petitionId,
         petitionNoSnapshot: source.petitionNoSnapshot,
+        externalCoaRequest: source.externalCoaRequest,
         selectedItemSeqs: source.selectedItemSeqs,
         customerSnapshot: source.customerSnapshot,
         sampleSnapshots: source.sampleSnapshots,

@@ -342,7 +342,7 @@ test('externalCoaRowsToDocuments maps only ERP rows that ask for COA', () => {
       PendingStatus: 'pending shipment',
       UpdateDate: '2026-04-02T04:02:29.360Z',
       ShipmentDate: '2026-05-26T00:00:00.000Z',
-      remark: 'send with COA',
+      remark: 'ภาชนะลูกค้า/send with COA/เม็ดยาสีแดง',
     },
     {
       CustomerName: 'Customer B',
@@ -365,6 +365,55 @@ test('externalCoaRowsToDocuments maps only ERP rows that ask for COA', () => {
     condition: '16*1 L',
   });
   assert.equal(docs[0].externalCoaRequest.pendingStatus, 'pending shipment');
+  assert.equal(docs[0].externalCoaRequest.appearance, 'เม็ดยาสีแดง');
+});
+
+test('manual route creates an ERP-linked COA without a petition and hides the ERP request row', async () => {
+  const originals = {
+    create: CoaDocument.create, find: CoaDocument.find, auditCreate: CoaAuditLog.create,
+    petitionFind: Petition.find, labRequestFind: LabRequest.find, fetch: global.fetch,
+  };
+  const restoreActor = stubActorLookup({
+    user: { name: 'QC Staff', email: 'qc@example.com', role: 'qc-staff', roles: ['qc-staff'], status: 'active' },
+  });
+  const stored = [];
+  try {
+    global.fetch = async () => ({
+      ok: true, status: 200,
+      text: async () => JSON.stringify([{ SaleOrderNo: 'SO1', Line: 10000, ItemNo: 'FC-1', CommonName: 'Glyphosate 48% SL', remark: 'COA' }]),
+    });
+    CoaDocument.create = async (payload) => { const doc = { _id: '507f1f77bcf86cd799439088', ...payload }; stored.push(doc); return doc; };
+    CoaAuditLog.create = async () => {};
+    const body = {
+      selectedItemSeqs: [10000],
+      sampleSnapshots: [{ itemSeq: 10000, sampleName: 'Trade', commonName: 'Glyphosate 48% SL', batchNo: 'B-1', productionDate: '2026-09-01' }],
+      resultSnapshots: [{ itemSeq: 10000, testItem: '%AI content', result: '48.1' }],
+      _user: { email: 'qc@example.com' },
+    };
+    const unknown = await invoke('/manual', 'post', { body: { ...body, externalCoaRequest: { saleOrderNo: 'SO404', line: 10000 } } });
+    assert.equal(unknown.statusCode, 404);
+    const res = await invoke('/manual', 'post', { body: { ...body, externalCoaRequest: { saleOrderNo: 'SO1', line: 10000, itemNo: 'FC-1' } } });
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.petitionId, undefined);
+    assert.equal(res.body.petitionNoSnapshot, 'SO1');
+    assert.deepEqual(res.body.externalCoaRequest, { saleOrderNo: 'SO1', line: 10000, itemNo: 'FC-1' });
+    assert.equal(res.body.sampleSnapshots[0].batchNo, 'B-1');
+
+    CoaDocument.find = () => sortedLimitedLean(stored);
+    Petition.find = () => sortedLimitedLean([]);
+    LabRequest.find = () => ({ lean: async () => [] });
+    const list = await invoke('/', 'get');
+    assert.equal(list.statusCode, 200);
+    assert.deepEqual(list.body.items.map((item) => item._id), ['507f1f77bcf86cd799439088']);
+  } finally {
+    CoaDocument.create = originals.create;
+    CoaDocument.find = originals.find;
+    CoaAuditLog.create = originals.auditCreate;
+    Petition.find = originals.petitionFind;
+    LabRequest.find = originals.labRequestFind;
+    global.fetch = originals.fetch;
+    restoreActor();
+  }
 });
 
 test('GET / merges external COA requests with stored and Lab-approved requested rows', async () => {

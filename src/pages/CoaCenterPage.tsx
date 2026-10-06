@@ -272,7 +272,7 @@ function isCoaApprovedDocument(doc: CoaDocument) {
 }
 
 function isExternalCoaRequestDocument(doc: CoaDocument) {
-  return Boolean(doc.externalCoaRequest);
+  return doc.status === "requested" && Boolean(doc.externalCoaRequest);
 }
 
 function addDocumentToDuplicateGroup(groups: Map<string, CoaDuplicateGroup>, key: string, label: string, doc: CoaDocument) {
@@ -649,7 +649,7 @@ export default function CoaCenterPage() {
       setActiveWorkflowStage("inProgress");
       return;
     }
-    setCreateRequest(isExternalCoaRequestDocument(doc) ? null : doc);
+    setCreateRequest(doc);
     setCreateOpen(true);
   }
 

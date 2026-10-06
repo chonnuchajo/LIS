@@ -950,16 +950,18 @@ export const api = {
     sampleSnapshots?: CoaDocument["sampleSnapshots"];
     resultSnapshots?: CoaDocument["resultSnapshots"];
     remark?: string;
+    externalCoaRequest?: Pick<NonNullable<CoaDocument["externalCoaRequest"]>, "saleOrderNo" | "line" | "itemNo">;
     _user?: unknown;
   }) =>
     request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),
   createManualCoaDocument: (body: {
-    petitionId: string;
+    petitionId?: string;
     selectedItemSeqs: number[];
     customerSnapshot?: CoaDocument["customerSnapshot"];
     sampleSnapshots: CoaDocument["sampleSnapshots"];
     resultSnapshots: CoaDocument["resultSnapshots"];
     remark?: string;
+    externalCoaRequest?: Pick<NonNullable<CoaDocument["externalCoaRequest"]>, "saleOrderNo" | "line" | "itemNo">;
     _user?: unknown;
   }) => request<CoaDocument>("/coa-documents/manual", { method: "POST", body: JSON.stringify(body) }),
   getCoaDocument: (id: string) => request<CoaDocument>(`/coa-documents/${id}`),
