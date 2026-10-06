@@ -946,11 +946,7 @@ export const api = {
     petitionId: string;
     selectedItemSeqs: number[];
     formSelections?: CoaFormSelection[];
-    customerSnapshot?: CoaDocument["customerSnapshot"];
-    sampleSnapshots?: CoaDocument["sampleSnapshots"];
-    resultSnapshots?: CoaDocument["resultSnapshots"];
     remark?: string;
-    externalCoaRequest?: Pick<NonNullable<CoaDocument["externalCoaRequest"]>, "saleOrderNo" | "line" | "itemNo">;
     _user?: unknown;
   }) =>
     request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),

@@ -741,20 +741,6 @@ test('source selection survives create, submit and revision without accepting st
     const selectedField = sources.body.results.find((row) => row.kind === 'result' && row.testItem === 'กายภาพ - สี');
     assert.equal(sources.body.sampleSnapshots[0].commonName, 'Glyphosate 48% SL');
     const genericSelections = [{ itemSeq: 1, resultKeys: [selectedField.key] }];
-    const editedCreated = await invoke('/', 'post', {
-      body: {
-        petitionId, selectedItemSeqs: [1], formSelections: genericSelections, _user: actor,
-        customerSnapshot: { company: ' ACME ' },
-        sampleSnapshots: [{ itemSeq: 1, sampleName: 'Trade A', commonName: 'Glyphosate 48% SL', batchNo: 'B-2', productionDate: '2026-09-01' }],
-        resultSnapshots: [{ itemSeq: 1, testItem: 'กายภาพ - สี', result: ' สีแดง ' }],
-      },
-    });
-    assert.equal(editedCreated.statusCode, 201);
-    assert.equal(editedCreated.body.entryMode, 'manual');
-    assert.equal(editedCreated.body.customerSnapshot.company, 'ACME');
-    assert.equal(editedCreated.body.sampleSnapshots[0].batchNo, 'B-2');
-    assert.equal(editedCreated.body.resultSnapshots[0].result, 'สีแดง');
-    assert.deepEqual(editedCreated.body.formSelections, genericSelections);
     const genericCreated = await invoke('/', 'post', {
       body: { petitionId, selectedItemSeqs: [1], formSelections: genericSelections, _user: actor },
     });

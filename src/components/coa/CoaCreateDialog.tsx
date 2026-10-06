@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
-import type { CoaDocument, CoaFormSelection, CoaResultSnapshot, CoaSampleSnapshot, EligibleCoaPetition } from "@/types/coa.types";
+import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot, CoaSourceResult, EligibleCoaPetition } from "@/types/coa.types";
 
 type Customer = NonNullable<CoaDocument["customerSnapshot"]>;
 type SampleField = Exclude<keyof CoaSampleSnapshot, "itemSeq">;
@@ -61,14 +61,23 @@ function findErpMatch(petitions: EligibleCoaPetition[], sample?: CoaSampleSnapsh
   return candidates.find((candidate) => candidate.sameTradeName) ?? candidates[0] ?? null;
 }
 
-function erpDefaultResults(request?: CoaDocument | null): CoaResultSnapshot[] {
-  const erp = request?.externalCoaRequest;
-  if (!erp) return [];
-  const itemSeq = erp.line || 1;
+function templateRows(itemSeq: number, commonName?: string, appearance?: string): CoaResultSnapshot[] {
   return [
-    { itemSeq, testItem: "Appearance", result: "", criteria: erp.appearance || "", unit: "", method: "" },
-    { itemSeq, testItem: "%AI content", result: "", criteria: defaultCriteria("%AI content", request?.sampleSnapshots?.[0]?.commonName), unit: "%", method: "" },
+    { itemSeq, testItem: "Appearance", result: "", criteria: appearance || "", unit: "", method: "" },
+    { itemSeq, testItem: "%AI content", result: "", criteria: defaultCriteria("%AI content", commonName), unit: "%", method: "" },
   ];
+}
+
+function sourceRows(itemSeq: number, options: CoaSourceResult[], commonName?: string, appearance?: string): CoaResultSnapshot[] {
+  const rows = options.map((option) => ({
+    itemSeq,
+    testItem: option.testItem || option.label,
+    result: option.result,
+    criteria: option.criteria || defaultCriteria(option.testItem || option.label, commonName, appearance),
+    unit: option.unit || "",
+    method: "",
+  }));
+  return rows.length ? rows : templateRows(itemSeq, commonName, appearance);
 }
 
 function dateInputValue(value?: string | null) {
@@ -98,12 +107,10 @@ export default function CoaCreateDialog({
   const { user } = useAuth();
   const [petitionId, setPetitionId] = useState("");
   const [selectedSeqs, setSelectedSeqs] = useState<number[]>([]);
-  const [selections, setSelections] = useState<Record<number, CoaFormSelection>>({});
   const [sampleEdits, setSampleEdits] = useState<Record<number, Partial<CoaSampleSnapshot>>>({});
-  const [resultEdits, setResultEdits] = useState<Record<string, Partial<CoaResultSnapshot>>>({});
+  const [resultsBySeq, setResultsBySeq] = useState<Record<number, CoaResultSnapshot[]>>({});
   const [customerEdits, setCustomerEdits] = useState<Customer>({});
   const [remark, setRemark] = useState("");
-  const [manualResults, setManualResults] = useState<CoaResultSnapshot[]>([]);
   const [erpMatchChecked, setErpMatchChecked] = useState(false);
   const erp = request?.externalCoaRequest;
   const erpSeq = erp?.line || 1;
@@ -130,48 +137,32 @@ export default function CoaCreateDialog({
     queryFn: () => api.getCoaSourceData(petitionId, selectedSeqs),
     enabled: open && Boolean(selectedPetition) && selectedSeqs.length > 0 && !reusableActiveCoa,
   });
-  const sourceResults = source.data?.results.filter((result) => result.kind === "result") ?? [];
-  const formSamples: CoaSampleSnapshot[] = selectedItems.map((item) => ({
-    itemSeq: item.seq,
-    sampleName: item.sampleName,
-    commonName: item.commonName,
-    batchNo: item.batchNo,
-    lotNo: item.lotNo,
-    productionDate: item.productionDate,
-    ...source.data?.sampleSnapshots?.find((sample) => sample.itemSeq === item.seq),
-    ...erpBase,
-    ...sampleEdits[item.seq],
-  }));
-  const erpFormSample: CoaSampleSnapshot = { itemSeq: erpSeq, ...erpBase, ...sampleEdits[erpSeq] };
+  const sourceData = source.data;
   const manualMode = Boolean(erp) && selectedItems.length === 0;
-  const formResults = selectedItems.flatMap((item) => (selections[item.seq]?.resultKeys ?? []).flatMap((key) => {
-    const option = sourceResults.find((result) => result.itemSeq === item.seq && result.key === key);
-    return option ? [{
-      key,
-      row: {
-        itemSeq: item.seq, testItem: option.testItem || option.label, result: option.result,
-        criteria: option.criteria || (erp ? defaultCriteria(option.testItem || option.label, erpBase.commonName || item.commonName, erp.appearance) : ""),
-        unit: option.unit || "", method: "", ...resultEdits[key],
-      } as CoaResultSnapshot,
-    }] : [];
-  }));
-  const formCustomer: Customer = { ...source.data?.customerSnapshot, ...(erp ? filled(request?.customerSnapshot) : {}), ...customerEdits };
-  const edited = Boolean(erp) || Object.keys(sampleEdits).length + Object.keys(resultEdits).length + Object.keys(customerEdits).length > 0;
-  const sampleComplete = (sample: CoaSampleSnapshot) => sampleFields.every(([field, , required]) => !required || sample[field]?.toString().trim());
-  const resultComplete = (row: CoaResultSnapshot) => Boolean(row.testItem?.trim() && row.result?.trim());
-  const editedFormComplete = manualMode
-    ? sampleComplete(erpFormSample) && manualResults.length > 0 && manualResults.every(resultComplete)
-    : !edited || (formSamples.every(sampleComplete) && formResults.every(({ row }) => resultComplete(row)));
-  const erpLink = erp ? { saleOrderNo: erp.saleOrderNo, line: erp.line, itemNo: erp.itemNo } : undefined;
-  const canCreate = manualMode ? editedFormComplete : editedFormComplete && !isFetching && !source.isFetching && !source.isError && !loadError
-    && selectedItems.length > 0 && selectedItems.length === selectedSeqs.length
-    && selectedItems.every((item) => {
-      const selection = selections[item.seq];
-      if (!selection || !item.commonName?.trim()) return false;
-      const options = sourceResults.filter((result) => result.itemSeq === item.seq);
-      const resultKeys = selection.resultKeys ?? [];
-      return resultKeys.length > 0 && resultKeys.every((key) => options.some((result) => result.key === key));
-    });
+  const activeSamples: CoaSampleSnapshot[] = manualMode
+    ? [{ itemSeq: erpSeq, ...erpBase, ...sampleEdits[erpSeq] }]
+    : selectedItems.map((item) => ({
+      itemSeq: item.seq,
+      sampleName: item.sampleName,
+      commonName: item.commonName,
+      batchNo: item.batchNo,
+      lotNo: item.lotNo,
+      productionDate: item.productionDate,
+      ...sourceData?.sampleSnapshots?.find((sample) => sample.itemSeq === item.seq),
+      ...erpBase,
+      ...sampleEdits[item.seq],
+    }));
+  const rowsFor = (sample: CoaSampleSnapshot) => resultsBySeq[sample.itemSeq] ?? (manualMode
+    ? templateRows(sample.itemSeq, sample.commonName, erp?.appearance)
+    : sourceRows(sample.itemSeq, sourceData?.results.filter((option) => option.kind === "result" && option.itemSeq === sample.itemSeq) ?? [], sample.commonName, erp?.appearance));
+  const activeRows = activeSamples.flatMap(rowsFor);
+  const formCustomer: Customer = { ...sourceData?.customerSnapshot, ...(erp ? filled(request?.customerSnapshot) : {}), ...customerEdits };
+  const showForm = manualMode || (Boolean(sourceData) && !source.isFetching && !source.isError);
+  const formComplete = activeSamples.length > 0
+    && activeSamples.every((sample) => sampleFields.every(([field, , required]) => !required || sample[field]?.trim())
+      && rowsFor(sample).length > 0)
+    && activeRows.every((row) => Boolean(row.testItem?.trim() && row.result?.trim()));
+  const canCreate = showForm && formComplete && !isFetching && !loadError;
   const reusableActiveCoaFields = useMemo(() => {
     if (!reusableActiveCoa) return "ชื่อสามัญ/Batch/วันที่ผลิตนี้";
     return [
@@ -191,26 +182,16 @@ export default function CoaCreateDialog({
     };
   }, [user]);
   const create = useMutation({
-    mutationFn: () => (manualMode ? api.createManualCoaDocument({
-      selectedItemSeqs: [erpSeq],
+    mutationFn: () => api.createManualCoaDocument({
+      petitionId: manualMode ? undefined : petitionId,
+      selectedItemSeqs: activeSamples.map((sample) => sample.itemSeq),
       customerSnapshot: formCustomer,
-      sampleSnapshots: [erpFormSample],
-      resultSnapshots: manualResults,
+      sampleSnapshots: activeSamples,
+      resultSnapshots: activeRows,
       remark: remark.trim() || undefined,
-      externalCoaRequest: erpLink,
+      externalCoaRequest: erp ? { saleOrderNo: erp.saleOrderNo, line: erp.line, itemNo: erp.itemNo } : undefined,
       _user: actor,
-    }) : api.createCoaDocument({
-      petitionId, selectedItemSeqs: selectedSeqs,
-      formSelections: selectedSeqs.map((seq) => selections[seq]),
-      ...(edited ? {
-        customerSnapshot: formCustomer,
-        sampleSnapshots: formSamples,
-        resultSnapshots: formResults.map(({ row }) => row),
-      } : {}),
-      remark: remark.trim() || undefined,
-      externalCoaRequest: erpLink,
-      _user: actor,
-    })),
+    }),
     onSuccess: (doc) => {
       onOpenChange(false);
       onCreated(doc);
@@ -232,15 +213,13 @@ export default function CoaCreateDialog({
   const resetSubmitExisting = submitExisting.reset;
   useEffect(() => {
     if (!open) return;
-    const fromErp = Boolean(request?.externalCoaRequest);
-    setPetitionId(fromErp ? "" : request?.petitionId || "");
-    setSelectedSeqs(fromErp ? [] : request?.selectedItemSeqs || []);
-    setSelections({});
+    const requestErp = request?.externalCoaRequest;
+    setPetitionId(requestErp ? "" : request?.petitionId || "");
+    setSelectedSeqs(requestErp ? [] : request?.selectedItemSeqs || []);
     setSampleEdits({});
-    setResultEdits({});
+    setResultsBySeq({});
     setCustomerEdits({});
     setRemark("");
-    setManualResults(erpDefaultResults(request));
     setErpMatchChecked(false);
     resetCreate();
     resetSubmitExisting();
@@ -255,6 +234,7 @@ export default function CoaCreateDialog({
     setSelectedSeqs([match.seq]);
   }, [open, erp, erpMatchChecked, isFetching, data, petitions, erpSample]);
 
+
   function toggleSeq(seq: number) {
     if (erp) {
       setSelectedSeqs((value) => (value.includes(seq) ? [] : [seq]));
@@ -263,17 +243,17 @@ export default function CoaCreateDialog({
     setSelectedSeqs((value) => (value.includes(seq) ? value.filter((item) => item !== seq) : [...value, seq]));
   }
 
-  function renderSampleFields(itemSeq: number, sample?: CoaSampleSnapshot) {
+  function renderSampleFields(sample: CoaSampleSnapshot) {
     return (
       <div className="grid gap-3 sm:grid-cols-2">
         {sampleFields.map(([field, label, required]) => (
           <div key={field} className="space-y-1">
-            <Label htmlFor={`coa-sample-${itemSeq}-${field}`}>{label}{required ? " *" : ""}</Label>
+            <Label htmlFor={`coa-sample-${sample.itemSeq}-${field}`}>{label}{required ? " *" : ""}</Label>
             <Input
-              id={`coa-sample-${itemSeq}-${field}`}
+              id={`coa-sample-${sample.itemSeq}-${field}`}
               type={field === "productionDate" ? "date" : "text"}
-              value={field === "productionDate" ? dateInputValue(sample?.[field]) : sample?.[field] ?? ""}
-              onChange={(event) => setSampleEdits((current) => ({ ...current, [itemSeq]: { ...current[itemSeq], [field]: event.target.value } }))}
+              value={field === "productionDate" ? dateInputValue(sample[field]) : sample[field] ?? ""}
+              onChange={(event) => setSampleEdits((current) => ({ ...current, [sample.itemSeq]: { ...current[sample.itemSeq], [field]: event.target.value } }))}
             />
           </div>
         ))}
@@ -281,30 +261,39 @@ export default function CoaCreateDialog({
     );
   }
 
-  function renderResultFields(id: string, row: CoaResultSnapshot, onChange: (field: ResultField, value: string) => void) {
-    return resultFields.map(([field, label, required]) => (
-      <div key={field} className="space-y-1">
-        <Label htmlFor={`${id}-${field}`}>{label}{required ? " *" : ""}</Label>
-        <Input id={`${id}-${field}`} value={row[field] ?? ""} onChange={(event) => onChange(field, event.target.value)} />
+  function renderResultRows(sample: CoaSampleSnapshot) {
+    const { itemSeq } = sample;
+    const rows = rowsFor(sample);
+    const updateRows = (update: (current: CoaResultSnapshot[]) => CoaResultSnapshot[]) => setResultsBySeq((current) => ({ ...current, [itemSeq]: update(rows) }));
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-foreground">ผลที่จะแสดงใน COA</h4>
+          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => updateRows((current) => [...current, { itemSeq, testItem: "", result: "", criteria: "", unit: "", method: "" }])}>
+            <Plus className="h-4 w-4" />
+            เพิ่มผล
+          </Button>
+        </div>
+        {rows.map((row, index) => (
+          <div key={index} className="grid gap-2 rounded-md border bg-muted/50 p-3 sm:grid-cols-2">
+            {resultFields.map(([field, label, required]) => (
+              <div key={field} className="space-y-1">
+                <Label htmlFor={`coa-result-${itemSeq}-${index}-${field}`}>{label}{required ? " *" : ""}</Label>
+                <Input
+                  id={`coa-result-${itemSeq}-${index}-${field}`}
+                  value={row[field] ?? ""}
+                  onChange={(event) => updateRows((current) => current.map((entry, rowIndex) => (rowIndex === index ? { ...entry, [field]: event.target.value } : entry)))}
+                />
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" className="gap-2 justify-self-start" onClick={() => updateRows((current) => current.filter((_entry, rowIndex) => rowIndex !== index))}>
+              <Trash2 className="h-4 w-4" />
+              ลบผลนี้
+            </Button>
+          </div>
+        ))}
       </div>
-    ));
-  }
-
-  function updateSelection(itemSeq: number, update: Partial<CoaFormSelection>) {
-    setSelections((current) => ({
-      ...current,
-      [itemSeq]: {
-        itemSeq, resultKeys: [],
-        ...current[itemSeq], ...update,
-      },
-    }));
-  }
-
-  function toggleResult(itemSeq: number, key: string) {
-    const selected = selections[itemSeq]?.resultKeys ?? [];
-    updateSelection(itemSeq, {
-      resultKeys: selected.includes(key) ? selected.filter((value) => value !== key) : [...selected, key],
-    });
+    );
   }
 
   return (
@@ -312,7 +301,7 @@ export default function CoaCreateDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>สร้าง COA</DialogTitle>
-          <DialogDescription>เลือกผลพารามิเตอร์ที่ต้องการใส่ใน COA ระบบดึงค่าที่บันทึกไว้ให้อัตโนมัติ ตรวจและแก้ข้อมูลที่ไม่ตรงได้ก่อนสร้างร่าง</DialogDescription>
+          <DialogDescription>ระบบเติมข้อมูลจากผล Lab และ ERP ให้ก่อน แก้ไข เพิ่ม หรือลบรายการในฟอร์ม COA ได้ทุกช่องก่อนสร้างร่าง</DialogDescription>
         </DialogHeader>
         {isFetching && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดคำร้อง...</p>}
         {loadError && <div role="alert" className="text-sm text-destructive">โหลดคำร้องไม่สำเร็จ <Button variant="outline" onClick={() => refetch()}>ลองใหม่</Button></div>}
@@ -348,9 +337,8 @@ export default function CoaCreateDialog({
                 onClick={() => {
                   setPetitionId(petition._id);
                   setSelectedSeqs([]);
-                  setSelections({});
                   if (!erp) setSampleEdits({});
-                  setResultEdits({});
+                  setResultsBySeq((current) => (erp && current[erpSeq] ? { [erpSeq]: current[erpSeq] } : {}));
                 }}
               >
                 <div className="font-medium">{petition.petitionNo}</div>
@@ -360,15 +348,15 @@ export default function CoaCreateDialog({
           </div>
           <div className="max-h-80 overflow-auto rounded-md border bg-card">
             {!selectedPetition && <div className="p-6 text-center text-sm text-muted-foreground">เลือกคำร้องที่อนุมัติผล Lab แล้ว</div>}
-        {selectedPetition?.items.map((item) => (
+            {selectedPetition?.items.map((item) => (
               <label key={item.seq} className="flex items-start gap-3 border-b p-3 text-sm hover:bg-accent">
                 <Checkbox checked={selectedSeqs.includes(item.seq)} disabled={create.isPending || submitExisting.isPending} onCheckedChange={() => toggleSeq(item.seq)} />
-                  <span>
-                    <span className="block font-medium text-foreground">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
-                    <span className="block text-foreground">ชื่อสามัญ: {item.commonName || "ยังไม่ระบุชื่อสามัญ"}</span>
-                    <span className="block text-xs text-muted-foreground">{[item.batchNo || item.lotNo || "-", item.productionDate ? `ผลิต ${formatProductionDate(item.productionDate)}` : null].filter(Boolean).join(" · ")}</span>
-                    {item.activeCoa && (
-                      <span className="mt-1 block rounded-md bg-yellow-50 px-2 py-1 text-xs text-yellow-500">
+                <span>
+                  <span className="block font-medium text-foreground">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
+                  <span className="block text-foreground">ชื่อสามัญ: {item.commonName || "ยังไม่ระบุชื่อสามัญ"}</span>
+                  <span className="block text-xs text-muted-foreground">{[item.batchNo || item.lotNo || "-", item.productionDate ? `ผลิต ${formatProductionDate(item.productionDate)}` : null].filter(Boolean).join(" · ")}</span>
+                  {item.activeCoa && (
+                    <span className="mt-1 block rounded-md bg-yellow-50 px-2 py-1 text-xs text-yellow-500">
                       มีประวัติ COA แล้ว: {item.activeCoa.coaNo}
                     </span>
                   )}
@@ -377,77 +365,22 @@ export default function CoaCreateDialog({
             ))}
           </div>
         </div>
-        {!reusableActiveCoa && (selectedItems.length > 0 || manualMode) && (
+        {!reusableActiveCoa && activeSamples.length > 0 && (
           <fieldset disabled={create.isPending} className="space-y-4">
             <legend className="text-base font-semibold text-foreground">ข้อมูลที่ใช้ในฟอร์ม COA</legend>
-            {manualMode && (
-              <section className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-                <h3 className="text-base font-semibold">ข้อมูลตัวอย่างจาก ERP</h3>
-                {renderSampleFields(erpSeq, erpFormSample)}
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold">ผลที่จะแสดงใน COA</h4>
-                  <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setManualResults((current) => [...current, { itemSeq: erpSeq, testItem: "", result: "", criteria: "", unit: "", method: "" }])}>
-                    <Plus className="h-4 w-4" />
-                    เพิ่มผล
-                  </Button>
-                </div>
-                {manualResults.map((row, index) => (
-                  <div key={index} className="grid gap-2 rounded-md border bg-muted/50 p-3 sm:grid-cols-2">
-                    {renderResultFields(`coa-manual-result-${index}`, row, (field, value) => setManualResults((current) => current.map((entry, rowIndex) => (rowIndex === index ? { ...entry, [field]: value } : entry))))}
-                    {manualResults.length > 1 && (
-                      <Button type="button" variant="outline" size="sm" className="gap-2 justify-self-start" onClick={() => setManualResults((current) => current.filter((_entry, rowIndex) => rowIndex !== index))}>
-                        <Trash2 className="h-4 w-4" />
-                        ลบผลนี้
-                      </Button>
-                    )}
-                  </div>
-                ))}
+            {!manualMode && source.isFetching && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดผลพารามิเตอร์...</p>}
+            {!manualMode && source.isError && <div role="alert" className="text-sm text-destructive">{source.error instanceof Error ? source.error.message : "โหลดผลไม่สำเร็จ"} <Button variant="outline" onClick={() => source.refetch()}>โหลดผลอีกครั้ง</Button></div>}
+            {showForm && activeSamples.map((sample) => (
+              <section key={sample.itemSeq} className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+                <h3 className="text-base font-semibold">{manualMode ? "ข้อมูลตัวอย่างจาก ERP" : `${sample.commonName || "ยังไม่ระบุชื่อสามัญ"} · ${sample.batchNo || sample.lotNo || "-"}`}</h3>
+                {renderSampleFields(sample)}
+                {!manualMode && !sourceData?.results.some((option) => option.kind === "result" && option.itemSeq === sample.itemSeq) && (
+                  <p className="text-sm text-muted-foreground">ไม่พบค่าพารามิเตอร์จากผล Lab กรอกผลเองได้</p>
+                )}
+                {renderResultRows(sample)}
               </section>
-            )}
-            {source.isFetching && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดผลพารามิเตอร์...</p>}
-            {source.isError && <div role="alert" className="text-sm text-destructive">{source.error instanceof Error ? source.error.message : "โหลดผลไม่สำเร็จ"} <Button variant="outline" onClick={() => source.refetch()}>โหลดผลอีกครั้ง</Button></div>}
-            {!source.isFetching && !source.isError && selectedItems.map((item) => {
-              const options = sourceResults.filter((result) => result.itemSeq === item.seq);
-              const selection = selections[item.seq];
-              const selectedResultKeys = new Set(selection?.resultKeys ?? []);
-              const sample = formSamples.find((entry) => entry.itemSeq === item.seq);
-              const itemResults = formResults.filter(({ row }) => row.itemSeq === item.seq);
-              return (
-                <section key={item.seq} className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-                  <h3 className="text-base font-semibold">{item.commonName || "ยังไม่ระบุชื่อสามัญ"} · {item.batchNo || item.lotNo || "-"}</h3>
-                  {renderSampleFields(item.seq, sample)}
-                  {options.length === 0 ? (
-                    <p role="alert" className="text-sm text-destructive">ไม่พบค่าพารามิเตอร์ที่ใช้ใน COA ของตัวอย่างนี้</p>
-                  ) : (
-                    <fieldset className="space-y-2">
-                      <legend className="text-sm font-semibold text-foreground">เลือกข้อมูลจากค่าพารามิเตอร์</legend>
-                      {options.map((option) => (
-                        <label key={option.key} className="flex items-start gap-3 rounded-md border p-3 text-sm hover:bg-accent">
-                          <Checkbox checked={selectedResultKeys.has(option.key)} onCheckedChange={() => toggleResult(item.seq, option.key)} />
-                          <span className="min-w-0">
-                            <span className="block font-medium text-foreground">{option.label}</span>
-                            <span className="block break-words text-muted-foreground">ผล: {option.result}{option.unit && !option.result.endsWith(option.unit) ? ` ${option.unit}` : ""}</span>
-                            {option.criteria && <span className="block text-xs text-muted-foreground">เกณฑ์: {option.criteria}</span>}
-                          </span>
-                        </label>
-                      ))}
-                      <p className="text-xs text-muted-foreground">เลือกอย่างน้อยหนึ่งค่าต่อตัวอย่าง ระบบจะดึงผลที่เลือกไปใส่ใน COA อัตโนมัติ</p>
-                    </fieldset>
-                  )}
-                  {itemResults.length > 0 && (
-                    <fieldset className="space-y-2">
-                      <legend className="text-sm font-semibold text-foreground">ผลที่จะแสดงใน COA</legend>
-                      {itemResults.map(({ key, row }, index) => (
-                        <div key={key} className="grid gap-2 rounded-md border bg-muted/50 p-3 sm:grid-cols-2">
-                          {renderResultFields(`coa-result-${item.seq}-${index}`, row, (field, value) => setResultEdits((current) => ({ ...current, [key]: { ...current[key], [field]: value } })))}
-                        </div>
-                      ))}
-                    </fieldset>
-                  )}
-                </section>
-              );
-            })}
-            {!source.isFetching && !source.isError && (
+            ))}
+            {showForm && (
               <section className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
                 <h3 className="text-base font-semibold">ข้อมูลผู้ขอ/ลูกค้า</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -464,7 +397,7 @@ export default function CoaCreateDialog({
                 </div>
               </section>
             )}
-            {!editedFormComplete && <p role="alert" className="text-sm text-destructive">แก้ไขข้อมูลแล้ว กรุณากรอกช่องที่มี * ให้ครบ</p>}
+            {showForm && <p className="text-xs text-muted-foreground">ช่องที่มี * ต้องกรอก และต้องมีผลอย่างน้อย 1 รายการต่อตัวอย่าง</p>}
           </fieldset>
         )}
         {(create.error || submitExisting.error) && <p role="alert" className="text-sm text-destructive">{(create.error || submitExisting.error)?.message}</p>}

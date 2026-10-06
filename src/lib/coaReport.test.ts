@@ -31,6 +31,8 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].coaNo).toBe("00012026");
     expect(pages[0].revision).toBe(1);
     expect(pages[0].samples[0].rows[0].testItem).toBe("pH");
+    expect(pages[0].samples[0].selectedResultsOnly).toBe(false);
+    expect(buildCoaReportPages({ ...doc, entryMode: "manual" })[0].samples[0].selectedResultsOnly).toBe(true);
   });
 
   it("uses the special COA form data for common names ending with GR", () => {

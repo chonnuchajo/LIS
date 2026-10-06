@@ -785,24 +785,15 @@ router.post('/manual', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const actor = await actorFromRequest(req.body);
-    const externalLink = externalCoaLink(req.body);
-    await assertExternalCoaRequest(externalLink);
     const petition = await assertLabApprovedPetition(req.body.petitionId);
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
     const selectedItemSeqs = selectedItems.map((item) => item.seq);
     const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs, req.body.formSelections);
-    const edited = Array.isArray(req.body.sampleSnapshots);
-    if (edited) {
-      Object.assign(snapshots, buildManualSnapshots(petition, selectedItemSeqs, req.body), {
-        customerSnapshot: manualCustomerSnapshot(req.body),
-      });
-    }
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
-        entryMode: edited ? 'manual' : 'source',
+        entryMode: 'source',
         petitionId: petition._id,
         petitionNoSnapshot: petition.petitionNo,
-        externalCoaRequest: externalLink,
         selectedItemSeqs,
         ...snapshots,
         remark: String(req.body.remark || ''),

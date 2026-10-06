@@ -122,6 +122,7 @@ vi.mock("@/lib/api", () => ({
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
+    createManualCoaDocument: vi.fn().mockResolvedValue({}),
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
@@ -147,7 +148,7 @@ describe("CoaCenterPage", () => {
   it("returns a created draft to the in-progress tab and clears the request search", async () => {
     vi.mocked(api.getEligibleCoaPetitions).mockResolvedValueOnce({ items: [{
       _id: "p5", petitionNo: "P-2608-0004",
-      items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001" }],
+      items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001", productionDate: "2026-09-01" }],
     }] });
     vi.mocked(api.getCoaSourceData).mockResolvedValueOnce({ results: [{
       itemSeq: 1, kind: "result", key: "ph", label: "pH", result: "7.1",
@@ -159,12 +160,12 @@ describe("CoaCenterPage", () => {
       resultSnapshots: [{ itemSeq: 1, testItem: "pH", result: "7.1" }],
       formSelections: [{ itemSeq: 1, resultKeys: ["ph"] }],
     };
-    vi.mocked(api.createCoaDocument).mockResolvedValueOnce(createdDoc);
+    vi.mocked(api.createManualCoaDocument).mockResolvedValueOnce(createdDoc);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
     fireEvent.change(screen.getByPlaceholderText("ค้นหา COA / คำร้อง"), { target: { value: "P-2608-0004" } });
     fireEvent.click(await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /pH/ }));
+    await screen.findByDisplayValue("7.1");
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
