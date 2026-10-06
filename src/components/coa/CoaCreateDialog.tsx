@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
 import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot, CoaSourceResult, EligibleCoaPetition } from "@/types/coa.types";
@@ -19,14 +18,11 @@ type SampleField = Exclude<keyof CoaSampleSnapshot, "itemSeq">;
 type ResultField = Exclude<keyof CoaResultSnapshot, "itemSeq">;
 
 const sampleFields: Array<[SampleField, string, boolean]> = [
-  ["sampleName", "ชื่อตัวอย่าง", true],
+  ["sampleName", "ชื่อการค้า", true],
   ["commonName", "ชื่อสามัญ", true],
   ["batchNo", "Batch No.", true],
   ["lotNo", "Lot No.", false],
   ["productionDate", "วันที่ผลิต", true],
-  ["sampleId", "รหัสตัวอย่าง", false],
-  ["condition", "สภาพตัวอย่าง", false],
-  ["manufacturer", "ผู้ผลิต", false],
 ];
 const resultFields: Array<[ResultField, string, boolean]> = [
   ["testItem", "รายการทดสอบ", true],
@@ -34,9 +30,6 @@ const resultFields: Array<[ResultField, string, boolean]> = [
   ["criteria", "เกณฑ์", false],
   ["unit", "หน่วย", false],
   ["method", "วิธีทดสอบ", false],
-];
-const customerFields: Array<[keyof Customer, string]> = [
-  ["name", "ชื่อผู้ขอ"], ["company", "บริษัท"], ["department", "แผนก"], ["email", "อีเมล"], ["phone", "โทรศัพท์"],
 ];
 
 function filled<T extends object>(value?: T) {
@@ -109,8 +102,6 @@ export default function CoaCreateDialog({
   const [selectedSeqs, setSelectedSeqs] = useState<number[]>([]);
   const [sampleEdits, setSampleEdits] = useState<Record<number, Partial<CoaSampleSnapshot>>>({});
   const [resultsBySeq, setResultsBySeq] = useState<Record<number, CoaResultSnapshot[]>>({});
-  const [customerEdits, setCustomerEdits] = useState<Customer>({});
-  const [remark, setRemark] = useState("");
   const [erpMatchChecked, setErpMatchChecked] = useState(false);
   const erp = request?.externalCoaRequest;
   const erpSeq = erp?.line || 1;
@@ -156,7 +147,7 @@ export default function CoaCreateDialog({
     ? templateRows(sample.itemSeq, sample.commonName, erp?.appearance)
     : sourceRows(sample.itemSeq, sourceData?.results.filter((option) => option.kind === "result" && option.itemSeq === sample.itemSeq) ?? [], sample.commonName, erp?.appearance));
   const activeRows = activeSamples.flatMap(rowsFor);
-  const formCustomer: Customer = { ...sourceData?.customerSnapshot, ...(erp ? filled(request?.customerSnapshot) : {}), ...customerEdits };
+  const formCustomer: Customer = { ...sourceData?.customerSnapshot, ...(erp ? filled(request?.customerSnapshot) : {}) };
   const showForm = manualMode || (Boolean(sourceData) && !source.isFetching && !source.isError);
   const formComplete = activeSamples.length > 0
     && activeSamples.every((sample) => sampleFields.every(([field, , required]) => !required || sample[field]?.trim())
@@ -188,7 +179,6 @@ export default function CoaCreateDialog({
       customerSnapshot: formCustomer,
       sampleSnapshots: activeSamples,
       resultSnapshots: activeRows,
-      remark: remark.trim() || undefined,
       externalCoaRequest: erp ? { saleOrderNo: erp.saleOrderNo, line: erp.line, itemNo: erp.itemNo } : undefined,
       _user: actor,
     }),
@@ -218,8 +208,6 @@ export default function CoaCreateDialog({
     setSelectedSeqs(requestErp ? [] : request?.selectedItemSeqs || []);
     setSampleEdits({});
     setResultsBySeq({});
-    setCustomerEdits({});
-    setRemark("");
     setErpMatchChecked(false);
     resetCreate();
     resetSubmitExisting();
@@ -380,23 +368,6 @@ export default function CoaCreateDialog({
                 {renderResultRows(sample)}
               </section>
             ))}
-            {showForm && (
-              <section className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-                <h3 className="text-base font-semibold">ข้อมูลผู้ขอ/ลูกค้า</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {customerFields.map(([field, label]) => (
-                    <div key={field} className="space-y-1">
-                      <Label htmlFor={`coa-customer-${field}`}>{label}</Label>
-                      <Input id={`coa-customer-${field}`} value={formCustomer[field] ?? ""} onChange={(event) => setCustomerEdits((current) => ({ ...current, [field]: event.target.value }))} />
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="coa-remark">หมายเหตุ</Label>
-                  <Textarea id="coa-remark" value={remark} onChange={(event) => setRemark(event.target.value)} />
-                </div>
-              </section>
-            )}
             {showForm && <p className="text-xs text-muted-foreground">ช่องที่มี * ต้องกรอก และต้องมีผลอย่างน้อย 1 รายการต่อตัวอย่าง</p>}
           </fieldset>
         )}

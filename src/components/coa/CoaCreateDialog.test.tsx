@@ -44,7 +44,7 @@ describe("CoaCreateDialog", () => {
     expect(screen.queryByRole("checkbox", { name: /กายภาพ/ })).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("48% ± 2.40")).toBeInTheDocument();
     expect(screen.getByLabelText("Batch No. *")).toHaveValue("B-1");
-    expect(screen.getByLabelText("บริษัท")).toHaveValue("ICP");
+    expect(screen.queryByLabelText("บริษัท")).not.toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue("เม็ดทรงกระบอก"), { target: { value: "เม็ดสีแดง" } });
     fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-2" } });
     fireEvent.click(screen.getAllByRole("button", { name: "ลบผลนี้" })[0]);
@@ -100,7 +100,7 @@ describe("CoaCreateDialog", () => {
     mocks.eligible.mockResolvedValueOnce({ items: [{ _id: "p1", petitionNo: "P-1", items: [{ seq: 1, sampleName: "Trade A", commonName: "glyphosate 48% sl", batchNo: "B-1", productionDate: "2026-09-01" }] }] });
     renderDialog(erpRequest);
     expect(await screen.findByText(/จับคู่กับคำร้อง P-1/)).toBeInTheDocument();
-    expect(await screen.findByLabelText("ชื่อตัวอย่าง *")).toHaveValue("Trade ERP");
+    expect(await screen.findByLabelText("ชื่อการค้า *")).toHaveValue("Trade ERP");
     expect(await screen.findByDisplayValue("เม็ดทรงกระบอก")).toBeInTheDocument();
     expect(screen.getByDisplayValue("เม็ดยาสีแดง")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
