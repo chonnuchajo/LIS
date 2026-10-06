@@ -371,7 +371,7 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
   });
 
-  it("shows ERP COA requests without opening the create dialog", async () => {
+  it("shows ERP COA requests with a create COA button", async () => {
     vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
       items: [{
         _id: "external-coa-request-SO26040020-10000",
@@ -399,11 +399,14 @@ describe("CoaCenterPage", () => {
     expect(within(requestedRow).getByText("คำขอจาก ERP")).toBeInTheDocument();
     expect(within(requestedRow).getByText("pending shipment")).toBeInTheDocument();
     expect(within(requestedRow).getByText("ERP")).toBeInTheDocument();
-    expect(within(requestedRow).queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
 
     fireEvent.click(requestedRow);
-
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
+
+    fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA SO26040020" }));
+    await waitFor(() => expect(api.getEligibleCoaPetitions).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(api.getCoaSourceData).not.toHaveBeenCalled();
   });
 
   it("opens the clicked COA request with its common name and parameter sources selected", async () => {

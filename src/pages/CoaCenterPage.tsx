@@ -649,7 +649,7 @@ export default function CoaCenterPage() {
       setActiveWorkflowStage("inProgress");
       return;
     }
-    setCreateRequest(doc);
+    setCreateRequest(isExternalCoaRequestDocument(doc) ? null : doc);
     setCreateOpen(true);
   }
 
@@ -1243,12 +1243,13 @@ export default function CoaCenterPage() {
                     )}
                     {showCreateActions && (
                       <td className="px-4 py-3">
-                        {externalRequest ? (
-                          <div className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
+                        {externalRequest && (
+                          <div className="mb-2 flex flex-col items-start gap-1 text-xs text-muted-foreground">
                             <Badge variant="blue-soft">ERP</Badge>
                             {externalRequest.shipmentDate && <span>กำหนดส่ง {formatProductionDate(externalRequest.shipmentDate)}</span>}
                           </div>
-                        ) : workflowStageFor(doc) === "requested" && (
+                        )}
+                        {workflowStageFor(doc) === "requested" && (
                           <Button
                             type="button"
                             size="sm"
