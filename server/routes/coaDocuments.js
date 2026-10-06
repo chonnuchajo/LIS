@@ -9,6 +9,7 @@ const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
+const { isAiContentTestItem } = require('../lib/aiToleranceCriteria');
 const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
@@ -113,7 +114,7 @@ function buildManualSnapshots(petition, selectedItemSeqs, body = {}) {
 
   const sampleSnapshots = selectedSeqs.map((itemSeq) => sampleBySeq.get(itemSeq));
   const trendSnapshots = sampleSnapshots.map((sample) => {
-    const ai = resultSnapshots.find((row) => row.itemSeq === sample.itemSeq && /%?ai\s*content/i.test(row.testItem));
+    const ai = resultSnapshots.find((row) => row.itemSeq === sample.itemSeq && isAiContentTestItem(row.testItem));
     return {
       itemSeq: sample.itemSeq,
       sampleName: sample.sampleName,
@@ -123,6 +124,13 @@ function buildManualSnapshots(petition, selectedItemSeqs, body = {}) {
     };
   });
   return { sampleSnapshots, resultSnapshots, trendSnapshots };
+}
+
+function manualCustomerSnapshot(body = {}) {
+  return Object.fromEntries(
+    ['name', 'company', 'department', 'email', 'phone']
+      .map((key) => [key, manualText(body.customerSnapshot?.[key])]),
+  );
 }
 
 function normalizeCoaMatchValue(value) {
@@ -692,7 +700,8 @@ router.get('/source-data/:petitionId', async (req, res) => {
   try {
     const selectedItemSeqs = String(req.query.itemSeqs || '').split(',').filter(Boolean).map(Number);
     const source = await loadCoaSource(req.params.petitionId, selectedItemSeqs);
-    res.json({ results: [...buildCoaFormOptions(source), ...buildCoaParameterOptions(source)] });
+    const { customerSnapshot, sampleSnapshots } = buildCoaSnapshots(source);
+    res.json({ results: [...buildCoaFormOptions(source), ...buildCoaParameterOptions(source)], customerSnapshot, sampleSnapshots });
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
   }
@@ -705,10 +714,7 @@ router.post('/manual', async (req, res) => {
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
     const selectedItemSeqs = selectedItems.map((item) => item.seq);
     const snapshots = buildManualSnapshots(petition, selectedItemSeqs, req.body);
-    const customerSnapshot = Object.fromEntries(
-      ['name', 'company', 'department', 'email', 'phone']
-        .map((key) => [key, manualText(req.body.customerSnapshot?.[key])]),
-    );
+    const customerSnapshot = manualCustomerSnapshot(req.body);
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
         entryMode: 'manual',
@@ -741,9 +747,15 @@ router.post('/', async (req, res) => {
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
     const selectedItemSeqs = selectedItems.map((item) => item.seq);
     const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs, req.body.formSelections);
+    const edited = Array.isArray(req.body.sampleSnapshots);
+    if (edited) {
+      Object.assign(snapshots, buildManualSnapshots(petition, selectedItemSeqs, req.body), {
+        customerSnapshot: manualCustomerSnapshot(req.body),
+      });
+    }
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
-        entryMode: 'source',
+        entryMode: edited ? 'manual' : 'source',
         petitionId: petition._id,
         petitionNoSnapshot: petition.petitionNo,
         selectedItemSeqs,

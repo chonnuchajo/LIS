@@ -59,6 +59,27 @@ describe("CoaCreateDialog", () => {
     expect(mocks.openChange).toHaveBeenCalledWith(false);
   });
 
+  it("shows editable COA form data and sends corrected snapshots", async () => {
+    mocks.source.mockResolvedValueOnce({
+      results: resultOptions,
+      customerSnapshot: { name: "Requester", company: "ICP" },
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade A", commonName: "Glyphosate 48% SL", batchNo: "B-1", productionDate: "2026-09-01" }],
+    });
+    renderDialog();
+    fireEvent.click(await screen.findByRole("checkbox", { name: /%AI \/ ชุดที่ 2/ }));
+    expect(screen.getByLabelText("Batch No. *")).toHaveValue("B-1");
+    expect(screen.getByLabelText("บริษัท")).toHaveValue("ICP");
+    fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-2" } });
+    fireEvent.change(screen.getByLabelText("ผลทดสอบ *"), { target: { value: "48.0" } });
+    fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
+    await waitFor(() => expect(mocks.create).toHaveBeenCalled());
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      customerSnapshot: { name: "Requester", company: "ICP" },
+      sampleSnapshots: [expect.objectContaining({ itemSeq: 1, batchNo: "B-2", productionDate: "2026-09-01" })],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI / ชุดที่ 2", result: "48.0", criteria: "", unit: "%", method: "" }],
+    }));
+  });
+
   it("allows a single generic parameter and retains the selection when saving fails", async () => {
     mocks.source.mockResolvedValueOnce({ results: [{ itemSeq: 1, key: "ph", kind: "result", label: "pH", result: "7.1" }] });
     mocks.create.mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));

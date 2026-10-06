@@ -6,9 +6,41 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
-import type { CoaDocument, CoaFormSelection, EligibleCoaPetition } from "@/types/coa.types";
+import type { CoaDocument, CoaFormSelection, CoaResultSnapshot, CoaSampleSnapshot, EligibleCoaPetition } from "@/types/coa.types";
+
+type Customer = NonNullable<CoaDocument["customerSnapshot"]>;
+type SampleField = Exclude<keyof CoaSampleSnapshot, "itemSeq">;
+type ResultField = Exclude<keyof CoaResultSnapshot, "itemSeq">;
+
+const sampleFields: Array<[SampleField, string, boolean]> = [
+  ["sampleName", "ชื่อตัวอย่าง", true],
+  ["commonName", "ชื่อสามัญ", true],
+  ["batchNo", "Batch No.", true],
+  ["lotNo", "Lot No.", false],
+  ["productionDate", "วันที่ผลิต", true],
+  ["sampleId", "รหัสตัวอย่าง", false],
+  ["condition", "สภาพตัวอย่าง", false],
+  ["manufacturer", "ผู้ผลิต", false],
+];
+const resultFields: Array<[ResultField, string, boolean]> = [
+  ["testItem", "รายการทดสอบ", true],
+  ["result", "ผลทดสอบ", true],
+  ["criteria", "เกณฑ์", false],
+  ["unit", "หน่วย", false],
+  ["method", "วิธีทดสอบ", false],
+];
+const customerFields: Array<[keyof Customer, string]> = [
+  ["name", "ชื่อผู้ขอ"], ["company", "บริษัท"], ["department", "แผนก"], ["email", "อีเมล"], ["phone", "โทรศัพท์"],
+];
+
+function dateInputValue(value?: string | null) {
+  return value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? value ?? "";
+}
 
 function formatProductionDate(value?: string | null) {
   if (!value) return "";
@@ -34,6 +66,10 @@ export default function CoaCreateDialog({
   const [petitionId, setPetitionId] = useState("");
   const [selectedSeqs, setSelectedSeqs] = useState<number[]>([]);
   const [selections, setSelections] = useState<Record<number, CoaFormSelection>>({});
+  const [sampleEdits, setSampleEdits] = useState<Record<number, Partial<CoaSampleSnapshot>>>({});
+  const [resultEdits, setResultEdits] = useState<Record<string, Partial<CoaResultSnapshot>>>({});
+  const [customerEdits, setCustomerEdits] = useState<Customer>({});
+  const [remark, setRemark] = useState("");
   const { data, isFetching, error: loadError, refetch } = useQuery({ queryKey: ["coa", "eligible-petitions"], queryFn: api.getEligibleCoaPetitions, enabled: open });
   const petitions = useMemo(() => data?.items ?? [], [data]);
   const selectedPetition = useMemo(
@@ -56,7 +92,33 @@ export default function CoaCreateDialog({
     enabled: open && Boolean(selectedPetition) && selectedSeqs.length > 0 && !reusableActiveCoa,
   });
   const sourceResults = source.data?.results.filter((result) => result.kind === "result") ?? [];
-  const canCreate = !isFetching && !source.isFetching && !source.isError && !loadError
+  const formSamples: CoaSampleSnapshot[] = selectedItems.map((item) => ({
+    itemSeq: item.seq,
+    sampleName: item.sampleName,
+    commonName: item.commonName,
+    batchNo: item.batchNo,
+    lotNo: item.lotNo,
+    productionDate: item.productionDate,
+    ...source.data?.sampleSnapshots?.find((sample) => sample.itemSeq === item.seq),
+    ...sampleEdits[item.seq],
+  }));
+  const formResults = selectedItems.flatMap((item) => (selections[item.seq]?.resultKeys ?? []).flatMap((key) => {
+    const option = sourceResults.find((result) => result.itemSeq === item.seq && result.key === key);
+    return option ? [{
+      key,
+      row: {
+        itemSeq: item.seq, testItem: option.testItem || option.label, result: option.result,
+        criteria: option.criteria || "", unit: option.unit || "", method: "", ...resultEdits[key],
+      } as CoaResultSnapshot,
+    }] : [];
+  }));
+  const formCustomer: Customer = { ...source.data?.customerSnapshot, ...customerEdits };
+  const edited = Object.keys(sampleEdits).length + Object.keys(resultEdits).length + Object.keys(customerEdits).length > 0;
+  const editedFormComplete = !edited || (
+    formSamples.every((sample) => sampleFields.every(([field, , required]) => !required || sample[field]?.toString().trim()))
+    && formResults.every(({ row }) => Boolean(row.testItem?.trim() && row.result?.trim()))
+  );
+  const canCreate = editedFormComplete && !isFetching && !source.isFetching && !source.isError && !loadError
     && selectedItems.length > 0 && selectedItems.length === selectedSeqs.length
     && selectedItems.every((item) => {
       const selection = selections[item.seq];
@@ -86,7 +148,14 @@ export default function CoaCreateDialog({
   const create = useMutation({
     mutationFn: () => api.createCoaDocument({
       petitionId, selectedItemSeqs: selectedSeqs,
-      formSelections: selectedSeqs.map((seq) => selections[seq]), _user: actor,
+      formSelections: selectedSeqs.map((seq) => selections[seq]),
+      ...(edited ? {
+        customerSnapshot: formCustomer,
+        sampleSnapshots: formSamples,
+        resultSnapshots: formResults.map(({ row }) => row),
+      } : {}),
+      remark: remark.trim() || undefined,
+      _user: actor,
     }),
     onSuccess: (doc) => {
       onOpenChange(false);
@@ -112,6 +181,10 @@ export default function CoaCreateDialog({
     setPetitionId(request?.petitionId || "");
     setSelectedSeqs(request?.selectedItemSeqs || []);
     setSelections({});
+    setSampleEdits({});
+    setResultEdits({});
+    setCustomerEdits({});
+    setRemark("");
     resetCreate();
     resetSubmitExisting();
   }, [open, request, resetCreate, resetSubmitExisting]);
@@ -142,7 +215,7 @@ export default function CoaCreateDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>สร้าง COA</DialogTitle>
-          <DialogDescription>เลือกผลพารามิเตอร์ที่ต้องการใส่ใน COA ระบบดึงค่าที่บันทึกไว้ให้อัตโนมัติ แล้วส่งไปแท็บดำเนินการแล้ว</DialogDescription>
+          <DialogDescription>เลือกผลพารามิเตอร์ที่ต้องการใส่ใน COA ระบบดึงค่าที่บันทึกไว้ให้อัตโนมัติ ตรวจและแก้ข้อมูลที่ไม่ตรงได้ก่อนสร้างร่าง</DialogDescription>
         </DialogHeader>
         {isFetching && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดคำร้อง...</p>}
         {loadError && <div role="alert" className="text-sm text-destructive">โหลดคำร้องไม่สำเร็จ <Button variant="outline" onClick={() => refetch()}>ลองใหม่</Button></div>}
@@ -169,6 +242,8 @@ export default function CoaCreateDialog({
                   setPetitionId(petition._id);
                   setSelectedSeqs([]);
                   setSelections({});
+                  setSampleEdits({});
+                  setResultEdits({});
                 }}
               >
                 <div className="font-medium">{petition.petitionNo}</div>
@@ -204,9 +279,24 @@ export default function CoaCreateDialog({
               const options = sourceResults.filter((result) => result.itemSeq === item.seq);
               const selection = selections[item.seq];
               const selectedResultKeys = new Set(selection?.resultKeys ?? []);
+              const sample = formSamples.find((entry) => entry.itemSeq === item.seq);
+              const itemResults = formResults.filter(({ row }) => row.itemSeq === item.seq);
               return (
                 <section key={item.seq} className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
                   <h3 className="text-base font-semibold">{item.commonName || "ยังไม่ระบุชื่อสามัญ"} · {item.batchNo || item.lotNo || "-"}</h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {sampleFields.map(([field, label, required]) => (
+                      <div key={field} className="space-y-1">
+                        <Label htmlFor={`coa-sample-${item.seq}-${field}`}>{label}{required ? " *" : ""}</Label>
+                        <Input
+                          id={`coa-sample-${item.seq}-${field}`}
+                          type={field === "productionDate" ? "date" : "text"}
+                          value={field === "productionDate" ? dateInputValue(sample?.[field]) : sample?.[field] ?? ""}
+                          onChange={(event) => setSampleEdits((current) => ({ ...current, [item.seq]: { ...current[item.seq], [field]: event.target.value } }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
                   {options.length === 0 ? (
                     <p role="alert" className="text-sm text-destructive">ไม่พบค่าพารามิเตอร์ที่ใช้ใน COA ของตัวอย่างนี้</p>
                   ) : (
@@ -225,9 +315,46 @@ export default function CoaCreateDialog({
                       <p className="text-xs text-muted-foreground">เลือกอย่างน้อยหนึ่งค่าต่อตัวอย่าง ระบบจะดึงผลที่เลือกไปใส่ใน COA อัตโนมัติ</p>
                     </fieldset>
                   )}
+                  {itemResults.length > 0 && (
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-semibold text-foreground">ผลที่จะแสดงใน COA</legend>
+                      {itemResults.map(({ key, row }, index) => (
+                        <div key={key} className="grid gap-2 rounded-md border bg-muted/50 p-3 sm:grid-cols-2">
+                          {resultFields.map(([field, label, required]) => (
+                            <div key={field} className="space-y-1">
+                              <Label htmlFor={`coa-result-${item.seq}-${index}-${field}`}>{label}{required ? " *" : ""}</Label>
+                              <Input
+                                id={`coa-result-${item.seq}-${index}-${field}`}
+                                value={row[field] ?? ""}
+                                onChange={(event) => setResultEdits((current) => ({ ...current, [key]: { ...current[key], [field]: event.target.value } }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </fieldset>
+                  )}
                 </section>
               );
             })}
+            {!source.isFetching && !source.isError && (
+              <section className="space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+                <h3 className="text-base font-semibold">ข้อมูลผู้ขอ/ลูกค้า</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {customerFields.map(([field, label]) => (
+                    <div key={field} className="space-y-1">
+                      <Label htmlFor={`coa-customer-${field}`}>{label}</Label>
+                      <Input id={`coa-customer-${field}`} value={formCustomer[field] ?? ""} onChange={(event) => setCustomerEdits((current) => ({ ...current, [field]: event.target.value }))} />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="coa-remark">หมายเหตุ</Label>
+                  <Textarea id="coa-remark" value={remark} onChange={(event) => setRemark(event.target.value)} />
+                </div>
+              </section>
+            )}
+            {!editedFormComplete && <p role="alert" className="text-sm text-destructive">แก้ไขข้อมูลแล้ว กรุณากรอกช่องที่มี * ให้ครบ</p>}
           </fieldset>
         )}
         {(create.error || submitExisting.error) && <p role="alert" className="text-sm text-destructive">{(create.error || submitExisting.error)?.message}</p>}
