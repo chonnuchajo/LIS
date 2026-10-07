@@ -112,8 +112,14 @@ describe("standardMatchesStatuses", () => {
 });
 
 describe("getStandardAlertSummary", () => {
-  it("ไม่สร้าง alert ถ้าแค่เหลือ 1 ขวด แต่ไม่มีขวดหมดอายุหรือใกล้หมดอายุ", () => {
-    expect(getStandardAlertSummary({ usable: 1, expired: 0, expiringSoon: 0 })).toBeNull();
+  it("สร้าง alert ใกล้หมดเมื่อเหลือ 1 ขวด แม้ไม่มีปัญหาอายุ", () => {
+    expect(getStandardAlertSummary({ usable: 1, expired: 0, expiringSoon: 0 })).toEqual({
+      lowStock: true,
+      expired: false,
+      expiringSoon: false,
+      severity: "destructive",
+      message: "ใกล้หมด เหลือรวม 1 ขวด",
+    });
   });
 
   it("สร้าง alert ถ้าเหลือ 0 ขวด แม้ไม่มีขวดหมดอายุหรือใกล้หมดอายุ", () => {
