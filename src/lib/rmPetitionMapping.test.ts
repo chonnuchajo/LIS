@@ -81,7 +81,7 @@ describe('buildRmPetitionItems', () => {
       .toThrow('ยังไม่ได้เลือกรายการสินค้าอ้างอิงของแบช B-004');
   });
 
-  it('ติ๊กส่งตรวจ 2 แบชด้วยแบชนัมเบอร์เดียวกัน → โยน error ระบุแบชนัมเบอร์ที่ซ้ำ', () => {
+  it('ติ๊กส่งตรวจ 2 แบชด้วยแบชนัมเบอร์เดียวกัน → อนุญาตให้สร้างรายการซ้ำ', () => {
     const dupReceipt: GoodsReceiptReceipt = {
       productName: 'Glyphosate 48% SL',
       productBatches: [
@@ -94,7 +94,7 @@ describe('buildRmPetitionItems', () => {
       { batchNo: 'B-001', commonName: 'Glyphosate' },
       { batchNo: 'B-002', commonName: 'Glyphosate' },
     ];
-    expect(() => buildRmPetitionItems(dupReceipt, dupSelections)).toThrow('B-001');
+    expect(buildRmPetitionItems(dupReceipt, dupSelections).map((item) => item.batchNo)).toEqual(['B-001', 'B-001', 'B-002']);
   });
 
   it('แบชที่ไม่ได้ติ๊กมีแบชนัมเบอร์ซ้ำกับแบชที่ติ๊ก → ไม่โยน error (นับเฉพาะแบชที่ติ๊ก)', () => {

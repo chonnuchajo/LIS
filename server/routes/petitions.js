@@ -544,6 +544,18 @@ router.get('/rejected-by-batch', async (req, res) => {
   }
 });
 
+// GET /api/petitions/batch-exists?batchNo=X
+router.get('/batch-exists', async (req, res) => {
+  try {
+    const batchNo = String(req.query.batchNo || '').trim();
+    if (!batchNo) return res.json({ exists: false });
+    const exists = await Petition.exists({ 'items.batchNo': batchNo, status: { $ne: 'deleted' } });
+    res.json({ exists: Boolean(exists) });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/scan/:code
 router.get('/scan/:code', async (req, res) => {
   try {

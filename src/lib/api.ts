@@ -920,6 +920,7 @@ export const api = {
     const qs = new URLSearchParams({ batchNo, employeeId }).toString();
     return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
   },
+  batchExists: (batchNo: string) => request<{ exists: boolean }>(`/petitions/batch-exists?${new URLSearchParams({ batchNo }).toString()}`),
 
   // Methods (admin-managed method registry)
   getMethods: () => request<MethodDoc[]>("/methods"),
