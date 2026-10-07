@@ -99,7 +99,7 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
           </tr>
           <tr>
             <td colSpan={2}>Date of analysis</td>
-            <td />
+            <td>{sample?.dateOfAnalysis === "-" ? "" : sample?.dateOfAnalysis}</td>
           </tr>
           </>}
         </tbody>

@@ -56,6 +56,17 @@ export default function RmPetitionNewPage() {
       return;
     }
 
+    const repeatedBatches = [...new Set(items.map((item) => item.batchNo.trim()))];
+    for (const batchNo of repeatedBatches) {
+      try {
+        const { data } = await api.batchExists(batchNo);
+        if (data.exists && !window.confirm(`Batch ${batchNo} เคยส่งไปแล้ว ต้องการส่งอีกใช่ไหม?`)) return;
+      } catch {
+        toast.error('ตรวจสอบประวัติ batch ไม่สำเร็จ กรุณาลองใหม่');
+        return;
+      }
+    }
+
     setSaving(true);
     let petitionId: string | undefined;
     try {

@@ -81,6 +81,7 @@ export type ExternalCoaRequestSnapshot = {
   line?: number;
   saleOrderDate?: string;
   itemNo?: string;
+  appearance?: string;
   packingSize?: string;
   quantity?: number;
   outstandingQty?: number;
@@ -100,7 +101,12 @@ export type CoaDocument = {
   sequence?: number;
   revision: number;
   status: CoaStatus;
+<<<<<<< HEAD
   petitionId?: string;
+=======
+  entryMode?: "source" | "manual";
+  petitionId: string;
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
   petitionNoSnapshot?: string;
   selectedItemSeqs: number[];
   sourceCoaId?: string;

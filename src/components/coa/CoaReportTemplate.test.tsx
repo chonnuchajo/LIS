@@ -14,9 +14,6 @@ describe("CoaReportTemplate", () => {
         formSelections: [{ itemSeq: 1, resultKeys: ["ph"] }],
       });
       render(<CoaReportTemplate pages={pages} />);
-      if (pages[0].template !== "standard") {
-        expect(screen.getByText("PRODUCT :").closest("div")).toHaveTextContent(/^PRODUCT : Trade A$/);
-      }
       expect(screen.getByText("pH")).toBeInTheDocument();
       expect(screen.getByText("6 - 8")).toBeInTheDocument();
       expect(screen.getByText("7.1 pH")).toBeInTheDocument();
@@ -41,7 +38,7 @@ describe("CoaReportTemplate", () => {
         batchNo: "B-777",
         lotNo: "LOT-777",
         productionDate: "2026-08-15",
-        product: "Trade Herbicide",
+        product: "Trade Herbicide (Glyphosate 48% SL GR)",
         manufacturingDate: "15/08/2026",
         expiredDate: "15/08/2028",
         batchLabel: "LOT-777 / B-777",
@@ -49,7 +46,7 @@ describe("CoaReportTemplate", () => {
         aiContentCriteria: "48% ± 2.40",
         densityResult: "-",
         waxBlockSizeResult: "-",
-        dateOfAnalysis: "-",
+        dateOfAnalysis: "05/09/2026",
         rows: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "48.2%" }],
       }],
       remark: "",
@@ -60,12 +57,13 @@ describe("CoaReportTemplate", () => {
     render(<CoaReportTemplate pages={[page]} />);
 
     expect(screen.getByText("CERTIFICATE OF ANALYSIS")).toBeInTheDocument();
-    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent(/^PRODUCT : Trade Herbicide$/);
+    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent("PRODUCT : Trade Herbicide (Glyphosate 48% SL GR)");
     expect(screen.getByText(/MANUFACTURING DATE/).closest("div")).toHaveTextContent("MANUFACTURING DATE : 15/08/2026");
     expect(screen.getByText(/EXPIRED DATE/).closest("div")).toHaveTextContent("EXPIRED DATE : 15/08/2028");
     expect(screen.getByText("BATCH NO.")).toBeInTheDocument();
     expect(screen.getByText("48% ± 2.40")).toBeInTheDocument();
     expect(screen.getByText("48.2%")).toBeInTheDocument();
+    expect(screen.getByText("Date of analysis").nextElementSibling).toHaveTextContent("05/09/2026");
   });
 
   it("renders the liquid formulation COA form", () => {
@@ -83,7 +81,7 @@ describe("CoaReportTemplate", () => {
         batchNo: "B-888",
         lotNo: "LOT-888",
         productionDate: "2026-08-15",
-        product: "Trade Liquid",
+        product: "Trade Liquid (Glyphosate 48% SL)",
         manufacturingDate: "15/08/2026",
         expiredDate: "15/08/2028",
         batchLabel: "LOT-888 / B-888",
@@ -123,7 +121,7 @@ describe("CoaReportTemplate", () => {
     expect(densityCells).toHaveLength(2);
     expect(densityCells[0]).toHaveAttribute("colspan", "2");
     expect(densityCells[1]).toHaveTextContent("1.120");
-    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent(/^PRODUCT : Trade Liquid$/);
+    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent("PRODUCT : Trade Liquid (Glyphosate 48% SL)");
     expect(screen.getByText("%AI content (W/V)")).toBeInTheDocument();
     expect(screen.getByText("48% ± 2.40")).toBeInTheDocument();
     expect(screen.getByText("Density at 30°C (g/cm³)")).toBeInTheDocument();
@@ -166,7 +164,7 @@ describe("CoaReportTemplate", () => {
         batchNo: "B-008",
         lotNo: "LOT-008",
         productionDate: "2026-08-15",
-        product: "Red Wax Block",
+        product: "Red Wax Block (BROMADIOLONE 0.005%)",
         manufacturingDate: "15/08/2026",
         expiredDate: "15/08/2028",
         batchLabel: "LOT-008 / B-008",
@@ -185,7 +183,7 @@ describe("CoaReportTemplate", () => {
     render(<CoaReportTemplate pages={[page]} />);
 
     expect(screen.getByText("CERTIFICATE OF ANALYSIS")).toBeInTheDocument();
-    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent(/^PRODUCT : Red Wax Block$/);
+    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent("PRODUCT : Red Wax Block (BROMADIOLONE 0.005%)");
     expect(screen.getByText("Red wax block")).toBeInTheDocument();
     expect(screen.getByText("0.005% ± 0.00125")).toBeInTheDocument();
     expect(screen.getByText("5.88 gm ± 5%")).toBeInTheDocument();

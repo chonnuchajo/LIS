@@ -3,6 +3,7 @@ import { buildCoaReportPages } from "./coaReport";
 import type { CoaDocument } from "@/types/coa.types";
 
 describe("buildCoaReportPages", () => {
+<<<<<<< HEAD
   it("prints manually entered ERP results in product-specific templates", () => {
     const doc = {
       sourceType: "erpManual",
@@ -31,6 +32,8 @@ describe("buildCoaReportPages", () => {
     expect(page.template).toBe("liquid");
   });
 
+=======
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
   it.each(["%AI", "% AI", "AI content", "active ingredient"])("reads the configured %s result", (testItem) => {
     const doc = {
       sampleSnapshots: [{ itemSeq: 1, commonName: "Glyphosate 48% SL" }],
@@ -61,7 +64,7 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].samples[0].rows[0].testItem).toBe("pH");
   });
 
-  it("uses the GR/WP/SP COA form data for common names with those suffixes", () => {
+  it("uses the special COA form data for common names ending with GR", () => {
     const doc = {
       _id: "c-gr",
       coaNo: "00052026",
@@ -86,13 +89,24 @@ describe("buildCoaReportPages", () => {
     const pages = buildCoaReportPages(doc);
 
     expect(pages[0].template).toBe("grWpSp");
-    expect(pages[0].samples[0].product).toBe("Trade Herbicide");
+    expect(pages[0].samples[0].product).toBe("Trade Herbicide (Glyphosate 48% SL GR)");
     expect(pages[0].samples[0].manufacturingDate).toBe("15/08/2026");
     expect(pages[0].samples[0].expiredDate).toBe("15/08/2028");
     expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
     expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
     expect(pages[0].samples[0].rows[0].criteria).toBe("48% ± 2.40");
   });
+
+  it.each(["GR", "DS", "WP", "WG", "GB", "ST", "SP"])(
+    "uses the special COA form for common names ending with %s",
+    (suffix) => {
+      const doc = {
+        sampleSnapshots: [{ itemSeq: 1, commonName: `Product ${suffix}` }],
+      } as CoaDocument;
+
+      expect(buildCoaReportPages(doc)[0].template).toBe("grWpSp");
+    },
+  );
 
   it("uses the number before % in the common name for AI tolerance criteria", () => {
     const doc = {
@@ -168,7 +182,7 @@ describe("buildCoaReportPages", () => {
 
       expect(pages[0].template).toBe("liquid");
       expect(pages[0].issueDate).toBe("August 20, 2026");
-      expect(pages[0].samples[0].product).toBe("Trade Liquid");
+      expect(pages[0].samples[0].product).toBe(`Trade Liquid (${commonName.trim()})`);
       expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
       expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
       expect(pages[0].samples[0].densityResult).toBe("1.120");
@@ -262,7 +276,7 @@ describe("buildCoaReportPages", () => {
     const pages = buildCoaReportPages(doc);
 
     expect(pages[0].template).toBe("bromadiolone0005");
-    expect(pages[0].samples[0].product).toBe("Red Wax Block");
+    expect(pages[0].samples[0].product).toBe("Red Wax Block (BROMADIOLONE 0.005%)");
     expect(pages[0].samples[0].batchLabel).toBe("LOT-008 / B-008");
     expect(pages[0].samples[0].aiContentResult).toBe("0.0051%");
     expect(pages[0].samples[0].aiContentCriteria).toBe("0.005% ± 0.00125");

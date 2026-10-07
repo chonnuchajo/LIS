@@ -62,7 +62,7 @@ function addYears(value: string | undefined, years: number): string {
 }
 
 function isGrWpSpCommonName(commonName?: string): boolean {
-  return /\b(GR|WP|SP)$/i.test(commonName?.trim() ?? "");
+  return /\b(GR|DS|WP|WG|GB|ST|SP)$/i.test(commonName?.trim() ?? "");
 }
 
 function isLiquidCommonName(commonName?: string): boolean {
@@ -78,7 +78,10 @@ function isBromadiolone0005CommonName(commonName?: string): boolean {
 }
 
 function productLabel(sample: CoaSampleSnapshot): string {
-  return sample.sampleName?.trim() || "-";
+  const tradeName = sample.sampleName?.trim();
+  const commonName = sample.commonName?.trim();
+  if (tradeName && commonName) return `${tradeName} (${commonName})`;
+  return tradeName || commonName || "-";
 }
 
 function batchLabel(sample: CoaSampleSnapshot): string {

@@ -9,9 +9,14 @@ const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
+<<<<<<< HEAD
 const { manualCoaSnapshots, validateManualCoa } = require('../lib/coaManual');
+=======
+const { isAiContentTestItem } = require('../lib/aiToleranceCriteria');
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
 const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
+const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
 const {
   actorFromBody,
   applyCoaLifecycleAction,
@@ -44,6 +49,114 @@ function errorWithStatus(message, status) {
 function errorStatus(error) {
   if (error.status) return error.status;
   return error.message.startsWith('QC Head required') ? 403 : 400;
+}
+
+function manualText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function manualPercent(value) {
+  const match = manualText(value).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildManualSnapshots(petition, selectedItemSeqs, body = {}) {
+  const selectedItems = selectedItemsFromPetition(petition, selectedItemSeqs);
+  const selectedSeqs = selectedItems.map((item) => Number(item.seq));
+  const selectedSet = new Set(selectedSeqs);
+  const samples = Array.isArray(body.sampleSnapshots) ? body.sampleSnapshots : [];
+  if (samples.length !== selectedSeqs.length) throw errorWithStatus('กรุณากรอกข้อมูลตัวอย่างให้ครบทุกตัวอย่าง', 400);
+
+  const sampleBySeq = new Map();
+  for (const sample of samples) {
+    const itemSeq = Number(sample?.itemSeq);
+    if (!selectedSet.has(itemSeq) || sampleBySeq.has(itemSeq)) {
+      throw errorWithStatus('ข้อมูลตัวอย่างไม่ตรงกับรายการที่เลือก', 400);
+    }
+    const normalized = {
+      itemSeq,
+      sampleName: manualText(sample.sampleName),
+      commonName: manualText(sample.commonName),
+      batchNo: manualText(sample.batchNo),
+      lotNo: manualText(sample.lotNo),
+      productionDate: manualText(sample.productionDate),
+      sampleId: manualText(sample.sampleId),
+      condition: manualText(sample.condition),
+      manufacturer: manualText(sample.manufacturer),
+    };
+    if (!normalized.sampleName || !normalized.commonName || !normalized.batchNo || !normalized.productionDate) {
+      throw errorWithStatus('กรุณากรอกชื่อตัวอย่าง ชื่อสามัญ Batch No. และวันที่ผลิตให้ครบ', 400);
+    }
+    sampleBySeq.set(itemSeq, normalized);
+  }
+  if (sampleBySeq.size !== selectedSeqs.length) throw errorWithStatus('กรุณากรอกข้อมูลตัวอย่างให้ครบทุกตัวอย่าง', 400);
+
+  const results = Array.isArray(body.resultSnapshots) ? body.resultSnapshots : [];
+  if (!results.length) throw errorWithStatus('กรุณากรอกผลทดสอบอย่างน้อยหนึ่งรายการ', 400);
+  const resultSnapshots = results.map((row) => {
+    const itemSeq = Number(row?.itemSeq);
+    const normalized = {
+      itemSeq,
+      testItem: manualText(row?.testItem),
+      result: manualText(row?.result),
+      criteria: manualText(row?.criteria),
+      method: manualText(row?.method),
+      unit: manualText(row?.unit),
+    };
+    if (!selectedSet.has(itemSeq) || !normalized.testItem || !normalized.result) {
+      throw errorWithStatus('รายการผลทดสอบไม่ถูกต้องหรือกรอกไม่ครบ', 400);
+    }
+    return normalized;
+  });
+  for (const itemSeq of selectedSeqs) {
+    if (!resultSnapshots.some((row) => row.itemSeq === itemSeq)) {
+      throw errorWithStatus('กรุณากรอกผลทดสอบให้ครบทุกตัวอย่าง', 400);
+    }
+  }
+
+  const sampleSnapshots = selectedSeqs.map((itemSeq) => sampleBySeq.get(itemSeq));
+  const trendSnapshots = sampleSnapshots.map((sample) => {
+    const ai = resultSnapshots.find((row) => row.itemSeq === sample.itemSeq && isAiContentTestItem(row.testItem));
+    return {
+      itemSeq: sample.itemSeq,
+      sampleName: sample.sampleName,
+      commonName: sample.commonName,
+      aiResultText: ai?.result || '',
+      aiResultPercent: manualPercent(ai?.result),
+    };
+  });
+  return { sampleSnapshots, resultSnapshots, trendSnapshots };
+}
+
+function externalCoaLink(body = {}) {
+  const saleOrderNo = manualText(body.externalCoaRequest?.saleOrderNo);
+  if (!saleOrderNo) return undefined;
+  return {
+    saleOrderNo,
+    line: Number(body.externalCoaRequest.line) || undefined,
+    itemNo: manualText(body.externalCoaRequest.itemNo),
+  };
+}
+
+function externalCoaKey(link) {
+  return `${link?.saleOrderNo || ''}:${link?.line ?? ''}`;
+}
+
+async function assertExternalCoaRequest(link) {
+  if (!link) return;
+  const rows = await fetchExternalCoaDocuments();
+  if (!rows.some((row) => externalCoaKey(row.externalCoaRequest) === externalCoaKey(link))) {
+    throw errorWithStatus('ไม่พบคำขอ COA จาก ERP', 404);
+  }
+}
+
+function manualCustomerSnapshot(body = {}) {
+  return Object.fromEntries(
+    ['name', 'company', 'department', 'email', 'phone']
+      .map((key) => [key, manualText(body.customerSnapshot?.[key])]),
+  );
 }
 
 function normalizeCoaMatchValue(value) {
@@ -129,6 +242,13 @@ function externalCoaRemark(row) {
   return firstExternalValue(row, ['remark', 'Remark']);
 }
 
+// ponytail: ERP has no appearance field, so read it from the free-text remark; switch to a real field when ERP adds one.
+function externalAppearance(remark) {
+  return remark.split('/').map((part) => part.trim())
+    .filter((part) => /สี|เม็ด|ผง|ของเหลว|เกล็ด|ก้อน/.test(part))
+    .join(' ');
+}
+
 function isExternalCoaRequest(row) {
   return /\bcoa\b/i.test(externalCoaRemark(row));
 }
@@ -186,6 +306,7 @@ function externalCoaRowToDocument(row) {
       line: itemSeq,
       saleOrderDate: firstExternalValue(row, ['SaleOrderDate']),
       itemNo,
+      appearance: externalAppearance(externalCoaRemark(row)),
       packingSize: firstExternalValue(row, ['PackingSize']),
       quantity: externalNumber(row, ['Quantity']),
       outstandingQty: externalNumber(row, ['OutstandingQty']),
@@ -250,14 +371,51 @@ async function permissionsForRoles(roles) {
   return permissions;
 }
 
+const SYNTHETIC_DEV_EMAIL_SUFFIX = '.dev@icpladda.com';
+const SYNTHETIC_DEV_ROLE_IDS = [
+  'lab-data-config', 'lab-inventory', 'lab-analyze', 'lab-analyst',
+  'qc-data-config', 'qc-reviewer', 'lab-config', 'lab-head',
+  'qc-staff', 'qc-head', 'viewer', 'admin', 'lab', 'qc',
+].sort((a, b) => b.length - a.length);
+
+function syntheticDevRolesFromEmail(email) {
+  if (process.env.ALLOW_DEV_STATUS !== 'true') return [];
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized.endsWith(SYNTHETIC_DEV_EMAIL_SUFFIX)) return [];
+  const roleSlug = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length).split('-dept-')[0];
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(roleSlug)) return [];
+
+  const roleIds = [];
+  let remaining = roleSlug;
+  while (remaining) {
+    const roleId = SYNTHETIC_DEV_ROLE_IDS.find((candidate) => (
+      remaining === candidate || remaining.startsWith(`${candidate}-`)
+    ));
+    if (!roleId) return [];
+    roleIds.push(roleId);
+    remaining = remaining.length === roleId.length ? '' : remaining.slice(roleId.length + 1);
+  }
+  return mergeBaseRolesForFamilies(roleIds);
+}
+
 async function actorFromRequest(body = {}) {
   const requested = body._user || body.actor || {};
   const requestedActor = actorFromBody(body);
   const email = String(requestedActor.email || requested.email || '').trim().toLowerCase();
   if (!email) throw errorWithStatus('COA actor email is required', 400);
 
-  const user = await User.findOne({ email }).lean();
-  if (!user) throw errorWithStatus('COA actor must match an active user', 401);
+  let user = await User.findOne({ email }).lean();
+  if (!user) {
+    const syntheticRoles = syntheticDevRolesFromEmail(email);
+    if (syntheticRoles.length === 0) throw errorWithStatus('COA actor must match an active user', 401);
+    user = {
+      email,
+      name: requestedActor.name || requested.name || email,
+      roles: syntheticRoles,
+      role: primaryRole(syntheticRoles),
+      status: 'active',
+    };
+  }
   if (user.status && user.status !== 'active') throw errorWithStatus('Inactive users cannot issue COA documents', 403);
 
   const roles = normalizeRoles(user);
@@ -487,11 +645,18 @@ router.get('/', async (req, res) => {
         : Promise.resolve([]),
       externalPromise,
     ]);
+    const linkedExternalKeys = new Set(externalRows.length
+      ? (await CoaDocument.find({
+          'externalCoaRequest.saleOrderNo': { $in: externalRows.map((row) => row.externalCoaRequest.saleOrderNo) },
+          status: { $nin: ['cancelled', 'superseded', 'rejected'] },
+        }).sort({ updatedAt: -1 }).lean()).map((doc) => externalCoaKey(doc.externalCoaRequest))
+      : []);
     res.json({
       items: sortCoaRows([
         ...documents,
         ...requestedRows,
-        ...filterExternalCoaDocuments(externalRows, req.query),
+        ...filterExternalCoaDocuments(externalRows, req.query)
+          .filter((row) => !linkedExternalKeys.has(externalCoaKey(row.externalCoaRequest))),
       ]).slice(0, 200),
     });
   } catch (error) {
@@ -603,7 +768,46 @@ router.get('/source-data/:petitionId', async (req, res) => {
   try {
     const selectedItemSeqs = String(req.query.itemSeqs || '').split(',').filter(Boolean).map(Number);
     const source = await loadCoaSource(req.params.petitionId, selectedItemSeqs);
-    res.json({ results: [...buildCoaFormOptions(source), ...buildCoaParameterOptions(source)] });
+    const { customerSnapshot, sampleSnapshots } = buildCoaSnapshots(source);
+    res.json({ results: [...buildCoaFormOptions(source), ...buildCoaParameterOptions(source)], customerSnapshot, sampleSnapshots });
+  } catch (error) {
+    res.status(errorStatus(error)).json({ error: error.message });
+  }
+});
+
+router.post('/manual', async (req, res) => {
+  try {
+    const actor = await actorFromRequest(req.body);
+    const externalLink = externalCoaLink(req.body);
+    await assertExternalCoaRequest(externalLink);
+    const petition = req.body.petitionId || !externalLink
+      ? await assertLabApprovedPetition(req.body.petitionId)
+      : { petitionNo: externalLink.saleOrderNo, items: [{ seq: externalLink.line || 1 }] };
+    const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
+    const selectedItemSeqs = selectedItems.map((item) => item.seq);
+    const snapshots = buildManualSnapshots(petition, selectedItemSeqs, req.body);
+    const customerSnapshot = manualCustomerSnapshot(req.body);
+    const doc = await withCoaTransaction(async (session) => {
+      const created = await createCoaDocument({
+        entryMode: 'manual',
+        petitionId: petition._id,
+        petitionNoSnapshot: petition.petitionNo,
+        externalCoaRequest: externalLink,
+        selectedItemSeqs,
+        customerSnapshot,
+        ...snapshots,
+        remark: manualText(req.body.remark),
+        status: 'draft',
+        createdBy: actor,
+        updatedBy: actor,
+      }, session);
+      await writeCoaAuditEvent(created, 'created', actor, 'สร้างร่าง COA จากแบบกรอกข้อมูล', {
+        selectedItemSeqs: created.selectedItemSeqs,
+        entryMode: 'manual',
+      }, CoaAuditLog, session);
+      return created;
+    });
+    res.status(201).json(doc);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
   }
@@ -618,6 +822,7 @@ router.post('/', async (req, res) => {
     const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs, req.body.formSelections);
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
+        entryMode: 'source',
         petitionId: petition._id,
         petitionNoSnapshot: petition.petitionNo,
         selectedItemSeqs,
@@ -683,7 +888,12 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
+<<<<<<< HEAD
     const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
+=======
+    const snapshots = doc.entryMode === 'manual'
+      ? {}
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
       : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
@@ -708,10 +918,18 @@ router.post('/:id/approve', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
+<<<<<<< HEAD
     if (doc.sourceType !== 'erpManual') await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
     const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
       : missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections) : {};
+=======
+    if (doc.petitionId) await assertLabApprovedPetition(doc.petitionId);
+    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
+    const snapshots = doc.entryMode === 'manual' || !missingSnapshots
+      ? {}
+      : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -786,6 +1004,7 @@ router.post('/:id/revise', async (req, res) => {
     assertCanTransition(source.status, 'revise', actor);
     const doc = await withCoaTransaction(async (session) => {
       const created = await createCoaDocument({
+        entryMode: source.entryMode || 'source',
         coaNo: source.coaNo,
         coaYear: source.coaYear,
         sequence: source.sequence,
@@ -796,6 +1015,7 @@ router.post('/:id/revise', async (req, res) => {
         externalRequestId: source.externalRequestId,
         externalCoaRequest: source.externalCoaRequest,
         petitionNoSnapshot: source.petitionNoSnapshot,
+        externalCoaRequest: source.externalCoaRequest,
         selectedItemSeqs: source.selectedItemSeqs,
         customerSnapshot: source.customerSnapshot,
         sampleSnapshots: source.sampleSnapshots,

@@ -12,7 +12,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import CoaCreateDialog from "@/components/coa/CoaCreateDialog";
+<<<<<<< HEAD
 import CoaManualDialog from "@/components/coa/CoaManualDialog";
+=======
+import CoaManualRequestDialog from "@/components/coa/CoaManualRequestDialog";
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
 import CoaSamplePreview from "@/components/coa/CoaSamplePreview";
 import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -272,7 +276,11 @@ function isCoaApprovedDocument(doc: CoaDocument) {
 }
 
 function isExternalCoaRequestDocument(doc: CoaDocument) {
+<<<<<<< HEAD
   return Boolean(doc.externalCoaRequest) && doc.status === "requested";
+=======
+  return doc.status === "requested" && Boolean(doc.externalCoaRequest);
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
 }
 
 function addDocumentToDuplicateGroup(groups: Map<string, CoaDuplicateGroup>, key: string, label: string, doc: CoaDocument) {
@@ -568,6 +576,7 @@ export default function CoaCenterPage() {
   const { user } = useAuth();
   const demoCoaEnabled = DEV_MODE && searchParams.get("demoCoa") === "bromadiolone";
   const [createOpen, setCreateOpen] = useState(false);
+  const [manualRequestOpen, setManualRequestOpen] = useState(false);
   const [createRequest, setCreateRequest] = useState<CoaDocument | null>(null);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<CoaTab>("today");
@@ -909,20 +918,26 @@ export default function CoaCenterPage() {
               </span>
             )}
             actions={(
-              <Button
-                type="button"
-                variant="outline"
-                aria-label={`แจ้งเตือน COA ${notificationButtonCount} รายการ`}
-                aria-controls="coa-notification-panel"
-                className="gap-2"
-                onClick={focusCoaNotifications}
-              >
-                <BellRing className="h-4 w-4" />
-                <span className="hidden sm:inline">แจ้งเตือน</span>
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary-500 px-1.5 py-0.5 text-xs font-bold text-white">
-                  {notificationButtonCount}
-                </span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" className="gap-2 bg-primary-500 text-white hover:bg-primary-600" aria-label="เปิดแบบฟอร์มคำขอ COA" onClick={() => setManualRequestOpen(true)}>
+                  <FilePlus2 className="h-4 w-4" />
+                  <span>คำขอ COA</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label={`แจ้งเตือน COA ${notificationButtonCount} รายการ`}
+                  aria-controls="coa-notification-panel"
+                  className="gap-2"
+                  onClick={focusCoaNotifications}
+                >
+                  <BellRing className="h-4 w-4" />
+                  <span className="hidden sm:inline">แจ้งเตือน</span>
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                    {notificationButtonCount}
+                  </span>
+                </Button>
+              </div>
             )}
           />
 
@@ -1241,8 +1256,8 @@ export default function CoaCenterPage() {
                     )}
                     {showCreateActions && (
                       <td className="px-4 py-3">
-                        {externalRequest ? (
-                          <div className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
+                        {externalRequest && (
+                          <div className="mb-2 flex flex-col items-start gap-1 text-xs text-muted-foreground">
                             <Badge variant="blue-soft">ERP</Badge>
                             <Button type="button" size="sm" aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
                               onClick={(event) => { event.stopPropagation(); handleCreate(doc); }}>
@@ -1250,7 +1265,8 @@ export default function CoaCenterPage() {
                             </Button>
                             {externalRequest.shipmentDate && <span>กำหนดส่ง {formatProductionDate(externalRequest.shipmentDate)}</span>}
                           </div>
-                        ) : workflowStageFor(doc) === "requested" && (
+                        )}
+                        {workflowStageFor(doc) === "requested" && (
                           <Button
                             type="button"
                             size="sm"
@@ -1518,9 +1534,14 @@ export default function CoaCenterPage() {
       >
         <CoaReportTemplate pages={previewPages} />
       </PrintPreviewDialog>
+<<<<<<< HEAD
       {createRequest && (isExternalCoaRequestDocument(createRequest) || createRequest.sourceType === "erpManual")
         ? <CoaManualDialog open={createOpen} onOpenChange={setCreateOpen} onSaved={handleCreated} request={createRequest} />
         : <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />}
+=======
+      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />
+      <CoaManualRequestDialog open={manualRequestOpen} onOpenChange={setManualRequestOpen} onCreated={handleCreated} />
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     </AppLayout>
   );
 }

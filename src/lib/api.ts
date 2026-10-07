@@ -920,6 +920,7 @@ export const api = {
     const qs = new URLSearchParams({ batchNo, employeeId }).toString();
     return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
   },
+  batchExists: (batchNo: string) => request<{ exists: boolean }>(`/petitions/batch-exists?${new URLSearchParams({ batchNo }).toString()}`),
 
   // Methods (admin-managed method registry)
   getMethods: () => request<MethodDoc[]>("/methods"),
@@ -943,9 +944,25 @@ export const api = {
   createManualCoaDocument: (body: ManualCoaInput) =>
     request<CoaDocument>("/coa-documents/erp-manual", { method: "POST", body: JSON.stringify(body) }),
   getCoaSourceData: (petitionId: string, itemSeqs: number[]) =>
-    request<{ results: CoaSourceResult[] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),
-  createCoaDocument: (body: { petitionId: string; selectedItemSeqs: number[]; formSelections?: CoaFormSelection[]; remark?: string; _user?: unknown }) =>
+    request<{ results: CoaSourceResult[]; customerSnapshot?: CoaDocument["customerSnapshot"]; sampleSnapshots?: CoaDocument["sampleSnapshots"] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),
+  createCoaDocument: (body: {
+    petitionId: string;
+    selectedItemSeqs: number[];
+    formSelections?: CoaFormSelection[];
+    remark?: string;
+    _user?: unknown;
+  }) =>
     request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),
+  createManualCoaDocument: (body: {
+    petitionId?: string;
+    selectedItemSeqs: number[];
+    customerSnapshot?: CoaDocument["customerSnapshot"];
+    sampleSnapshots: CoaDocument["sampleSnapshots"];
+    resultSnapshots: CoaDocument["resultSnapshots"];
+    remark?: string;
+    externalCoaRequest?: Pick<NonNullable<CoaDocument["externalCoaRequest"]>, "saleOrderNo" | "line" | "itemNo">;
+    _user?: unknown;
+  }) => request<CoaDocument>("/coa-documents/manual", { method: "POST", body: JSON.stringify(body) }),
   getCoaDocument: (id: string) => request<CoaDocument>(`/coa-documents/${id}`),
   updateCoaDocument: (id: string, body: { selectedItemSeqs?: number[]; remark?: string; _user?: unknown } & Partial<Pick<ManualCoaInput, "sample" | "results">>) =>
     request<CoaDocument>(`/coa-documents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),

@@ -123,7 +123,10 @@ vi.mock("@/lib/api", () => ({
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
     createManualCoaDocument: vi.fn().mockResolvedValue({}),
+<<<<<<< HEAD
     updateCoaDocument: vi.fn().mockResolvedValue({}),
+=======
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
@@ -149,10 +152,10 @@ describe("CoaCenterPage", () => {
   it("returns a created draft to the in-progress tab and clears the request search", async () => {
     vi.mocked(api.getEligibleCoaPetitions).mockResolvedValueOnce({ items: [{
       _id: "p5", petitionNo: "P-2608-0004",
-      items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001" }],
+      items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001", productionDate: "2026-09-01" }],
     }] });
     vi.mocked(api.getCoaSourceData).mockResolvedValueOnce({ results: [{
-      itemSeq: 1, kind: "result", key: "ph", label: "pH", result: "7.1",
+      itemSeq: 1, kind: "ai", key: "ai", label: "%AI", result: "48.1%",
     }] });
     const createdDoc: CoaDocument = {
       _id: "new-draft", revision: 0, status: "draft", petitionId: "p5", selectedItemSeqs: [1],
@@ -161,12 +164,12 @@ describe("CoaCenterPage", () => {
       resultSnapshots: [{ itemSeq: 1, testItem: "pH", result: "7.1" }],
       formSelections: [{ itemSeq: 1, resultKeys: ["ph"] }],
     };
-    vi.mocked(api.createCoaDocument).mockResolvedValueOnce(createdDoc);
+    vi.mocked(api.createManualCoaDocument).mockResolvedValueOnce(createdDoc);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
     fireEvent.change(screen.getByPlaceholderText("ค้นหา COA / คำร้อง"), { target: { value: "P-2608-0004" } });
     fireEvent.click(await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /pH/ }));
+    await screen.findByDisplayValue("48.1%");
     fireEvent.click(screen.getByRole("button", { name: "สร้างร่าง COA" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
@@ -370,7 +373,11 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
   });
 
+<<<<<<< HEAD
   it("opens manual creation for ERP requests without loading Lab petitions", async () => {
+=======
+  it("shows ERP COA requests with a create COA button", async () => {
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
       items: [{
         _id: "external-coa-request-SO26040020-10000",
@@ -398,6 +405,7 @@ describe("CoaCenterPage", () => {
     expect(within(requestedRow).getByText("คำขอจาก ERP")).toBeInTheDocument();
     expect(within(requestedRow).getByText("pending shipment")).toBeInTheDocument();
     expect(within(requestedRow).getByText("ERP")).toBeInTheDocument();
+<<<<<<< HEAD
     expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
 
     fireEvent.click(requestedRow);
@@ -432,7 +440,16 @@ describe("CoaCenterPage", () => {
     expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("row", { name: /Carval.*B-ERP-1/ })).toBeInTheDocument();
 
+=======
+
+    fireEvent.click(requestedRow);
+>>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
+
+    fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA SO26040020" }));
+    await waitFor(() => expect(api.getEligibleCoaPetitions).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(api.getCoaSourceData).not.toHaveBeenCalled();
   });
 
   it("opens the clicked COA request with its common name and parameter sources selected", async () => {
