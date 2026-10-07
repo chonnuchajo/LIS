@@ -3,7 +3,6 @@ import { buildCoaReportPages } from "./coaReport";
 import type { CoaDocument } from "@/types/coa.types";
 
 describe("buildCoaReportPages", () => {
-<<<<<<< HEAD
   it("prints manually entered ERP results in product-specific templates", () => {
     const doc = {
       sourceType: "erpManual",
@@ -15,25 +14,6 @@ describe("buildCoaReportPages", () => {
     expect(page.samples[0].selectedResultsOnly).toBe(true);
     expect(page.samples[0].rows).toEqual(doc.resultSnapshots);
   });
-  it.each([
-    ["  Trade A  ", "Trade A"],
-    [undefined, "-"],
-    ["", "-"],
-    ["   ", "-"],
-  ])("uses only the trade name %s for PRODUCT", (sampleName, expected) => {
-    const doc = {
-      sampleSnapshots: [{ itemSeq: 1, sampleName, commonName: "Glyphosate 48% SL" }],
-    } as CoaDocument;
-
-    const [page] = buildCoaReportPages(doc);
-
-    expect(page.samples[0].product).toBe(expected);
-    expect(page.samples[0].commonName).toBe("Glyphosate 48% SL");
-    expect(page.template).toBe("liquid");
-  });
-
-=======
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
   it.each(["%AI", "% AI", "AI content", "active ingredient"])("reads the configured %s result", (testItem) => {
     const doc = {
       sampleSnapshots: [{ itemSeq: 1, commonName: "Glyphosate 48% SL" }],

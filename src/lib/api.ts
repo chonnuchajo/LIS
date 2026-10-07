@@ -941,7 +941,7 @@ export const api = {
     return request<{ items: CoaDocument[] }>(`/coa-documents${q.toString() ? `?${q}` : ""}`);
   },
   getEligibleCoaPetitions: () => request<{ items: EligibleCoaPetition[] }>("/coa-documents/eligible-petitions"),
-  createManualCoaDocument: (body: ManualCoaInput) =>
+  createErpManualCoaDocument: (body: ManualCoaInput) =>
     request<CoaDocument>("/coa-documents/erp-manual", { method: "POST", body: JSON.stringify(body) }),
   getCoaSourceData: (petitionId: string, itemSeqs: number[]) =>
     request<{ results: CoaSourceResult[]; customerSnapshot?: CoaDocument["customerSnapshot"]; sampleSnapshots?: CoaDocument["sampleSnapshots"] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),

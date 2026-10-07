@@ -227,22 +227,17 @@ const CoaDocumentSchema = new mongoose.Schema(
     sequence: Number,
     revision: { type: Number, default: 0 },
     status: { type: String, enum: STATUS, required: true, default: 'draft', index: true },
-<<<<<<< HEAD
     sourceType: { type: String, enum: ['lab', 'erpManual'], default: 'lab', immutable: true },
     externalRequestId: { type: String, index: true, immutable: true },
     externalCoaRequest: { type: mongoose.Schema.Types.Mixed, immutable: true },
-    petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: function () { return this.sourceType !== 'erpManual'; }, index: true },
-=======
     entryMode: { type: String, enum: ['source', 'manual'], default: 'source', index: true },
     petitionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Petition',
-      required() { return !this.externalCoaRequest?.saleOrderNo; },
+      required() { return this.sourceType !== 'erpManual' && !this.externalCoaRequest?.saleOrderNo; },
       index: true,
     },
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     petitionNoSnapshot: String,
-    externalCoaRequest: { saleOrderNo: String, line: Number, itemNo: String },
     selectedItemSeqs: { type: [Number], default: [] },
     sourceCoaId: { type: mongoose.Schema.Types.ObjectId, ref: 'CoaDocument' },
     supersedesCoaId: { type: mongoose.Schema.Types.ObjectId, ref: 'CoaDocument' },

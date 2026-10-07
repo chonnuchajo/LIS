@@ -21,7 +21,7 @@ export default function CoaManualDialog({ open, onOpenChange, request, onSaved }
     mutationFn: () => {
       const body = { externalRequestId: request.externalRequestId || request._id, sample, results, remark,
         _user: { name: user?.name, email: user?.email, role: user?.role, activeRole: user?.role } };
-      return editing ? api.updateCoaDocument(request._id, body) : api.createManualCoaDocument(body);
+      return editing ? api.updateCoaDocument(request._id, body) : api.createErpManualCoaDocument(body);
     },
     onSuccess: (doc) => { onSaved(doc); onOpenChange(false); },
   });

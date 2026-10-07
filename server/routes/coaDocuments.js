@@ -9,11 +9,8 @@ const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
-<<<<<<< HEAD
 const { manualCoaSnapshots, validateManualCoa } = require('../lib/coaManual');
-=======
 const { isAiContentTestItem } = require('../lib/aiToleranceCriteria');
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
 const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
@@ -604,8 +601,14 @@ async function createCoaDocument(payload, session) {
   return CoaDocument.create(payload);
 }
 
+function supportsCoaTransactions() {
+  const topologyType = mongoose.connection.getClient?.()?.topology?.description?.type;
+  return !topologyType || topologyType !== 'Single';
+}
+
 async function withCoaTransaction(callback) {
   if (mongoose.connection.readyState !== 1) return callback(undefined);
+  if (!supportsCoaTransactions()) return callback(undefined);
   if (typeof CoaDocument.startSession !== 'function') return callback(undefined);
   const session = await CoaDocument.startSession();
   if (!session || typeof session.withTransaction !== 'function') {
@@ -888,12 +891,8 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-<<<<<<< HEAD
     const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
-=======
-    const snapshots = doc.entryMode === 'manual'
-      ? {}
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
+      : doc.entryMode === 'manual' ? {}
       : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
@@ -918,18 +917,11 @@ router.post('/:id/approve', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
-<<<<<<< HEAD
-    if (doc.sourceType !== 'erpManual') await assertLabApprovedPetition(doc.petitionId);
+    if (doc.sourceType !== 'erpManual' && doc.petitionId) await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
     const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
-      : missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections) : {};
-=======
-    if (doc.petitionId) await assertLabApprovedPetition(doc.petitionId);
-    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
-    const snapshots = doc.entryMode === 'manual' || !missingSnapshots
-      ? {}
+      : doc.entryMode === 'manual' || !missingSnapshots ? {}
       : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -1013,7 +1005,6 @@ router.post('/:id/revise', async (req, res) => {
         petitionId: source.petitionId,
         sourceType: source.sourceType,
         externalRequestId: source.externalRequestId,
-        externalCoaRequest: source.externalCoaRequest,
         petitionNoSnapshot: source.petitionNoSnapshot,
         externalCoaRequest: source.externalCoaRequest,
         selectedItemSeqs: source.selectedItemSeqs,

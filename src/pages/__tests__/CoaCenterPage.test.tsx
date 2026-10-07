@@ -123,15 +123,13 @@ vi.mock("@/lib/api", () => ({
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
     createManualCoaDocument: vi.fn().mockResolvedValue({}),
-<<<<<<< HEAD
+    createErpManualCoaDocument: vi.fn().mockResolvedValue({}),
     updateCoaDocument: vi.fn().mockResolvedValue({}),
-=======
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
     rejectCoaDocument: vi.fn().mockResolvedValue({}),
-    getPrinterConfigs: vi.fn().mockResolvedValue({ items: [] }),
+    getPrinterConfigs: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -373,11 +371,7 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
   });
 
-<<<<<<< HEAD
   it("opens manual creation for ERP requests without loading Lab petitions", async () => {
-=======
-  it("shows ERP COA requests with a create COA button", async () => {
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
       items: [{
         _id: "external-coa-request-SO26040020-10000",
@@ -405,7 +399,6 @@ describe("CoaCenterPage", () => {
     expect(within(requestedRow).getByText("คำขอจาก ERP")).toBeInTheDocument();
     expect(within(requestedRow).getByText("pending shipment")).toBeInTheDocument();
     expect(within(requestedRow).getByText("ERP")).toBeInTheDocument();
-<<<<<<< HEAD
     expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
 
     fireEvent.click(requestedRow);
@@ -420,16 +413,16 @@ describe("CoaCenterPage", () => {
     fireEvent.change(screen.getByLabelText("รายการทดสอบ *"), { target: { value: "Appearance" } });
     fireEvent.change(screen.getByLabelText("เกณฑ์มาตรฐาน *"), { target: { value: "Clear liquid" } });
     fireEvent.change(screen.getByLabelText("ผลทดสอบ *"), { target: { value: "Conform" } });
-    vi.mocked(api.createManualCoaDocument).mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
+    vi.mocked(api.createErpManualCoaDocument).mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
     fireEvent.click(screen.getByRole("button", { name: "บันทึกร่าง COA" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("บันทึกไม่สำเร็จ");
-    expect(api.createManualCoaDocument).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.createErpManualCoaDocument).toHaveBeenCalledWith(expect.objectContaining({
       externalRequestId: "external-coa-request-SO26040020-10000",
       sample: expect.objectContaining({ batchNo: "B-ERP-1", productionDate: "2026-10-01" }),
       results: [expect.objectContaining({ testItem: "Appearance", criteria: "Clear liquid", result: "Conform" })],
     }));
-    const entered = vi.mocked(api.createManualCoaDocument).mock.calls.at(-1)![0];
-    vi.mocked(api.createManualCoaDocument).mockResolvedValueOnce({
+    const entered = vi.mocked(api.createErpManualCoaDocument).mock.calls.at(-1)![0];
+    vi.mocked(api.createErpManualCoaDocument).mockResolvedValueOnce({
       _id: "manual-coa-1", sourceType: "erpManual", externalRequestId: entered.externalRequestId,
       status: "draft", revision: 0, petitionId: "", petitionNoSnapshot: "SO26040020",
       selectedItemSeqs: [10000], sampleSnapshots: [entered.sample], resultSnapshots: entered.results,
@@ -440,15 +433,7 @@ describe("CoaCenterPage", () => {
     expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("row", { name: /Carval.*B-ERP-1/ })).toBeInTheDocument();
 
-=======
-
-    fireEvent.click(requestedRow);
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
-
-    fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA SO26040020" }));
-    await waitFor(() => expect(api.getEligibleCoaPetitions).toHaveBeenCalled());
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(api.getCoaSourceData).not.toHaveBeenCalled();
   });
 
