@@ -3,7 +3,6 @@ import { buildCoaReportPages } from "./coaReport";
 import type { CoaDocument } from "@/types/coa.types";
 
 describe("buildCoaReportPages", () => {
-<<<<<<< HEAD
   it("prints manually entered ERP results in product-specific templates", () => {
     const doc = {
       sourceType: "erpManual",
@@ -32,8 +31,6 @@ describe("buildCoaReportPages", () => {
     expect(page.template).toBe("liquid");
   });
 
-=======
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
   it.each(["%AI", "% AI", "AI content", "active ingredient"])("reads the configured %s result", (testItem) => {
     const doc = {
       sampleSnapshots: [{ itemSeq: 1, commonName: "Glyphosate 48% SL" }],

@@ -123,10 +123,7 @@ vi.mock("@/lib/api", () => ({
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
     createManualCoaDocument: vi.fn().mockResolvedValue({}),
-<<<<<<< HEAD
     updateCoaDocument: vi.fn().mockResolvedValue({}),
-=======
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
@@ -373,11 +370,7 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
   });
 
-<<<<<<< HEAD
   it("opens manual creation for ERP requests without loading Lab petitions", async () => {
-=======
-  it("shows ERP COA requests with a create COA button", async () => {
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
       items: [{
         _id: "external-coa-request-SO26040020-10000",
@@ -405,7 +398,6 @@ describe("CoaCenterPage", () => {
     expect(within(requestedRow).getByText("คำขอจาก ERP")).toBeInTheDocument();
     expect(within(requestedRow).getByText("pending shipment")).toBeInTheDocument();
     expect(within(requestedRow).getByText("ERP")).toBeInTheDocument();
-<<<<<<< HEAD
     expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
 
     fireEvent.click(requestedRow);
@@ -440,10 +432,6 @@ describe("CoaCenterPage", () => {
     expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("row", { name: /Carval.*B-ERP-1/ })).toBeInTheDocument();
 
-=======
-
-    fireEvent.click(requestedRow);
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
 
     fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA SO26040020" }));

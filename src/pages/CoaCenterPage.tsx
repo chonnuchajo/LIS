@@ -12,11 +12,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import CoaCreateDialog from "@/components/coa/CoaCreateDialog";
-<<<<<<< HEAD
 import CoaManualDialog from "@/components/coa/CoaManualDialog";
-=======
 import CoaManualRequestDialog from "@/components/coa/CoaManualRequestDialog";
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
 import CoaSamplePreview from "@/components/coa/CoaSamplePreview";
 import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -276,11 +273,7 @@ function isCoaApprovedDocument(doc: CoaDocument) {
 }
 
 function isExternalCoaRequestDocument(doc: CoaDocument) {
-<<<<<<< HEAD
-  return Boolean(doc.externalCoaRequest) && doc.status === "requested";
-=======
   return doc.status === "requested" && Boolean(doc.externalCoaRequest);
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
 }
 
 function addDocumentToDuplicateGroup(groups: Map<string, CoaDuplicateGroup>, key: string, label: string, doc: CoaDocument) {
@@ -1534,14 +1527,10 @@ export default function CoaCenterPage() {
       >
         <CoaReportTemplate pages={previewPages} />
       </PrintPreviewDialog>
-<<<<<<< HEAD
       {createRequest && (isExternalCoaRequestDocument(createRequest) || createRequest.sourceType === "erpManual")
         ? <CoaManualDialog open={createOpen} onOpenChange={setCreateOpen} onSaved={handleCreated} request={createRequest} />
         : <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />}
-=======
-      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} request={createRequest} />
       <CoaManualRequestDialog open={manualRequestOpen} onOpenChange={setManualRequestOpen} onCreated={handleCreated} />
->>>>>>> 32b6c6aedaee6da3f6025cbb17511381c63c18d1
     </AppLayout>
   );
 }
