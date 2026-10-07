@@ -167,7 +167,7 @@ export function getStandardAlertSummary(
   const soonDays = options.soonDays ?? 30;
   const maxDetails = options.maxDetails ?? 3;
 
-  if (!outOfStock && !hasExpiryAlert) return null;
+  if (!lowStock && !hasExpiryAlert) return null;
 
   if (outOfStock) parts.push(`หมด เหลือรวม ${sum.usable} ขวด`);
   else if (lowStock) parts.push(`ใกล้หมด เหลือรวม ${sum.usable} ขวด`);
