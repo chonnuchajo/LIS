@@ -231,6 +231,7 @@ const CoaDocumentSchema = new mongoose.Schema(
     entryMode: { type: String, enum: ['source', 'manual'], default: 'source', index: true },
     externalRequestId: { type: String, index: true, immutable: true },
     externalCoaRequest: { type: mongoose.Schema.Types.Mixed, immutable: true },
+    entryMode: { type: String, enum: ['source', 'manual'], default: 'source', index: true },
     petitionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Petition',

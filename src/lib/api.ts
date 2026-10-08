@@ -33,7 +33,7 @@ import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboard
 import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
-import type { CoaDocument, CoaFormSelection, CoaSourceResult, EligibleCoaPetition, ManualCoaInput } from "@/types/coa.types";
+import type { CoaDocument, CoaErpAutofill, CoaFormSelection, CoaSourceResult, EligibleCoaPetition, ManualCoaInput } from "@/types/coa.types";
 import type { PetitionAuditEvent, PetitionStatus } from "@/types/petition.types";
 import type {
   ApiKeyItem,
@@ -946,6 +946,8 @@ export const api = {
   getEligibleCoaPetitions: () => request<{ items: EligibleCoaPetition[] }>("/coa-documents/eligible-petitions"),
   createErpManualCoaDocument: (body: ManualCoaInput) =>
     request<CoaDocument>("/coa-documents/erp-manual", { method: "POST", body: JSON.stringify(body) }),
+  getErpCoaAutofill: (externalRequestId: string) =>
+    request<CoaErpAutofill>(`/coa-documents/erp-autofill/${encodeURIComponent(externalRequestId)}`),
   getCoaSourceData: (petitionId: string, itemSeqs: number[]) =>
     request<{ results: CoaSourceResult[]; customerSnapshot?: CoaDocument["customerSnapshot"]; sampleSnapshots?: CoaDocument["sampleSnapshots"] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),
   createCoaDocument: (body: {

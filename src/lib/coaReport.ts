@@ -74,7 +74,7 @@ function normalizeCommonName(commonName?: string): string {
 }
 
 function isBromadiolone0005CommonName(commonName?: string): boolean {
-  return normalizeCommonName(commonName) === "BROMADIOLONE 0.005%";
+  return /^BROMADIOLONE\s+0\.005%(?:\s|$)/.test(normalizeCommonName(commonName));
 }
 
 function productLabel(sample: CoaSampleSnapshot): string {

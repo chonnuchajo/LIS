@@ -273,7 +273,7 @@ function isCoaApprovedDocument(doc: CoaDocument) {
 }
 
 function isExternalCoaRequestDocument(doc: CoaDocument) {
-  return doc.status === "requested" && Boolean(doc.externalCoaRequest);
+  return Boolean(doc.externalCoaRequest) && doc.status === "requested";
 }
 
 function addDocumentToDuplicateGroup(groups: Map<string, CoaDuplicateGroup>, key: string, label: string, doc: CoaDocument) {
@@ -1259,7 +1259,7 @@ export default function CoaCenterPage() {
                             {externalRequest.shipmentDate && <span>กำหนดส่ง {formatProductionDate(externalRequest.shipmentDate)}</span>}
                           </div>
                         )}
-                        {workflowStageFor(doc) === "requested" && (
+                        {workflowStageFor(doc) === "requested" && !externalRequest && (
                           <Button
                             type="button"
                             size="sm"

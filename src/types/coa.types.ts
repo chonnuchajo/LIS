@@ -101,8 +101,8 @@ export type CoaDocument = {
   sequence?: number;
   revision: number;
   status: CoaStatus;
-  petitionId?: string;
   entryMode?: "source" | "manual";
+  petitionId?: string;
   petitionNoSnapshot?: string;
   selectedItemSeqs: number[];
   sourceCoaId?: string;
@@ -138,6 +138,41 @@ export type ManualCoaInput = {
   results: CoaResultSnapshot[];
   remark?: string;
   _user?: unknown;
+};
+
+export type CoaErpAutofill = {
+  externalRequestId: string;
+  source: {
+    petitionNo?: string;
+    customerSnapshot?: CoaDocument["customerSnapshot"];
+    externalCoaRequest?: CoaDocument["externalCoaRequest"];
+  };
+  sample: CoaSampleSnapshot;
+  results: CoaResultSnapshot[];
+  match: {
+    petitionId: string;
+    petitionNo?: string;
+    itemSeq: number;
+    batchNo?: string;
+    matchKind: "exact" | "close" | "none";
+    batchScore: number;
+  } | null;
+  candidates: Array<{
+    petitionId: string;
+    petitionNo?: string;
+    itemSeq: number;
+    sampleName?: string;
+    commonName?: string;
+    batchNo?: string;
+    batchScore: number;
+    matchKind: "exact" | "close" | "none";
+    labApprovedAt?: string | null;
+  }>;
+  stockCandidates: Array<{ lotNo: string; productionDate: string; quantity: number; itemNo: string }>;
+  mfCandidates: Array<{ batchNo: string; productionDate: string; itemNo: string }>;
+  form: { template: "standard" | "grWpSp" | "liquid" | "bromadiolone0005"; aiCriteria: string; needsDensity: boolean };
+  warnings: string[];
+  dataSources: { erp: boolean; stock: boolean; mf: boolean; lab: boolean; density: boolean };
 };
 
 export type EligibleCoaPetition = {
