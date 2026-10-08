@@ -17,6 +17,10 @@ export function createDevEnvironments(baseEnv = process.env) {
     serverEnv: {
       ...baseEnv,
       PORT: apiPort,
+      // Local development may use the synthetic dev user, but the backend
+      // still limits the bypass to loopback requests in adminGate.
+      NODE_ENV: "development",
+      ALLOW_DEV_STATUS: "true",
     },
     frontendEnv: {
       ...baseEnv,

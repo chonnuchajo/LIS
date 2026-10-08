@@ -885,8 +885,8 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
-      : doc.entryMode === 'manual' ? {}
+    const snapshots = doc.sourceType === 'erpManual' || doc.entryMode === 'manual'
+      ? (doc.sourceType === 'erpManual' ? validateManualCoa(doc) : {})
       : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
@@ -911,12 +911,13 @@ router.post('/:id/approve', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
-    if (doc.sourceType !== 'erpManual' && doc.petitionId) await assertLabApprovedPetition(doc.petitionId);
+    if (doc.sourceType !== 'erpManual' && doc.entryMode !== 'manual') await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
-    const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
+    const snapshots = doc.sourceType === 'erpManual'
+      ? validateManualCoa(doc)
       : doc.entryMode === 'manual' || !missingSnapshots
-      ? {}
-      : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
+        ? {}
+        : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },

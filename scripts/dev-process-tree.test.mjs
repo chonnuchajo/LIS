@@ -10,6 +10,8 @@ test("dev-all uses port 3001 by default", () => {
 
   assert.equal(result.apiPort, "3001");
   assert.equal(result.serverEnv.PORT, "3001");
+  assert.equal(result.serverEnv.NODE_ENV, "development");
+  assert.equal(result.serverEnv.ALLOW_DEV_STATUS, "true");
   assert.equal(result.frontendEnv.VITE_API_PROXY_TARGET, "http://localhost:3001");
   assert.equal(env.PORT, undefined);
 });
