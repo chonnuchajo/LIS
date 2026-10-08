@@ -5,13 +5,22 @@ const CoaAuditLog = require('../models/CoaAuditLog');
 const Petition = require('../models/Petition');
 const LabRequest = require('../models/LabRequest');
 const QCTestResult = require('../models/QCTestResult');
+const ResultDensity = require('../models/ResultDensity');
 const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
 const { manualCoaSnapshots, validateManualCoa } = require('../lib/coaManual');
-const { isAiContentTestItem } = require('../lib/aiToleranceCriteria');
+const { aiToleranceCriteriaForCommonName, isAiContentTestItem } = require('../lib/aiToleranceCriteria');
 const { buildCoaFormOptions, buildCoaParameterOptions, applyCoaFormSelections } = require('../lib/coaForm');
+const {
+  densityForBatch,
+  fetchErpReferences,
+  findBestLabItem,
+  formKindForCommonName,
+  resultRowsFromQc,
+  sampleFromSources,
+} = require('../lib/coaErp');
 const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
 const {
@@ -601,8 +610,14 @@ async function createCoaDocument(payload, session) {
   return CoaDocument.create(payload);
 }
 
+function supportsCoaTransactions() {
+  const topologyType = mongoose.connection.getClient?.()?.topology?.description?.type;
+  return !topologyType || topologyType !== 'Single';
+}
+
 async function withCoaTransaction(callback) {
   if (mongoose.connection.readyState !== 1) return callback(undefined);
+  if (!supportsCoaTransactions()) return callback(undefined);
   if (typeof CoaDocument.startSession !== 'function') return callback(undefined);
   const session = await CoaDocument.startSession();
   if (!session || typeof session.withTransaction !== 'function') {
@@ -683,6 +698,93 @@ router.post('/erp-manual', async (req, res) => {
       return created;
     });
     res.status(201).json(doc);
+  } catch (error) {
+    res.status(errorStatus(error)).json({ error: error.message });
+  }
+});
+
+router.get('/erp-autofill/:externalRequestId', async (req, res) => {
+  try {
+    const externalRequestId = decodeURIComponent(String(req.params.externalRequestId || ''));
+    const requests = await fetchExternalCoaDocuments();
+    const source = requests.find((row) => row._id === externalRequestId);
+    if (!source) throw errorWithStatus('ไม่พบคำขอ COA จาก ERP กรุณาโหลดรายการใหม่', 404);
+
+    const references = await fetchErpReferences();
+    const sourceData = sampleFromSources(source, references.stockRows, references.mfRows);
+    const sample = sourceData.sample;
+    const petitions = sample.commonName
+      ? await Petition.find({ 'items.commonName': exactTrimmedRegex(sample.commonName) })
+        .sort({ updatedAt: -1 }).limit(200).lean()
+      : [];
+    const lab = findBestLabItem(petitions, sample);
+    const qcResults = lab.best
+      ? await QCTestResult.find({ petitionId: String(lab.best.petition._id), itemSeq: Number(lab.best.item.seq) })
+        .sort({ updatedAt: -1 }).lean()
+      : [];
+    const resultData = resultRowsFromQc(qcResults, sample.commonName);
+    let density = resultData.density;
+    if (!density && sample.batchNo) {
+      const pattern = new RegExp(escapeRegex(sample.batchNo), 'i');
+      const densityRows = await ResultDensity.find({ 'Sample name': pattern }).sort({ _id: -1 }).limit(100).lean();
+      density = densityForBatch(densityRows, sample.batchNo);
+    }
+    if (density && !resultData.rows.some((row) => /density/i.test(row.testItem || ''))) {
+      resultData.rows.push({
+        testItem: 'Density at 30°C (g/cm³)', criteria: '-', result: density, unit: 'g/cm³', method: 'DMA 501',
+      });
+    }
+
+    const candidates = lab.candidates.slice(0, 10).map((candidate) => ({
+      petitionId: String(candidate.petition._id),
+      petitionNo: candidate.petition.petitionNo,
+      itemSeq: Number(candidate.item.seq),
+      sampleName: candidate.item.sampleName || '',
+      commonName: candidate.item.commonName || '',
+      batchNo: candidate.item.batchNo || candidate.item.lotNo || '',
+      batchScore: candidate.batchScore,
+      matchKind: candidate.matchKind,
+      labApprovedAt: candidate.petition.labApprovedAt || null,
+    }));
+    const warnings = [];
+    if (!sourceData.stockCandidates.length && !sourceData.mfCandidates.length) warnings.push('ไม่พบ LOT NO. จาก ERP/Stock/MF');
+    if (!lab.best) warnings.push('ไม่พบผล Lab ที่ชื่อสามัญตรงกัน');
+    else if (lab.best.matchKind !== 'exact') warnings.push('พบผล Lab จากเลขแบชที่ใกล้เคียง กรุณาตรวจสอบก่อนบันทึก');
+    if (resultData.physical?.raw && !resultData.physical.complete) warnings.push('ผลกายภาพบางคำยังไม่มีคำแปลภาษาอังกฤษ กรุณาตรวจสอบ');
+    res.json({
+      externalRequestId,
+      source: {
+        petitionNo: source.petitionNoSnapshot,
+        customerSnapshot: source.customerSnapshot,
+        externalCoaRequest: source.externalCoaRequest,
+      },
+      sample,
+      results: resultData.rows,
+      match: lab.best ? {
+        petitionId: String(lab.best.petition._id),
+        petitionNo: lab.best.petition.petitionNo,
+        itemSeq: Number(lab.best.item.seq),
+        batchNo: lab.best.item.batchNo || lab.best.item.lotNo || '',
+        matchKind: lab.best.matchKind,
+        batchScore: lab.best.batchScore,
+      } : null,
+      candidates,
+      stockCandidates: sourceData.stockCandidates,
+      mfCandidates: sourceData.mfCandidates,
+      form: {
+        template: formKindForCommonName(sample.commonName),
+        aiCriteria: aiToleranceCriteriaForCommonName(sample.commonName) || '',
+        needsDensity: /\b(SC|SL|EC|EW|ZC)\s*$/i.test(sample.commonName || ''),
+      },
+      warnings,
+      dataSources: {
+        erp: true,
+        stock: sourceData.stockCandidates.length > 0,
+        mf: sourceData.mfCandidates.length > 0,
+        lab: Boolean(lab.best),
+        density: Boolean(density),
+      },
+    });
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
   }
@@ -885,8 +987,8 @@ router.post('/:id/submit', async (req, res) => {
     const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const snapshots = doc.sourceType === 'erpManual' || doc.entryMode === 'manual'
-      ? (doc.sourceType === 'erpManual' ? validateManualCoa(doc) : {})
+    const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
+      : doc.entryMode === 'manual' ? {}
       : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     doc.$locals.allowIssuedSnapshotMutation = true;
     const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
@@ -911,13 +1013,11 @@ router.post('/:id/approve', async (req, res) => {
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
-    if (doc.sourceType !== 'erpManual' && doc.entryMode !== 'manual') await assertLabApprovedPetition(doc.petitionId);
+    if (doc.sourceType !== 'erpManual' && doc.petitionId) await assertLabApprovedPetition(doc.petitionId);
     const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
-    const snapshots = doc.sourceType === 'erpManual'
-      ? validateManualCoa(doc)
-      : doc.entryMode === 'manual' || !missingSnapshots
-        ? {}
-        : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
+    const snapshots = doc.sourceType === 'erpManual' ? validateManualCoa(doc)
+      : doc.entryMode === 'manual' || !missingSnapshots ? {}
+      : await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs, doc.formSelections);
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -1001,7 +1101,6 @@ router.post('/:id/revise', async (req, res) => {
         petitionId: source.petitionId,
         sourceType: source.sourceType,
         externalRequestId: source.externalRequestId,
-        externalCoaRequest: source.externalCoaRequest,
         petitionNoSnapshot: source.petitionNoSnapshot,
         externalCoaRequest: source.externalCoaRequest,
         selectedItemSeqs: source.selectedItemSeqs,

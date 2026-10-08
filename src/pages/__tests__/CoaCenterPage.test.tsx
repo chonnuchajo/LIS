@@ -121,14 +121,20 @@ vi.mock("@/lib/api", () => ({
     }),
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
+    getErpCoaAutofill: vi.fn().mockResolvedValue({
+      sample: { itemSeq: 10000 }, results: [], match: null, candidates: [], stockCandidates: [], mfCandidates: [],
+      form: { template: "standard", aiCriteria: "", needsDensity: false }, warnings: [],
+      dataSources: { erp: true, stock: false, mf: false, lab: false, density: false },
+    }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
     createManualCoaDocument: vi.fn().mockResolvedValue({}),
+    createErpManualCoaDocument: vi.fn().mockResolvedValue({}),
     updateCoaDocument: vi.fn().mockResolvedValue({}),
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
     rejectCoaDocument: vi.fn().mockResolvedValue({}),
-    getPrinterConfigs: vi.fn().mockResolvedValue({ items: [] }),
+    getPrinterConfigs: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -412,16 +418,16 @@ describe("CoaCenterPage", () => {
     fireEvent.change(screen.getByLabelText("รายการทดสอบ *"), { target: { value: "Appearance" } });
     fireEvent.change(screen.getByLabelText("เกณฑ์มาตรฐาน *"), { target: { value: "Clear liquid" } });
     fireEvent.change(screen.getByLabelText("ผลทดสอบ *"), { target: { value: "Conform" } });
-    vi.mocked(api.createManualCoaDocument).mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
+    vi.mocked(api.createErpManualCoaDocument).mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
     fireEvent.click(screen.getByRole("button", { name: "บันทึกร่าง COA" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("บันทึกไม่สำเร็จ");
-    expect(api.createManualCoaDocument).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.createErpManualCoaDocument).toHaveBeenCalledWith(expect.objectContaining({
       externalRequestId: "external-coa-request-SO26040020-10000",
       sample: expect.objectContaining({ batchNo: "B-ERP-1", productionDate: "2026-10-01" }),
       results: [expect.objectContaining({ testItem: "Appearance", criteria: "Clear liquid", result: "Conform" })],
     }));
-    const entered = vi.mocked(api.createManualCoaDocument).mock.calls.at(-1)![0];
-    vi.mocked(api.createManualCoaDocument).mockResolvedValueOnce({
+    const entered = vi.mocked(api.createErpManualCoaDocument).mock.calls.at(-1)![0];
+    vi.mocked(api.createErpManualCoaDocument).mockResolvedValueOnce({
       _id: "manual-coa-1", sourceType: "erpManual", externalRequestId: entered.externalRequestId,
       status: "draft", revision: 0, petitionId: "", petitionNoSnapshot: "SO26040020",
       selectedItemSeqs: [10000], sampleSnapshots: [entered.sample], resultSnapshots: entered.results,
@@ -433,11 +439,42 @@ describe("CoaCenterPage", () => {
     expect(await screen.findByRole("row", { name: /Carval.*B-ERP-1/ })).toBeInTheDocument();
 
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
-
-    fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA SO26040020" }));
-    await waitFor(() => expect(api.getEligibleCoaPetitions).toHaveBeenCalled());
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(api.getCoaSourceData).not.toHaveBeenCalled();
+  });
+
+  it("prefills ERP COA fields from the shared ERP and Lab autofill endpoint", async () => {
+    vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
+      items: [{
+        _id: "external-coa-request-SO-AUTO-1-10000", coaNo: null, coaYear: 2026, revision: 0, status: "requested",
+        petitionId: "external-coa-request-SO-AUTO-1-10000", petitionNoSnapshot: "SO-AUTO-1", selectedItemSeqs: [10000],
+        customerSnapshot: { name: "Customer A" },
+        sampleSnapshots: [{ itemSeq: 10000, sampleName: "Test Trade", commonName: "GLYPHOSATE 48% W/V SL" }],
+        resultSnapshots: [], externalRequestId: "external-coa-request-SO-AUTO-1-10000",
+        externalCoaRequest: { saleOrderNo: "SO-AUTO-1", line: 10000 },
+      }],
+    });
+    vi.mocked(api.getErpCoaAutofill).mockResolvedValueOnce({
+      externalRequestId: "external-coa-request-SO-AUTO-1-10000",
+      source: {},
+      sample: {
+        itemSeq: 10000, sampleName: "Test Trade", commonName: "GLYPHOSATE 48% W/V SL",
+        batchNo: "FG260902-008", lotNo: "FG260902-008", productionDate: "2026-09-02",
+      },
+      results: [{ itemSeq: 10000, testItem: "%AI content", criteria: "48% ± 2.40", result: "48.35%", unit: "%" }],
+      match: { petitionId: "p1", petitionNo: "P-AUTO-1", itemSeq: 1, batchNo: "FG260902-008", matchKind: "exact", batchScore: 1 },
+      candidates: [], stockCandidates: [], mfCandidates: [], form: { template: "liquid", aiCriteria: "48% ± 2.40", needsDensity: true },
+      warnings: [], dataSources: { erp: true, stock: true, mf: true, lab: true, density: false },
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+    const requestedRow = await screen.findByRole("row", { name: /SO-AUTO-1/ });
+    fireEvent.click(requestedRow);
+
+    await waitFor(() => expect(screen.getByLabelText("Batch No. *")).toHaveValue("FG260902-008"));
+    expect(screen.getByLabelText("วันที่ผลิต *")).toHaveValue("2026-09-02");
+    expect(screen.getByLabelText("ผลทดสอบ *")).toHaveValue("48.35%");
+    expect(screen.getByText("แบบฟอร์ม: ยาน้ำ")).toBeInTheDocument();
   });
 
   it("opens the clicked COA request with its common name and parameter sources selected", async () => {
