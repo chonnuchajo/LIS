@@ -11,6 +11,7 @@ const CoaAuditLog = require('../models/CoaAuditLog');
 const Petition = require('../models/Petition');
 const LabRequest = require('../models/LabRequest');
 const QCTestResult = require('../models/QCTestResult');
+const ResultDensity = require('../models/ResultDensity');
 const Parameter = require('../models/Parameter');
 const User = require('../models/User');
 const Role = require('../models/Role');
@@ -1048,5 +1049,52 @@ test('revision approval aborts without activating the revision when supersession
     QCTestResult.find = originals.qcResultFind;
     Parameter.find = originals.parameterFind;
     restoreActor();
+  }
+});
+
+test('ERP autofill combines LOT, nearby Lab batch, English physical result, AI criteria, and density', async () => {
+  const originals = {
+    fetch: global.fetch,
+    petitionFind: Petition.find,
+    qcFind: QCTestResult.find,
+    densityFind: ResultDensity.find,
+  };
+  const externalRow = {
+    SaleOrderNo: 'SO-AUTO-1', Line: 10000, ItemNo: 'F-TEST-1X20', TradeName: 'Test Trade',
+    CommonName: 'GLYPHOSATE 48% W/V SL', CustomerName: 'Customer', Remark: '', remark: 'ส่งของพร้อมเอกสาร COA',
+    PackingSize: '20*1 L', Zone: 'QC', ShipmentDate: '2026-10-08T00:00:00.000Z',
+  };
+  const petition = {
+    _id: 'petition-auto-1', petitionNo: 'P-AUTO-1', updatedAt: '2026-10-07T00:00:00.000Z',
+    labApprovedAt: '2026-10-07T00:00:00.000Z',
+    items: [{ seq: 1, sampleName: 'Test Trade', commonName: 'GLYPHOSATE 48% W/V SL', batchNo: 'FG260902-007' }],
+  };
+  try {
+    global.fetch = async (url) => {
+      if (String(url).includes('/API/COA')) return { ok: true, text: async () => JSON.stringify([externalRow]) };
+      if (String(url).includes('stock-all-item')) return { ok: true, json: async () => [{ item_no: 'F-TEST-1X20', lot_no: 'FG260902-008', stock_qty: 10 }] };
+      return { ok: true, json: async () => [{ item_no: 'F-TEST-1X20', prod_order_no: 'MF26090201', create_date: '2026-09-02T00:00:00.000Z' }] };
+    };
+    Petition.find = () => ({ sort: () => ({ limit: () => ({ lean: async () => [petition] }) }) });
+    QCTestResult.find = () => ({ sort: () => ({ lean: async () => [
+      { parameterName: 'กายภาพ', values: { 'ลักษณะ': 'ของเหลวใส', 'สี': 'ขาว' }, updatedAt: '2026-10-07T00:00:00.000Z' },
+      { parameterName: '%AI', values: { '%AI::glyphosate': '48.35' } },
+    ] }) });
+    ResultDensity.find = () => ({ sort: () => ({ limit: () => ({ lean: async () => [{ 'Sample name': 'FG260902-008', 'Density [g/cm³]': '1.158', 'Date & time': '10/7/2026' }] }) }) });
+
+    const res = await invoke('/erp-autofill/:externalRequestId', 'get', { params: { externalRequestId: 'external-coa-request-SO-AUTO-1-10000' } });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.sample.lotNo, 'FG260902-008');
+    assert.equal(res.body.sample.productionDate, '2026-09-02');
+    assert.equal(res.body.match.matchKind, 'close');
+    assert.equal(res.body.results.find((row) => row.testItem === '%AI content').criteria, '48% ± 2.40');
+    assert.equal(res.body.results.find((row) => /Density/.test(row.testItem)).result, '1.158');
+    assert.equal(res.body.results.find((row) => row.testItem === 'Appearance').criteria, 'Clear liquid, White');
+  } finally {
+    global.fetch = originals.fetch;
+    Petition.find = originals.petitionFind;
+    QCTestResult.find = originals.qcFind;
+    ResultDensity.find = originals.densityFind;
   }
 });

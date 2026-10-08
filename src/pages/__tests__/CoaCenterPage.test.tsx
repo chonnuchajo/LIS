@@ -121,6 +121,11 @@ vi.mock("@/lib/api", () => ({
     }),
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
     getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
+    getErpCoaAutofill: vi.fn().mockResolvedValue({
+      sample: { itemSeq: 10000 }, results: [], match: null, candidates: [], stockCandidates: [], mfCandidates: [],
+      form: { template: "standard", aiCriteria: "", needsDensity: false }, warnings: [],
+      dataSources: { erp: true, stock: false, mf: false, lab: false, density: false },
+    }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
     createManualCoaDocument: vi.fn().mockResolvedValue({}),
     createErpManualCoaDocument: vi.fn().mockResolvedValue({}),
@@ -435,6 +440,41 @@ describe("CoaCenterPage", () => {
 
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
     expect(api.getCoaSourceData).not.toHaveBeenCalled();
+  });
+
+  it("prefills ERP COA fields from the shared ERP and Lab autofill endpoint", async () => {
+    vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
+      items: [{
+        _id: "external-coa-request-SO-AUTO-1-10000", coaNo: null, coaYear: 2026, revision: 0, status: "requested",
+        petitionId: "external-coa-request-SO-AUTO-1-10000", petitionNoSnapshot: "SO-AUTO-1", selectedItemSeqs: [10000],
+        customerSnapshot: { name: "Customer A" },
+        sampleSnapshots: [{ itemSeq: 10000, sampleName: "Test Trade", commonName: "GLYPHOSATE 48% W/V SL" }],
+        resultSnapshots: [], externalRequestId: "external-coa-request-SO-AUTO-1-10000",
+        externalCoaRequest: { saleOrderNo: "SO-AUTO-1", line: 10000 },
+      }],
+    });
+    vi.mocked(api.getErpCoaAutofill).mockResolvedValueOnce({
+      externalRequestId: "external-coa-request-SO-AUTO-1-10000",
+      source: {},
+      sample: {
+        itemSeq: 10000, sampleName: "Test Trade", commonName: "GLYPHOSATE 48% W/V SL",
+        batchNo: "FG260902-008", lotNo: "FG260902-008", productionDate: "2026-09-02",
+      },
+      results: [{ itemSeq: 10000, testItem: "%AI content", criteria: "48% ± 2.40", result: "48.35%", unit: "%" }],
+      match: { petitionId: "p1", petitionNo: "P-AUTO-1", itemSeq: 1, batchNo: "FG260902-008", matchKind: "exact", batchScore: 1 },
+      candidates: [], stockCandidates: [], mfCandidates: [], form: { template: "liquid", aiCriteria: "48% ± 2.40", needsDensity: true },
+      warnings: [], dataSources: { erp: true, stock: true, mf: true, lab: true, density: false },
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+    const requestedRow = await screen.findByRole("row", { name: /SO-AUTO-1/ });
+    fireEvent.click(requestedRow);
+
+    await waitFor(() => expect(screen.getByLabelText("Batch No. *")).toHaveValue("FG260902-008"));
+    expect(screen.getByLabelText("วันที่ผลิต *")).toHaveValue("2026-09-02");
+    expect(screen.getByLabelText("ผลทดสอบ *")).toHaveValue("48.35%");
+    expect(screen.getByText("แบบฟอร์ม: ยาน้ำ")).toBeInTheDocument();
   });
 
   it("opens the clicked COA request with its common name and parameter sources selected", async () => {
