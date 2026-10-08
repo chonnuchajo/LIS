@@ -1,8 +1,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
-const { requireAdminUser } = require('../lib/adminGate');
-router.use(requireAdminUser);
+const { requireAdminUser, requireAuthenticatedUser } = require('../lib/adminGate');
+router.use((req, res, next) => {
+  if ((req.method === 'GET' && req.path === '/') || (req.method === 'POST' && req.path === '/users/microsoft')) {
+    return requireAuthenticatedUser(req, res, next);
+  }
+  return requireAdminUser(req, res, next);
+});
 const User = require('../models/User');
 const Role = require('../models/Role');
 const AccessGroup = require('../models/AccessGroup');
