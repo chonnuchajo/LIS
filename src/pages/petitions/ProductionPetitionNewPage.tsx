@@ -582,6 +582,7 @@ export default function ProductionPetitionNewPage({
     isError: masterItemsError,
   } = useQuery({
     queryKey: ['master-items-for-petition-new'],
+    enabled: !integrationMode,
     queryFn: async () => {
       const res = await api.get<unknown>('/master-items');
       const masterItems = normalizeMasterItemPayload(res.data.data);
@@ -815,14 +816,18 @@ export default function ProductionPetitionNewPage({
 
   async function handleSubmit() {
     if (!validateStep()) return;
-    const repeatedBatches = [...new Set(items.map((item) => String(item.batchNo ?? '').trim()).filter(Boolean))];
-    for (const batchNo of repeatedBatches) {
-      try {
-        const { data } = await api.batchExists(batchNo);
-        if (data.exists && !window.confirm(`Batch ${batchNo} เคยส่งไปแล้ว ต้องการส่งอีกใช่ไหม?`)) return;
-      } catch {
-        setError('ตรวจสอบประวัติ batch ไม่สำเร็จ กรุณาลองใหม่');
-        return;
+    // Production integration requests are already validated by the source system.
+    // They do not have a LIS session, so avoid the session-protected duplicate check.
+    if (!publicMode) {
+      const repeatedBatches = [...new Set(items.map((item) => String(item.batchNo ?? '').trim()).filter(Boolean))];
+      for (const batchNo of repeatedBatches) {
+        try {
+          const { data } = await api.batchExists(batchNo);
+          if (data.exists && !window.confirm(`Batch ${batchNo} เคยส่งไปแล้ว ต้องการส่งอีกใช่ไหม?`)) return;
+        } catch {
+          setError('ตรวจสอบประวัติ batch ไม่สำเร็จ กรุณาลองใหม่');
+          return;
+        }
       }
     }
     setSubmitting(true);
