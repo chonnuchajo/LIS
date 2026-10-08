@@ -245,6 +245,7 @@ function StandardsTab() {
     const counts = usableByCode.get(item.code) ?? {};
     const statusParts = [];
     if (summary.usable === 0) statusParts.push("หมด");
+    if (summary.usable === 1) statusParts.push("ใกล้หมด");
     if (summary.expired > 0) statusParts.push(`หมดอายุ ${summary.expired}`);
     if (summary.expiringSoon > 0) statusParts.push(`ใกล้หมดอายุ ${summary.expiringSoon}`);
     return {
@@ -469,7 +470,8 @@ function StandardsTab() {
                               {sum.usable === 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>}
                               {sum.expired > 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมดอายุ {sum.expired}</Badge>}
                               {sum.expiringSoon > 0 && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ {sum.expiringSoon}</Badge>}
-                              {sum.usable > 0 && sum.expired === 0 && sum.expiringSoon === 0 && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
+                              {sum.usable === 1 && sum.expired === 0 && sum.expiringSoon === 0 && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมด</Badge>}
+                              {sum.usable >= 2 && sum.expired === 0 && sum.expiringSoon === 0 && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
                             </div>
                           );
                         })()}
