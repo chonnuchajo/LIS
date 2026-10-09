@@ -951,7 +951,9 @@ export default function LabTestingDetailPage() {
 
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
-  const isLocked = !!petition.labApprovedAt || petition.status === 'rejected' || !isAssigned || !!pendingSample;
+  // ผล Lab ที่ออกแล้วแก้ไขได้จนกว่าคำร้องจะปิด Final Result; การกด
+  // "แก้ไขผล Lab" จากหน้ารายการจึงต้องเปิดช่องกรอกจริงตามชื่อปุ่ม.
+  const isLocked = ['approved', 'rejected'].includes(petition.status) || !isAssigned || !!pendingSample;
   const hasSubmittedLab = !!petition.labCompletedAt;
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(

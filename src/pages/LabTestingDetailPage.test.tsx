@@ -217,4 +217,21 @@ describe("LabTestingDetailPage", () => {
     expect(await screen.findByText("Lab value")).toBeInTheDocument();
     expect(screen.queryByText("QC value")).not.toBeInTheDocument();
   });
+
+  it("allows an assigned Lab user to edit a Lab result after Lab approval", async () => {
+    mockState.activeFixtures = {
+      ...fixtures,
+      petition: {
+        ...fixtures.petition,
+        status: "success",
+        labCompletedAt: "2026-07-13T03:00:00.000Z",
+        labApprovedAt: "2026-07-13T04:00:00.000Z",
+      },
+    };
+
+    render(<LabTestingDetailPage />);
+
+    expect(await screen.findByDisplayValue("1.8")).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /บันทึกการแก้ไข/ })).toBeEnabled();
+  });
 });
