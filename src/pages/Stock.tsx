@@ -42,7 +42,6 @@ import {
 import StandardDetailDrawer from "@/components/lis/stock/StandardDetailDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import SolventUnitsPanel from "@/components/lis/stock/SolventUnitsPanel";
-import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
@@ -1818,7 +1817,6 @@ const StockPage = () => {
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
-        <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>
 
