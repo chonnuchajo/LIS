@@ -32,7 +32,7 @@ import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
-import { calculateAi, calculatedAiFieldKind, formatCalculatedAi } from '@/lib/aiCalculation';
+import { aiGridClass, calculateAi, calculatedAiFieldKind, formatCalculatedAi } from '@/lib/aiCalculation';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import AdditionalSampleRequestDialog from '@/components/petition/AdditionalSampleRequestDialog';
 import { createResultAutosaveQueue, currentSampleResults, pendingAdditionalSample, sampleRoundFor, sampleRoundIdFor } from '@/lib/additionalSamples';
@@ -1285,7 +1285,7 @@ export default function LabTestingDetailPage() {
                                   })()
                                 : null;
                               return (
-                                <div key={unit.key}>
+                                <div key={unit.key} className={aiGridClass(unit.field.label)}>
                                   <TestField
                                     field={effectiveField}
                                     item={item}
@@ -1366,7 +1366,7 @@ export default function LabTestingDetailPage() {
                             ) => (
                               <div className={cn(
                                 'grid grid-cols-1 gap-4 pl-2',
-                                (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
+                                (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-6' : 'sm:grid-cols-2',
                               )}>
                                 {fields.map((field) => {
                                   if (field.type === 'reference') {

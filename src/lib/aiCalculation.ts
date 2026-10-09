@@ -56,3 +56,11 @@ export function formatCalculatedAi(value: number | null) {
   const leadingDecimalZeros = Math.max(0, Math.ceil(-Math.log10(absolute)) - 1);
   return value.toFixed(leadingDecimalZeros + 3);
 }
+
+export function aiGridClass(label: string) {
+  const kind = calculatedAiFieldKind(label);
+  if (kind === 'ai') return 'sm:col-span-6';
+  if (kind === 'areaAverage' || kind === 'areaRsd' || kind === 'sampleAverage' || kind === 'sampleRsd') return 'sm:col-span-3';
+  if (/^(area\s*inj\.?|%\s*sample)/i.test(label.trim())) return 'sm:col-span-2';
+  return '';
+}

@@ -14,7 +14,7 @@ import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStand
 import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
 import { describeResolvedStandard, describeStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
-import { calculateAi, calculatedAiFieldKind, formatCalculatedAi } from '@/lib/aiCalculation';
+import { aiGridClass, calculateAi, calculatedAiFieldKind, formatCalculatedAi } from '@/lib/aiCalculation';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
@@ -1457,7 +1457,7 @@ export default function QCTestingDetailPage() {
                     }
 
                     return (
-                      <div key={unit.key}>
+                      <div key={unit.key} className={aiGridClass(unit.field.label)}>
                         <TestField
                           field={effectiveField}
                           item={item}
@@ -1523,7 +1523,7 @@ export default function QCTestingDetailPage() {
                   ) => (
                     <div className={cn(
                       'grid grid-cols-1 gap-4 pl-2',
-                      (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
+                      (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-6' : 'sm:grid-cols-2',
                     )}>
                       {fields.map((field) => {
                         if (field.type === 'reference') {
