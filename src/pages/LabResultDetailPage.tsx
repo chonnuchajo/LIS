@@ -14,6 +14,7 @@ import { canPrintLabResult } from "@/lib/petitionPrintability";
 import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
+import BromadioloneAnalysisForm, { BROMADIOLONE_ANALYSIS_CSS } from "@/components/petition/BromadioloneAnalysisForm";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import type { QCTestResult } from "@/types/petition.types";
 import { useAuth } from "@/hooks/useAuth";
@@ -38,6 +39,7 @@ export default function LabResultDetailPage() {
   const [results, setResults] = useState<QCTestResult[]>([]);
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [bromPrintOpen, setBromPrintOpen] = useState(false);
 
   // รายงานต้องใช้ Lab parameters + กายภาพ เพื่อเติมสภาพตัวอย่างใน header
   useEffect(() => {
@@ -68,6 +70,8 @@ export default function LabResultDetailPage() {
 
   const report = <LabResultReportTemplate pages={pages} />;
   const labResultPrintable = petition ? canPrintLabResult(petition) && pages.length > 0 : false;
+  const bromadiolonePage = pages.find((page) => /BROMADIOLONE\s+0\.005%/i.test(page.sample?.name ?? ""));
+  const bromadiolonePrintable = Boolean(petition && petition.status === "approved" && bromadiolonePage);
 
   if (loading) {
     return (
@@ -98,9 +102,14 @@ export default function LabResultDetailPage() {
             </span>
           }
           actions={
-            <Button variant="primary-outline" onClick={() => labResultPrintable && setPrintOpen(true)} disabled={!labResultPrintable} className="gap-2">
-              <Printer className="h-4 w-4" /> พิมพ์ผลวิเคราะห์ Lab
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="primary-outline" onClick={() => labResultPrintable && setPrintOpen(true)} disabled={!labResultPrintable} className="gap-2">
+                <Printer className="h-4 w-4" /> พิมพ์ผลวิเคราะห์ Lab
+              </Button>
+              {bromadiolonePage && <Button variant="primary-outline" onClick={() => bromadiolonePrintable && setBromPrintOpen(true)} disabled={!bromadiolonePrintable} className="gap-2">
+                <Printer className="h-4 w-4" /> พิมพ์แบบคำนวณ Bromadiolone
+              </Button>}
+            </div>
           }
         />
 
@@ -125,6 +134,9 @@ export default function LabResultDetailPage() {
       <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="coa" css={LAB_REPORT_CSS}>
         {report}
       </PrintPreviewDialog>
+      {bromadiolonePage && <PrintPreviewDialog open={bromPrintOpen} onOpenChange={setBromPrintOpen} docType="coa" css={BROMADIOLONE_ANALYSIS_CSS}>
+        <BromadioloneAnalysisForm page={bromadiolonePage} />
+      </PrintPreviewDialog>}
     </AppLayout>
   );
 }
