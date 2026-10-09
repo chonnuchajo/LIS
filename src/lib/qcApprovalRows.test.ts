@@ -87,7 +87,8 @@ describe("buildApprovalGroups", () => {
     const groups = buildApprovalGroups(labelPetition, [labelParam], [qcResult], new Map(), { includeRestrictedStandards: true });
     const row = groups[0].params[0].rows[0];
 
-    expect(row.standardText).toContain("ผ่าน 0.9750–1.0250");
+    expect(row.standardText).toContain("ผ่านเกณฑ์ 25% 0.9750–1.0250");
+    expect(row.standardText).toContain("\nเกณฑ์กรม 0.9500–1.0500");
     expect(row.standardText).toContain("เกณฑ์กรม 0.9500–1.0500");
   });
 

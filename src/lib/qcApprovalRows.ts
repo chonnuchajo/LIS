@@ -143,7 +143,11 @@ export function buildApprovalGroups(
                 let rowAbnormal: boolean;
                 if (unit.labelTolerance) {
                   const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
-                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "", { showAutoPass: includeRestrictedStandards });
+                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "", {
+                    showAutoPass: true,
+                    multiline: true,
+                    autoPassLabel: "ผ่านเกณฑ์ 25%",
+                  });
                   const statusNote = rv.status === "review"
                     ? "รอหัวหน้าอนุมัติ"
                     : rv.status === "fail"
