@@ -80,9 +80,10 @@ const AI_FIELD_ORDER = ['Area Inj.1', 'Area Inj.2', 'Area Inj.3', '% Sample 1', 
 function aiFieldsForParameter(fields: ParameterValueField[]) {
   if (!fields.some((field) => calculatedAiFieldKind(field.label) === 'ai')) return fields;
   const byLabel = new Map(fields.map((field) => [field.label.trim().toLowerCase(), field]));
-  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => byLabel.get(label.toLowerCase()) ?? ({ label, type: 'float', unit: label.includes('Sample') || label === '%AI' ? '%' : undefined }));
+  const aiField = fields.find((field) => calculatedAiFieldKind(field.label) === 'ai');
+  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => (label === '%AI' ? aiField! : byLabel.get(label.toLowerCase())) ?? ({ label, type: 'float', unit: label.includes('Sample') || label === '%AI' ? '%' : undefined }));
   const known = new Set(AI_FIELD_ORDER.map((label) => label.toLowerCase()));
-  return [...generated, ...fields.filter((field) => !known.has(field.label.trim().toLowerCase()))];
+  return [...generated, ...fields.filter((field) => calculatedAiFieldKind(field.label) !== 'ai' && !known.has(field.label.trim().toLowerCase()))];
 }
 
 function aiDensity(values: Record<string, unknown>, context: ConditionContext) {
@@ -1461,7 +1462,7 @@ export default function QCTestingDetailPage() {
                           field={effectiveField}
                           item={item}
                           itemGroupIds={idsFor(item)}
-                          value={aiFieldKind ? formatCalculatedAi(calculatedAi?.[aiFieldKind] ?? null) : srcValues[unit.key] ?? ''}
+                          value={aiFieldKind ? (calculatedAi?.[aiFieldKind] != null ? formatCalculatedAi(calculatedAi[aiFieldKind]) : srcValues[unit.key] ?? '') : srcValues[unit.key] ?? ''}
                           noteValue={srcValues[noteLabel] ?? ''}
                           hideStandard={(unit as { hiddenStandard?: boolean }).hiddenStandard === true}
                           saveInfo={saveInfoSrc?.[unit.key]}

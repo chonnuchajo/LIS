@@ -24,5 +24,6 @@ describe('calculateAi', () => {
     expect(calculatedAiFieldKind('Average Area')).toBe('areaAverage');
     expect(calculatedAiFieldKind('Sample Average')).toBe('sampleAverage');
     expect(calculatedAiFieldKind('% RSD Sample')).toBe('sampleRsd');
+    expect(calculatedAiFieldKind('%AI — IMIDACLOPRID')).toBe('ai');
   });
 });

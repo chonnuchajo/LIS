@@ -100,13 +100,14 @@ const AI_FIELD_ORDER = [
 function aiFieldsForParameter(fields: ParameterValueField[]) {
   if (!fields.some((field) => calculatedAiFieldKind(field.label) === 'ai')) return fields;
   const byLabel = new Map(fields.map((field) => [field.label.trim().toLowerCase(), field]));
-  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => byLabel.get(label.toLowerCase()) ?? ({
+  const aiField = fields.find((field) => calculatedAiFieldKind(field.label) === 'ai');
+  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => (label === '%AI' ? aiField! : byLabel.get(label.toLowerCase())) ?? ({
     label,
     type: 'float',
     unit: label.includes('Sample') || label === '%AI' ? '%' : undefined,
   }));
   const known = new Set(AI_FIELD_ORDER.map((label) => label.toLowerCase()));
-  return [...generated, ...fields.filter((field) => !known.has(field.label.trim().toLowerCase()))];
+  return [...generated, ...fields.filter((field) => calculatedAiFieldKind(field.label) !== 'ai' && !known.has(field.label.trim().toLowerCase()))];
 }
 
 function labParametersForPetition(petition: Petition, params: ParameterItem[]): ParameterItem[] {
@@ -229,7 +230,7 @@ function TestField({
           {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
         </label>
         {headerMeta}
-        {!readOnly && saveInfo?.state === 'saved' && saveInfo.savedBy && (
+        {saveInfo?.state === 'saved' && saveInfo.savedBy && (
           <span className="text-xs text-muted-foreground">
             กรอกโดย {saveInfo.savedBy} เมื่อ {formatTime(saveInfo.savedAt)}
           </span>
@@ -1289,7 +1290,7 @@ export default function LabTestingDetailPage() {
                                     field={effectiveField}
                                     item={item}
                                     itemGroupIds={idsFor(item)}
-                                    value={aiFieldKind ? formatCalculatedAi(calculatedAi?.[aiFieldKind] ?? null) : srcValues[unit.key] ?? ''}
+                                    value={aiFieldKind ? (calculatedAi?.[aiFieldKind] != null ? formatCalculatedAi(calculatedAi[aiFieldKind]) : srcValues[unit.key] ?? '') : srcValues[unit.key] ?? ''}
                                     noteValue={srcValues[noteLabel] ?? ''}
                                     saveInfo={saveInfoSrc?.[unit.key]}
                                     noteSaveInfo={saveInfoSrc?.[noteLabel]}

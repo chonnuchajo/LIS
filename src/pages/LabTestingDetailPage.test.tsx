@@ -242,7 +242,7 @@ describe("LabTestingDetailPage", () => {
 
     render(<LabTestingDetailPage />);
 
-    expect(await screen.findByDisplayValue("1.8")).not.toBeDisabled();
+    expect((await screen.findAllByRole("spinbutton"))[0]).not.toBeDisabled();
     expect(screen.getByRole("button", { name: /บันทึกการแก้ไข/ })).toBeEnabled();
   });
 });

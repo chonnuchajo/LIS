@@ -41,7 +41,7 @@ export function calculateAi(values: Record<string, unknown>, density = 1): AiCal
 
 export function calculatedAiFieldKind(label: string): keyof AiCalculationResult | null {
   const normalized = label.trim().toLowerCase();
-  if (/^%?ai$|%ai\s*(result|ผลลัพธ์)/i.test(normalized)) return 'ai';
+  if (/^%?ai(?:\s*[-—:]|$)|%ai\s*(result|ผลลัพธ์)/i.test(normalized)) return 'ai';
   if (/(area.*(average|avg|mean|เฉลี่ย))|((average|avg|mean|เฉลี่ย).*area)/i.test(normalized)) return 'areaAverage';
   if (/(sample.*(average|avg|mean|เฉลี่ย))|((average|avg|mean|เฉลี่ย).*sample)/i.test(normalized)) return 'sampleAverage';
   if (/area.*rsd|rsd.*area/i.test(normalized)) return 'areaRsd';
