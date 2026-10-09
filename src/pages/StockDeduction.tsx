@@ -29,6 +29,7 @@ import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
 import { isLikelyHardwareStockScan, parseScannedQrId } from "@/lib/stockUnit";
 import { getRoomCatalog } from "@/lib/roomEquipment";
+import { normalizeRoles } from "@/lib/roles";
 import type { StockTransactionItem } from "@/types/stock";
 
 const analysisInstruments =
@@ -147,6 +148,7 @@ const StockDeduction = () => {
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
+  const canReceiveStock = normalizeRoles(user).some((role) => role === "admin" || role === "lab-inventory");
   const hardwareScanRef = useRef<HardwareScanBuffer>({ text: "", firstAt: 0, lastAt: 0, snapshot: null });
   const queryQrId = searchParams.get("qrId")?.trim() || null;
   const initialQrId = scannedQrId ?? queryQrId;
@@ -437,9 +439,11 @@ const StockDeduction = () => {
             <Button type="button" variant="outline" onClick={openCameraScanner}>
               <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
             </Button>
-            <Button type="button" onClick={() => setReceiveOpen(true)}>
-              <ArrowDownToLine className="mr-1 h-4 w-4" /> รับเข้า Stock
-            </Button>
+            {canReceiveStock ? (
+              <Button type="button" onClick={() => setReceiveOpen(true)}>
+                <ArrowDownToLine className="mr-1 h-4 w-4" /> รับเข้า Stock
+              </Button>
+            ) : null}
             <StockRequisitionButton
               roomSlug={ANALYSIS_ROOM_SLUG}
               instruments={analysisInstruments}
