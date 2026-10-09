@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { isAiContentTestItem } from "@/lib/aiToleranceCriteria";
 import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot } from "@/types/coa.types";
 
 const formLabels = {
@@ -18,12 +19,63 @@ const formLabels = {
   bromadiolone0005: "Bromadiolone 0.005%",
 } as const;
 
+type ResultForm = {
+  analysisDate: string;
+  aiCriteria: string;
+  density: string;
+  aiResult: string;
+  appearance: string;
+};
+
+const resultFields: Array<[keyof ResultForm, string, "date" | "text"]> = [
+  ["analysisDate", "Date of analysis", "date"],
+  ["aiCriteria", "เกณฑ์ความคลาดเคลื่อน", "text"],
+  ["density", "Density at 30°C (g/cm³)", "text"],
+  ["aiResult", "%AI content (W/V)", "text"],
+  ["appearance", "Appearance", "text"],
+];
+
+function emptyResultForm(): ResultForm {
+  return { analysisDate: "", aiCriteria: "", density: "", aiResult: "", appearance: "" };
+}
+
+function dateValue(value?: string) {
+  return value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] || value || "";
+}
+
+function resultFormFromRows(rows: CoaResultSnapshot[]): ResultForm {
+  const appearance = rows.find((row) => /^appearance$/i.test(row.testItem?.trim() || ""));
+  const ai = rows.find((row) => isAiContentTestItem(row.testItem));
+  const density = rows.find((row) => /density/i.test(row.testItem || ""));
+  const analysisDate = rows.find((row) => /date\s*of\s*analysis/i.test(row.testItem || ""));
+  const appearanceCriteria = appearance?.criteria?.trim();
+  return {
+    analysisDate: dateValue(analysisDate?.result),
+    aiCriteria: ai?.criteria || "",
+    density: density?.result || "",
+    aiResult: ai?.result || "",
+    appearance: appearanceCriteria && appearanceCriteria !== "-"
+      ? appearanceCriteria
+      : appearance?.result && appearance.result.toLowerCase() !== "conform" ? appearance.result : "",
+  };
+}
+
+function resultRowsFromForm(itemSeq: number, values: ResultForm): CoaResultSnapshot[] {
+  const aiResult = values.aiResult.trim();
+  return [
+    { itemSeq, testItem: "Appearance", result: "Conform", criteria: values.appearance.trim(), method: "Visual", unit: "" },
+    { itemSeq, testItem: "%AI content (W/V)", result: aiResult && /%$/.test(aiResult) ? aiResult : aiResult ? `${aiResult}%` : "", criteria: values.aiCriteria.trim(), unit: "%", method: "" },
+    { itemSeq, testItem: "Density at 30°C (g/cm³)", result: values.density.trim(), criteria: "-", unit: "g/cm³", method: "DMA 501" },
+    { itemSeq, testItem: "Date of analysis", result: values.analysisDate.trim(), criteria: "-", unit: "", method: "" },
+  ];
+}
+
 export default function CoaManualDialog({ open, onOpenChange, request, onSaved }: {
   open: boolean; onOpenChange: (open: boolean) => void; request: CoaDocument; onSaved: (doc: CoaDocument) => void;
 }) {
   const { user } = useAuth();
   const [sample, setSample] = useState<CoaSampleSnapshot>({ itemSeq: 1 });
-  const [results, setResults] = useState<CoaResultSnapshot[]>([]);
+  const [resultForm, setResultForm] = useState<ResultForm>(emptyResultForm);
   const [remark, setRemark] = useState("");
   const editing = request.sourceType === "erpManual";
   const autofill = useQuery({
@@ -33,6 +85,7 @@ export default function CoaManualDialog({ open, onOpenChange, request, onSaved }
   });
   const save = useMutation({
     mutationFn: () => {
+      const results = resultRowsFromForm(sample.itemSeq, resultForm);
       const body = { externalRequestId: request.externalRequestId || request._id, sample, results, remark,
         _user: { name: user?.name, email: user?.email, role: user?.role, activeRole: user?.role } };
       return editing ? api.updateCoaDocument(request._id, body) : api.createErpManualCoaDocument(body);
@@ -44,20 +97,17 @@ export default function CoaManualDialog({ open, onOpenChange, request, onSaved }
     if (!open) return;
     const source = request.sampleSnapshots[0] || { itemSeq: request.selectedItemSeqs[0] || 1 };
     setSample({ ...source, productionDate: source.productionDate?.slice(0, 10) || "" });
-    setResults(request.resultSnapshots.length ? request.resultSnapshots.map((row) => ({ ...row }))
-      : [{ itemSeq: source.itemSeq, testItem: "", criteria: "", result: "", unit: "", method: "" }]);
+    setResultForm(resultFormFromRows(request.resultSnapshots));
     setRemark(request.remark || "");
     reset();
   }, [open, request, reset]);
   useEffect(() => {
     if (!open || editing || !autofill.data) return;
     setSample((current) => ({ ...current, ...autofill.data.sample, productionDate: autofill.data.sample.productionDate?.slice(0, 10) || "" }));
-    setResults(autofill.data.results.length
-      ? autofill.data.results.map((row) => ({ ...row }))
-      : [{ itemSeq: autofill.data.sample.itemSeq, testItem: "", criteria: "", result: "", unit: "", method: "" }]);
+    setResultForm(resultFormFromRows(autofill.data.results));
   }, [autofill.data, editing, open]);
   const valid = [sample.sampleName, sample.commonName, sample.batchNo, sample.productionDate].every((value) => value?.trim())
-    && results.length > 0 && results.every((row) => row.testItem?.trim() && row.criteria?.trim() && row.result?.trim());
+    && resultFields.every(([field]) => resultForm[field].trim());
   function selectStockLot(lotNo: string) {
     const selected = autofill.data?.stockCandidates.find((candidate) => candidate.lotNo === lotNo);
     if (!selected) return;
@@ -66,9 +116,6 @@ export default function CoaManualDialog({ open, onOpenChange, request, onSaved }
   const sampleFields: Array<[keyof CoaSampleSnapshot, string, string?]> = [
     ["sampleName", "ชื่อการค้า *"], ["commonName", "ชื่อสามัญ *"], ["batchNo", "Batch No. *"],
     ["productionDate", "วันที่ผลิต *", "date"], ["lotNo", "Lot No."], ["manufacturer", "ผู้ผลิต"],
-  ];
-  const resultFields: Array<[keyof CoaResultSnapshot, string]> = [
-    ["testItem", "รายการทดสอบ *"], ["criteria", "เกณฑ์มาตรฐาน *"], ["result", "ผลทดสอบ *"], ["unit", "หน่วย"], ["method", "วิธีทดสอบ"],
   ];
   return <Dialog open={open} onOpenChange={(value) => { if (!save.isPending) onOpenChange(value); }}>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -121,22 +168,14 @@ export default function CoaManualDialog({ open, onOpenChange, request, onSaved }
         </div>
         <div className="space-y-3">
           <h2 className="text-base font-semibold text-foreground">ผลทดสอบ</h2>
-          {results.map((row, index) => <div key={index} className="space-y-3 rounded-lg border bg-card p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">รายการที่ {index + 1}</span>
-              <Button type="button" variant="ghost" size="sm" disabled={results.length === 1} aria-label={`ลบผลทดสอบ ${index + 1}`}
-                onClick={() => setResults(results.filter((_, i) => i !== index))}>ลบ</Button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {resultFields.map(([key, label]) => <div key={key} className="space-y-1">
-                <Label htmlFor={`manual-result-${index}-${key}`}>{label}</Label>
-                <Input id={`manual-result-${index}-${key}`} required={label.endsWith("*")} maxLength={1000} value={String(row[key] || "")}
-                  onChange={(event) => setResults(results.map((entry, i) => i === index ? { ...entry, [key]: event.target.value } : entry))} />
-              </div>)}
-            </div>
-          </div>)}
-          <Button type="button" variant="outline" disabled={results.length >= 50}
-            onClick={() => setResults([...results, { itemSeq: sample.itemSeq, testItem: "", criteria: "", result: "" }])}>เพิ่มรายการทดสอบ</Button>
+          <p className="text-sm text-muted-foreground">ระบบดึง 5 ข้อมูลจำเป็นจากผล Lab ที่ชื่อสามัญและ Batch No. ตรงกัน</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {resultFields.map(([key, label, type]) => <div key={key} className="space-y-1">
+              <Label htmlFor={`manual-result-${key}`}>{label} *</Label>
+              <Input id={`manual-result-${key}`} type={type} required maxLength={1000} value={resultForm[key]}
+                onChange={(event) => setResultForm((current) => ({ ...current, [key]: event.target.value }))} />
+            </div>)}
+          </div>
         </div>
         <div className="space-y-1"><Label htmlFor="manual-remark">หมายเหตุ</Label>
           <Textarea id="manual-remark" maxLength={3000} value={remark} onChange={(event) => setRemark(event.target.value)} /></div>

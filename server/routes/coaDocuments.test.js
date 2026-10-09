@@ -1052,7 +1052,7 @@ test('revision approval aborts without activating the revision when supersession
   }
 });
 
-test('ERP autofill combines LOT, nearby Lab batch, English physical result, AI criteria, and density', async () => {
+test('ERP autofill only uses Lab results when common name and batch both match', async () => {
   const originals = {
     fetch: global.fetch,
     petitionFind: Petition.find,
@@ -1087,10 +1087,11 @@ test('ERP autofill combines LOT, nearby Lab batch, English physical result, AI c
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.sample.lotNo, 'FG260902-008');
     assert.equal(res.body.sample.productionDate, '2026-09-02');
-    assert.equal(res.body.match.matchKind, 'close');
-    assert.equal(res.body.results.find((row) => row.testItem === '%AI content').criteria, '48% ± 2.40');
+    assert.equal(res.body.match, null);
+    assert.equal(res.body.results.find((row) => row.testItem === '%AI content'), undefined);
+    assert.match(res.body.warnings.join(' '), /ชื่อสามัญและ Batch No\./);
     assert.equal(res.body.results.find((row) => /Density/.test(row.testItem)).result, '1.158');
-    assert.equal(res.body.results.find((row) => row.testItem === 'Appearance').criteria, 'Clear liquid, White');
+    assert.equal(res.body.results.find((row) => row.testItem === 'Appearance'), undefined);
   } finally {
     global.fetch = originals.fetch;
     Petition.find = originals.petitionFind;
