@@ -1681,6 +1681,10 @@ export default function LabTestingDetailPage() {
             {abnormalCount > 0 && labReceivedAt(petition) && (
               <Button variant="outline" onClick={() => setAdditionalSampleOpen(true)} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}>ขอตัวอย่างเพิ่ม</Button>
             )}
+            <Button variant="outline" onClick={handleRecheck} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey} className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Re-check
+            </Button>
             <Button
               variant={isComplete ? 'primary' : 'outline'}
               onClick={hasSubmittedLab ? handleSaveDraft : isComplete ? handleSubmitResult : handleSaveDraft}
@@ -1689,10 +1693,6 @@ export default function LabTestingDetailPage() {
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {hasSubmittedLab ? 'บันทึกการแก้ไข' : isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
-            </Button>
-            <Button variant="outline" onClick={handleRecheck} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey} className="gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Re-check
             </Button>
           </div>
         )}
