@@ -36,6 +36,8 @@ function firstValue(page: LabReportPage, pattern: RegExp, fallback = "") {
 export default function BromadioloneAnalysisForm({ page }: { page: LabReportPage }) {
   const aiValues = values(page, /%\s*AI|BROMADIOLONE/i);
   const areaValues = values(page, /area|พื้นที่/i);
+  const standardNo = firstValue(page, /standard/i, page.sample.sampleNo || "-");
+  const solventNo = firstValue(page, /solvent/i, page.sample.submissionNo || "-");
   const sampleValues = aiValues.length ? aiValues : ["-", "-", "-"];
   const sampleAverage = sampleValues[0] || "-";
   const area = areaValues.length ? areaValues : ["-", "-", "-"];
@@ -48,7 +50,7 @@ export default function BromadioloneAnalysisForm({ page }: { page: LabReportPage
         <div className="brom-form-heading">
           <div>ตัวอย่างเลขที่ <span className="brom-form-field">{page.reportNo}</span></div><div>ชื่อสามัญ <span className="brom-form-field brom-form-field-wide">Bromadiolone</span></div><div>สูตร <span className="brom-form-field brom-form-field-small">0.005</span></div><div>% <span className="brom-form-field brom-form-field-small">Wax block</span></div>
         </div>
-        <div className="brom-form-heading" style={{ marginTop: "4mm", gridTemplateColumns: "42% 58%" }}><div>เลขที่ Standard <span className="brom-form-field">{page.sample.sampleNo || "-"}</span></div><div>เลขที่ Solvent numbet <span className="brom-form-field">{page.sample.submissionNo || "-"}</span></div></div>
+        <div className="brom-form-heading" style={{ marginTop: "4mm", gridTemplateColumns: "42% 58%" }}><div>เลขที่ Standard <span className="brom-form-field">{standardNo}</span></div><div>เลขที่ Solvent number <span className="brom-form-field">{solventNo}</span></div></div>
         <div className="brom-form-section">System suitability</div>
         <div className="brom-form-line-row">{['Area Inj.1', 'Area Inj.2', 'Area Inj.3', 'Average', '% RSD (ไม่เกิน 2 %)'].map((label, index) => <div className="brom-form-line-cell" key={label}>{label}<span className="brom-form-line">{area[index] || "-"}</span></div>)}</div>
         <div className="brom-form-line-row" style={{ marginTop: "8mm" }}><div>Control&nbsp; Sample <span className="brom-form-line">= &nbsp; {firstValue(page, /control/i, "-")} % WW</span></div>{[1, 2, 3, 4].map((index) => <div className="brom-form-line-cell" key={index}>&nbsp;<span className="brom-form-line">-</span></div>)}</div>
