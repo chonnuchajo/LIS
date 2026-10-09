@@ -209,6 +209,17 @@ describe("LabTestingDetailPage", () => {
     expect(screen.queryByText(/เกณฑ์กลาง 1\.7100–1\.8900 %/)).not.toBeInTheDocument();
   });
 
+  it("expands a legacy %AI parameter into input, average, and RSD fields", async () => {
+    render(<LabTestingDetailPage />);
+
+    expect(await screen.findByText("Area Inj.1")).toBeInTheDocument();
+    expect(screen.getByText("Area Inj.3")).toBeInTheDocument();
+    expect(screen.getByText("% Sample 1")).toBeInTheDocument();
+    expect(screen.getByText("% Sample 3")).toBeInTheDocument();
+    expect(screen.getByText("Area Average")).toBeInTheDocument();
+    expect(screen.getByText("% Sample %RSD")).toBeInTheDocument();
+  });
+
   it("shows only Lab-scope parameters for R&D petitions", async () => {
     mockState.activeFixtures = researchFixtures;
 

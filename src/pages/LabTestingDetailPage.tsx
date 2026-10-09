@@ -91,6 +91,24 @@ function aiDensity(values: Record<string, unknown>, context: ConditionContext) {
   return 1;
 }
 
+const AI_FIELD_ORDER = [
+  'Area Inj.1', 'Area Inj.2', 'Area Inj.3',
+  '% Sample 1', '% Sample 2', '% Sample 3',
+  'Area Average', 'Area %RSD', '% Sample Average', '% Sample %RSD', '%AI',
+] as const;
+
+function aiFieldsForParameter(fields: ParameterValueField[]) {
+  if (!fields.some((field) => calculatedAiFieldKind(field.label) === 'ai')) return fields;
+  const byLabel = new Map(fields.map((field) => [field.label.trim().toLowerCase(), field]));
+  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => byLabel.get(label.toLowerCase()) ?? ({
+    label,
+    type: 'float',
+    unit: label.includes('Sample') || label === '%AI' ? '%' : undefined,
+  }));
+  const known = new Set(AI_FIELD_ORDER.map((label) => label.toLowerCase()));
+  return [...generated, ...fields.filter((field) => !known.has(field.label.trim().toLowerCase()))];
+}
+
 function labParametersForPetition(petition: Petition, params: ParameterItem[]): ParameterItem[] {
   return isResearchAndDevelopmentPetition(petition)
     ? params.filter((p) => p.scope === 'lab')
@@ -1120,7 +1138,7 @@ export default function LabTestingDetailPage() {
                     {/* Lab-owned parameters (editable) */}
                     {labOwnedParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = visibleFields(param, effectivePhase, item);
+                      const fields = aiFieldsForParameter(visibleFields(param, effectivePhase, item));
                       if (fields.length === 0) return null;
                       // Build the condition context for resolving conditionalMode standards:
                       // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1440,7 +1458,7 @@ export default function LabTestingDetailPage() {
                     {/* Shared QC parameters (read-only) */}
                     {sharedQcParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = visibleFields(param, effectivePhase, item);
+                      const fields = aiFieldsForParameter(visibleFields(param, effectivePhase, item));
                       if (fields.length === 0) return null;
                       // Build the condition context for resolving conditionalMode standards:
                       // sameParam = this parameter's live values; otherParams = each OTHER
