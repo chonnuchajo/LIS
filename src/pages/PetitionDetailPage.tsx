@@ -258,6 +258,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
         (() => {
           const statusCfg = petitionStatusBadge(data);
           const isAdmin = normalizeRoles(user).includes('admin');
+          const isQcHead = normalizeRoles(user).includes('qc-head');
           const isRequester = user?.name === data.submittedBy?.name;
           const canEdit = data.status === 'deliveringQC' && isRequester;
           const canDelete = isAdmin || (data.status === 'deliveringQC' && isRequester);
@@ -364,6 +365,15 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         >
                           <Pencil className="h-4 w-4" />
                           แก้ไข
+                        </Button>
+                      )}
+                      {isResultMode && (isQcHead || isAdmin) && (
+                        <Button variant="primary-outline" size="sm" onClick={() => {
+                          const reason = window.prompt('เหตุผลการแก้ไขผล (แก้ไขการกรอกผิด / ทบทวนตามเอกสาร / อื่นๆ)');
+                          if (reason?.trim()) navigate(`/qc-testing/${data._id}?edit=1&reason=${encodeURIComponent(reason.trim())}`);
+                        }}>
+                          <Pencil className="h-4 w-4" />
+                          แก้ไขผล (QC Head)
                         </Button>
                       )}
                       {!isResultMode && canDelete && (

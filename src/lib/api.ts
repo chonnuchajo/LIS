@@ -832,6 +832,7 @@ export const api = {
     petitionId: string; petitionNo?: string; itemSeq: number; sampleId?: string;
     sampleName?: string; commonName?: string; parameterId: string; parameterName?: string;
     entries: Record<string, unknown>[]; enteredBy: { name: string; email: string };
+    overrideReason?: string;
   }) =>
     request<import("@/types/petition.types").QCTestResult>("/qc-results/entries", {
       method: "PUT",
