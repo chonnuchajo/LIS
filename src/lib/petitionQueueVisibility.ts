@@ -18,15 +18,14 @@ export function isVisibleInQcTestingQueue(petition: Petition): boolean {
 
 export function isVisibleInAssignQueue(petition: Petition): boolean {
   if (!hasLabTrack(petition)) return false;
-  // Keep assigned work on board after Lab receives sample; otherwise refresh
-  // makes successful assignments disappear immediately.
+  // Keep received-but-unassigned work on the board so Lab can be assigned after
+  // accepting the sample, and keep assigned work visible during testing.
   if (petition.assignedTo) return OPEN_TESTING_STATUSES.includes(petition.status);
-  if (labReceivedAt(petition)) return false;
   return OPEN_TESTING_STATUSES.includes(petition.status) || isReceivedBeforeStatusAdvance(petition);
 }
 
 export function isWaitingForAssignment(petition: Petition): boolean {
-  return !labReceivedAt(petition) && !petition.assignedTo && (
+  return !petition.assignedTo && (
     petition.status === 'sampleSent' ||
     petition.status === 'pendingReview' ||
     isReceivedBeforeStatusAdvance(petition)
