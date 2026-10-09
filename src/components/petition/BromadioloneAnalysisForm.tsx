@@ -3,22 +3,22 @@ import type { LabReportPage } from "@/lib/labReport";
 
 export const BROMADIOLONE_ANALYSIS_CSS = `
 .brom-form-root, .brom-form-root * { box-sizing: border-box; color: #000; font-family: Tahoma, sans-serif; }
-.brom-form-page { width: 297mm; min-height: 210mm; padding: 9mm 16mm 8mm; background: #fff; }
-.brom-form-title { text-align: center; font-size: 12pt; margin: 12mm 0 7mm; }
-.brom-form-logo { width: 39mm; height: auto; object-fit: contain; }
+.brom-form-page { width: 297mm; min-height: 210mm; padding: 18mm 16mm 8mm; background: #fff; }
+.brom-form-title { text-align: center; font-size: 13pt; margin: 10mm 0 9mm; }
+.brom-form-logo { width: 40mm; height: auto; object-fit: contain; }
 .brom-form-top { display: grid; grid-template-columns: 42% 58%; align-items: start; }
-.brom-form-heading { display: grid; grid-template-columns: 33% 34% 13% 20%; align-items: end; column-gap: 3mm; font-size: 9pt; }
+.brom-form-heading { display: grid; grid-template-columns: 33% 34% 13% 20%; align-items: end; column-gap: 3mm; font-size: 10pt; }
 .brom-form-field { display: inline-block; min-width: 30mm; border-bottom: .6pt solid #000; padding: 0 2mm 1mm; text-align: center; }
 .brom-form-field-wide { min-width: 67mm; }
 .brom-form-field-small { min-width: 20mm; }
-.brom-form-line-row { display: grid; grid-template-columns: 37mm 37mm 37mm 37mm 37mm; gap: 18mm; margin-top: 6mm; font-size: 9pt; }
+.brom-form-line-row { display: grid; grid-template-columns: 37mm 37mm 37mm 37mm 37mm; gap: 18mm; margin-top: 7mm; font-size: 10pt; }
 .brom-form-line-cell { text-align: center; }
 .brom-form-line-cell .brom-form-line { display: block; border-bottom: .6pt solid #000; min-height: 7mm; padding-top: 2mm; }
-.brom-form-section { margin-top: 5mm; font-size: 9pt; }
-.brom-form-summary { width: 78mm; margin-top: 8mm; font-size: 9pt; }
+.brom-form-section { margin-top: 6mm; font-size: 10pt; }
+.brom-form-summary { width: 78mm; margin-top: 9mm; font-size: 10pt; }
 .brom-form-summary-row { display: grid; grid-template-columns: 18mm 53mm 15mm; align-items: end; min-height: 7mm; }
 .brom-form-summary-row .brom-form-line { border-bottom: .6pt solid #000; min-height: 6mm; text-align: center; }
-.brom-form-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 35mm; margin-top: 15mm; font-size: 9pt; }
+.brom-form-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 35mm; margin-top: 16mm; font-size: 10pt; }
 .brom-form-signature-line { display: inline-block; width: 76mm; border-bottom: .6pt solid #000; height: 7mm; vertical-align: bottom; }
 .brom-form-signature-name { margin: 7mm 0 0 35mm; color: #1670b7; }
 .brom-form-footer { margin-top: 12mm; font-size: 8pt; color: #1670b7; }
