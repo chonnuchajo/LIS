@@ -1501,7 +1501,7 @@ export default function QCTestingDetailPage() {
                           const badge = labelToleranceBadge(rv.status, rv.center);
                           return (
                             <div className="mt-1 space-y-0.5">
-                              <p className="text-xs text-muted-foreground">{formatLabelToleranceRange(rv, unit.field.unit ?? '')}</p>
+                              <p className="text-xs text-muted-foreground whitespace-pre-line">{formatLabelToleranceRange(rv, unit.field.unit ?? '', { showAutoPass: true, multiline: true, autoPassLabel: 'ผ่านเกณฑ์ 25%' })}</p>
                               {badge && <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${badge.cls}`}>{badge.text}</span>}
                             </div>
                           );

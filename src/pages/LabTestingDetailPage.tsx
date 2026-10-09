@@ -167,7 +167,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  return formatLabelToleranceRange(rv, unit);
+  return formatLabelToleranceRange(rv, unit, { showAutoPass: true, multiline: true, autoPassLabel: 'ผ่านเกณฑ์ 25%' });
 }
 
 interface TestFieldProps {
@@ -1335,7 +1335,7 @@ export default function LabTestingDetailPage() {
                                     outputResult={outputResult}
                                     headerMeta={
                                       labelToleranceInfo?.criteriaText ? (
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="text-xs text-muted-foreground whitespace-pre-line">
                                           {labelToleranceInfo.criteriaText}
                                         </span>
                                       ) : undefined

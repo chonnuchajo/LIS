@@ -3,6 +3,8 @@ import type { ResolvedStandard, LabelToleranceResolved } from "./parameterValida
 
 type LabelToleranceDisplayOptions = {
   showAutoPass?: boolean;
+  multiline?: boolean;
+  autoPassLabel?: string;
 };
 
 export function describeStandard(field: ParameterValueField): string {
@@ -211,11 +213,11 @@ export function formatLabelToleranceRange(r: LabelToleranceResolved, unit: strin
   const fmt = (n: number) => formatLabelToleranceNumber(n, r.center);
   const parts = [
     options.showAutoPass === true && r.autoRange
-      ? `ผ่าน ${fmt(r.autoRange[0])}–${fmt(r.autoRange[1])}`
+      ? `${options.autoPassLabel ?? 'ผ่าน'} ${fmt(r.autoRange[0])}–${fmt(r.autoRange[1])}`
       : "",
     r.headRange ? `เกณฑ์กรม ${fmt(r.headRange[0])}–${fmt(r.headRange[1])}` : "",
   ].filter(Boolean);
-  return parts.length ? `${parts.join(" · ")}${u}` : "";
+  return parts.length ? `${parts.join(options.multiline ? "\n" : " · ")}${u}` : "";
 }
 
 // ป้ายสถานะ labelTolerance สำหรับ chip (pass/review/fail + ข้ามเมื่อไม่มี %ฉลาก)
