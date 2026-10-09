@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateAi, formatCalculatedAi } from './aiCalculation';
+import { calculateAi, calculatedAiFieldKind, formatCalculatedAi } from './aiCalculation';
 
 describe('calculateAi', () => {
   it('calculates separate averages, sample RSD and AI using density', () => {
@@ -18,5 +18,11 @@ describe('calculateAi', () => {
   it('shows two decimals normally and three significant decimal digits below one', () => {
     expect(formatCalculatedAi(12.3456)).toBe('12.35');
     expect(formatCalculatedAi(0.00145)).toBe('0.00145');
+  });
+
+  it('recognizes common result label word orders', () => {
+    expect(calculatedAiFieldKind('Average Area')).toBe('areaAverage');
+    expect(calculatedAiFieldKind('Sample Average')).toBe('sampleAverage');
+    expect(calculatedAiFieldKind('% RSD Sample')).toBe('sampleRsd');
   });
 });
