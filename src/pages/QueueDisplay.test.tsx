@@ -52,6 +52,9 @@ function makeQueuePetition(index: number): Petition {
 }
 
 describe("QueueDisplay", () => {
+  const audioPlay = vi.fn().mockResolvedValue(undefined);
+  const audioPause = vi.fn();
+
   it("calculates visible queue rows from the available column height", () => {
     expect(calculateQueueItemsPerColumn(240)).toBe(1);
     expect(calculateQueueItemsPerColumn(380)).toBe(2);
@@ -62,6 +65,15 @@ describe("QueueDisplay", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    audioPlay.mockResolvedValue(undefined);
+    vi.stubGlobal("Audio", vi.fn(() => ({
+      play: audioPlay,
+      pause: audioPause,
+      currentTime: 0,
+      loop: false,
+      muted: false,
+      preload: "",
+    })));
     mockedUsePetitionList.mockImplementation((params) => {
       const statuses = params.status?.split(",") ?? [];
       const items = statuses.includes(petition.status) ? [petition] : [];
@@ -90,6 +102,20 @@ describe("QueueDisplay", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("requires one user gesture to arm queue notification audio", async () => {
+    render(<QueueDisplay mode="qc" />);
+
+    const enableSoundButton = screen.getByRole("button", { name: "เปิดเสียงแจ้งเตือน" });
+    enableSoundButton.click();
+
+    await waitFor(() => {
+      expect(audioPlay).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("button", { name: "เปิดเสียงแจ้งเตือน" })).not.toBeInTheDocument();
+    });
+    expect(audioPause).toHaveBeenCalledOnce();
   });
 
   it("shows stale received deliveringQC petitions in the QC progress column", async () => {
