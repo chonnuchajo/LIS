@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmDialog";
 import { api } from "@/lib/api";
 import { isUsableBottle } from "@/lib/stockStatus";
 import { formatStockQuantityWithUnit } from "@/lib/stockQuantity";
@@ -46,6 +47,7 @@ interface Props {
 
 export default function StandardRequisitionDialog({ initialQrId, initialUnit, onClose, onSaved }: Props) {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [code, setCode] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
@@ -442,8 +444,14 @@ export default function StandardRequisitionDialog({ initialQrId, initialUnit, on
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="button" disabled={!canSave || busy} onClick={() => {
-            if (window.confirm("ต้องการเบิก stock ออกจากคลังใช่หรือไม่?")) submit();
+          <Button type="button" disabled={!canSave || busy} onClick={async () => {
+            const ok = await confirm({
+              title: "ยืนยันการเบิก Standard",
+              description: "ต้องการนำรายการนี้ออกจาก Stock ใช่หรือไม่?",
+              confirmText: "ยืนยันการเบิก",
+              cancelText: "ยกเลิก",
+            });
+            if (ok) submit();
           }}>
             {busy ? "กำลังบันทึก..." : "เบิก"}
           </Button>

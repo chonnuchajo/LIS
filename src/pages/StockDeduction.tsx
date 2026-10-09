@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmDialog";
 import { api } from "@/lib/api";
 import { readStockLabelCodeFromImage } from "@/lib/aiApi";
 import PageHeader from "@/components/lis/PageHeader";
@@ -133,6 +134,7 @@ function normalizeStockLabelCandidate(value: string) {
 
 const StockDeduction = () => {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [type, setType] = useState<string>("");
@@ -556,9 +558,12 @@ const StockDeduction = () => {
           setReceiveOpen(true);
           return;
         }
-        if (window.confirm("หากปิดตอนนี้ รายการรับเข้าที่ยังไม่บันทึกจะถูกเก็บไว้สำหรับครั้งหน้า ต้องการปิดหรือไม่?")) {
-          setReceiveOpen(false);
-        }
+        void confirm({
+          title: "ปิดหน้ารับเข้า Stock?",
+          description: "รายการที่ยังไม่บันทึกจะถูกเก็บไว้ และนำกลับมาใช้ต่อได้ในครั้งหน้า",
+          confirmText: "ปิดและเก็บไว้",
+          cancelText: "ทำรายการต่อ",
+        }).then((ok) => { if (ok) setReceiveOpen(false); });
       }}>
         <DialogContent className="max-h-[92vh] max-w-[98vw] overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
