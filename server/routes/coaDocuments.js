@@ -185,6 +185,11 @@ function exactTrimmedRegex(value) {
   return new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, 'i');
 }
 
+function commonNameRegex(value) {
+  const tokens = String(value || '').trim().split(/\s+/).filter(Boolean);
+  return new RegExp(tokens.map(escapeRegex).join('.*'), 'i');
+}
+
 function activeCoaSummary(coa, sample) {
   return {
     coaId: coa._id,
@@ -277,8 +282,19 @@ function externalCoaRowToDocument(row) {
   const itemNo = firstExternalValue(row, ['ItemNo']);
   const tradeName = firstExternalValue(row, ['TradeName']);
   const commonName = firstExternalValue(row, ['CommonName']);
+  const batchNo = firstExternalValue(row, ['BatchNo', 'Batch No.', 'Batch No', 'batch_no', 'Batch', 'LotNo', 'Lot No.', 'Lot']);
+  const lotNo = firstExternalValue(row, ['LotNo', 'Lot No.', 'lot_no', 'Lot']);
   const date = externalCoaDate(row);
   const updatedAt = firstExternalValue(row, ['UpdateDate']) || date;
+  const sampleSnapshot = {
+    itemSeq,
+    sampleName: tradeName || itemNo || saleOrderNo,
+    commonName,
+    sampleId: itemNo,
+    condition: firstExternalValue(row, ['PackingSize']),
+  };
+  if (batchNo) sampleSnapshot.batchNo = batchNo;
+  if (lotNo) sampleSnapshot.lotNo = lotNo;
   return {
     _id: externalCoaRequestId(row),
     coaNo: null,
@@ -292,13 +308,7 @@ function externalCoaRowToDocument(row) {
       company: firstExternalValue(row, ['CompanySource']),
       department: firstExternalValue(row, ['Zone']),
     },
-    sampleSnapshots: [{
-      itemSeq,
-      sampleName: tradeName || itemNo || saleOrderNo,
-      commonName,
-      sampleId: itemNo,
-      condition: firstExternalValue(row, ['PackingSize']),
-    }],
+    sampleSnapshots: [sampleSnapshot],
     resultSnapshots: [],
     trendSnapshots: commonName ? [{ itemSeq, sampleName: tradeName || itemNo, commonName }] : [],
     remark: externalCoaRemark(row),
@@ -714,7 +724,7 @@ router.get('/erp-autofill/:externalRequestId', async (req, res) => {
     const sourceData = sampleFromSources(source, references.stockRows, references.mfRows);
     const sample = sourceData.sample;
     const petitions = sample.commonName
-      ? await Petition.find({ 'items.commonName': exactTrimmedRegex(sample.commonName) })
+      ? await Petition.find({ 'items.commonName': commonNameRegex(sample.commonName) })
         .sort({ updatedAt: -1 }).limit(200).lean()
       : [];
     const lab = findBestLabItem(petitions, sample);
@@ -748,7 +758,7 @@ router.get('/erp-autofill/:externalRequestId', async (req, res) => {
     }));
     const warnings = [];
     if (!sourceData.stockCandidates.length && !sourceData.mfCandidates.length) warnings.push('ไม่พบ LOT NO. จาก ERP/Stock/MF');
-    if (!lab.best) warnings.push('ไม่พบผล Lab ที่ชื่อสามัญตรงกัน');
+    if (!lab.best) warnings.push('ไม่พบผล Lab ที่ชื่อสามัญและ Batch No. ตรงกัน');
     else if (lab.best.matchKind !== 'exact') warnings.push('พบผล Lab จากเลขแบชที่ใกล้เคียง กรุณาตรวจสอบก่อนบันทึก');
     if (resultData.physical?.raw && !resultData.physical.complete) warnings.push('ผลกายภาพบางคำยังไม่มีคำแปลภาษาอังกฤษ กรุณาตรวจสอบ');
     res.json({

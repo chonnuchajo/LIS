@@ -228,7 +228,6 @@ const CoaDocumentSchema = new mongoose.Schema(
     revision: { type: Number, default: 0 },
     status: { type: String, enum: STATUS, required: true, default: 'draft', index: true },
     sourceType: { type: String, enum: ['lab', 'erpManual'], default: 'lab', immutable: true },
-    entryMode: { type: String, enum: ['source', 'manual'], default: 'source', index: true },
     externalRequestId: { type: String, index: true, immutable: true },
     externalCoaRequest: { type: mongoose.Schema.Types.Mixed, immutable: true },
     entryMode: { type: String, enum: ['source', 'manual'], default: 'source', index: true },

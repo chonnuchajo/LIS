@@ -22,7 +22,7 @@ function text(value) {
 }
 
 function normalizeText(value) {
-  return text(value).toLowerCase().replace(/\s+/g, ' ');
+  return text(value).toLowerCase().replace(/\s*%\s*/g, '%').replace(/\s+/g, ' ');
 }
 
 function normalizeBatch(value) {
@@ -170,7 +170,9 @@ function findBestLabItem(petitions, sample) {
     }
   }
   candidates.sort((left, right) => right.score - left.score || String(right.petition.updatedAt || '').localeCompare(String(left.petition.updatedAt || '')));
-  return { best: candidates[0] || null, candidates };
+  // A Lab result is safe to autofill only when both common name and batch match.
+  // Keep near candidates for diagnostics, but never use them as the selected result.
+  return { best: candidates.find((candidate) => candidate.matchKind === 'exact') || null, candidates };
 }
 
 function sampleFromSources(source, stockRows, mfRows) {
@@ -193,7 +195,10 @@ function sampleFromSources(source, stockRows, mfRows) {
     return itemNo ? rowItem === itemNo : normalizeText(row.common_name || row.commonName) === normalizeText(commonName);
   });
   const mf = mfCandidates[0];
-  const lot = stock ? lotSnapshot(stock.lot_no || stock.lotNo, stock.registering_date) : { lotNo: '', batchNo: '', productionDate: '' };
+  const sourceBatch = text(source?.sampleSnapshots?.[0]?.batchNo || source?.sampleSnapshots?.[0]?.lotNo);
+  const lot = sourceBatch
+    ? lotSnapshot(sourceBatch, source?.sampleSnapshots?.[0]?.productionDate)
+    : stock ? lotSnapshot(stock.lot_no || stock.lotNo, stock.registering_date) : { lotNo: '', batchNo: '', productionDate: '' };
   if (!lot.batchNo && mf) {
     lot.batchNo = pick(mf, ['prod_order_no', 'prodOrderNo']);
     lot.productionDate = normalizeIsoDate(pick(mf, ['create_date', 'createDate']));
@@ -232,7 +237,7 @@ function resultRowsFromQc(qcResults, commonName) {
     testItem: 'Appearance', criteria: physical.english || physical.raw, result: 'Conform', method: 'Visual', unit: '',
   });
   if (ai) rows.push({
-    testItem: '%AI content', criteria: aiToleranceCriteriaForCommonName(commonName) || '-', result: ai.result, unit: '%', method: '',
+    testItem: '%AI content', criteria: aiToleranceCriteriaForCommonName(commonName) || '', result: ai.result, unit: '%', method: '',
   });
   if (density) rows.push({
     testItem: 'Density at 30°C (g/cm³)', criteria: '-', result: density, unit: 'g/cm³', method: 'DMA 501',
