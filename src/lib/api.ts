@@ -106,7 +106,10 @@ const API_BASES = Array.from(
 // อีเมลผู้ใช้ที่ล็อกอินอยู่ — ส่งไปกับทุก request เป็น header X-LIS-User เพื่อให้
 // backend ตรวจสิทธิ์ admin ของ route /api-keys ได้ (AuthContext เป็นคนตั้งค่า)
 // ⚠️ ไม่ใช่ security จริง (ปลอมได้) เฟส 2 จะเปลี่ยนไปใช้ Azure AD token
-let currentUserEmail = "";
+// Dev mode synthesizes the user after the access matrix loads. Seed the
+// identity first so that the matrix request itself is not rejected by the
+// backend's X-LIS-User guard before AuthContext's effect can run.
+let currentUserEmail = import.meta.env.DEV ? "admin.dev@icpladda.com" : "";
 const DEV_EMAIL_SUFFIX = ".dev@icpladda.com";
 
 export function setApiUserEmail(email?: string | null) {

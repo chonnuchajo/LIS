@@ -50,15 +50,47 @@ function createAdminGate({ findUserByEmail, findUserById, isDevBypass, warn = co
   };
 }
 
+function createAuthenticatedGate({ findUserByEmail, findUserById, isDevBypass, warn = console.warn }) {
+  return async function requireAuthenticatedUser(req, res, next) {
+    if (isDevBypass(req)) return next();
+    const sessionId = getLisSessionUserId(req);
+    const email = String(req.get('x-lis-user') || '').trim().toLowerCase();
+    try {
+      const user = sessionId && findUserById
+        ? await findUserById(sessionId)
+        : email
+          ? await findUserByEmail(email)
+          : null;
+      if (!user) return res.status(401).json({ error: { message: 'ต้องระบุผู้ใช้' } });
+      if (user.status === 'inactive') return res.status(403).json({ error: { message: 'ผู้ใช้ถูกระงับ' } });
+      req.authenticatedUser = user;
+      return next();
+    } catch (err) {
+      warn('[adminGate] user lookup failed:', err.message);
+      return res.status(500).json({ error: { message: 'ตรวจสอบสิทธิ์ไม่สำเร็จ' } });
+    }
+  };
+}
+
 const requireAdminUser = createAdminGate({
   findUserByEmail: (email) => User.findOne({ email }).lean(),
   findUserById: (id) => User.findById(id).lean(),
   // Keep local test convenience without exposing an unauthenticated admin bypass.
   isDevBypass: (req) => (
-    process.env.NODE_ENV !== 'production' &&
     process.env.ALLOW_DEV_STATUS === 'true' &&
-    ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req?.ip)
+    ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req?.ip) &&
+    String(req.get?.('x-lis-user') || '').toLowerCase().endsWith('.dev@icpladda.com')
   ),
 });
 
-module.exports = { createAdminGate, requireAdminUser };
+const requireAuthenticatedUser = createAuthenticatedGate({
+  findUserByEmail: (email) => User.findOne({ email }).lean(),
+  findUserById: (id) => User.findById(id).lean(),
+  isDevBypass: (req) => (
+    process.env.ALLOW_DEV_STATUS === 'true' &&
+    ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req?.ip) &&
+    String(req.get?.('x-lis-user') || '').toLowerCase().endsWith('.dev@icpladda.com')
+  ),
+});
+
+module.exports = { createAdminGate, createAuthenticatedGate, requireAdminUser, requireAuthenticatedUser };
