@@ -646,6 +646,33 @@ router.get('/status-log/:id', async (req, res) => {
   }
 });
 
+// POST /api/petitions/status-petition-log -> แจ้งขอตรวจสอบซ้ำ
+router.post('/status-petition-log', serializePetitionWrite(async (req, res) => {
+  try {
+    const petitionId = req.body?.petitionId || req.body?.id;
+    if (!petitionId) return badRequest(res, 'กรุณาระบุคำร้อง');
+    const q = mongoose.Types.ObjectId.isValid(petitionId) ? { _id: petitionId } : { petitionNo: petitionId };
+    const petition = await Petition.findOne(q);
+    if (!petition) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    const actor = String(req.body?.actor || 'system').trim();
+    const payload = {
+      event: 'recheck',
+      fromStatus: petition.status,
+      toStatus: petition.status,
+      actor,
+      note: 'แจ้งขอตรวจสอบซ้ำ',
+      metadata: {
+        recipients: ['qc-head', 'requester'],
+        recipientEmployeeIds: petition.submittedBy?.employeeId ? [String(petition.submittedBy.employeeId)] : [],
+      },
+    };
+    logAudit(petition, payload);
+    res.status(201).json({ petitionId: petition._id, ...payload });
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+}));
+
 // POST /api/petitions/:id/complete  → one track records "บันทึกผล" (Lab or QC).
 // Petition flips to `success` ONLY when every required track is complete
 // (QC always; Lab when the petition has a lab-batch item). Until then it stays

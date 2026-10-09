@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2, ArrowDownToLine, Check, ChevronsUpDown, ChevronRight, ChevronDown, Camera, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/context/ConfirmDialog";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,10 @@ const CATEGORY_LABEL: Record<CartCategory, string> = {
   glassware: "เครื่องแก้ว",
 };
 
-export default function ReceiveCart() {
+const RECEIVE_CART_DRAFT_KEY = "lis.stock.receive-cart-draft";
+
+export default function ReceiveCart({ onSaved }: { onSaved?: () => void } = {}) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { data: standards = [] } = useQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards });
   const { data: solvents = [] } = useQuery({ queryKey: ["stock", "solvents"], queryFn: api.getSolvents });
@@ -75,7 +79,7 @@ export default function ReceiveCart() {
     return [...std, ...sol, ...gla];
   }, [standards, solvents, glassware]);
 
-  const [rows, setRows] = useState<CartRow[]>(() => []);
+  const [rows, setRows] = useState<CartRow[]>([]);
   const [printAfter, setPrintAfter] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pendingLabels, setPendingLabels] = useState<string[]>([]);
@@ -88,6 +92,36 @@ export default function ReceiveCart() {
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [detailDialogMode, setDetailDialogMode] = useState<"add" | "edit">("edit");
+
+  useEffect(() => {
+    let cancelled = false;
+    const restoreDraft = async () => {
+      try {
+        const saved = window.localStorage.getItem(RECEIVE_CART_DRAFT_KEY);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed) || parsed.length === 0) return;
+        const keep = await confirm({
+          title: "พบรายการรับเข้าที่ยังไม่เสร็จ",
+          description: "ต้องการนำรายการที่บันทึกไว้กลับมาใช้งานต่อหรือไม่?",
+          confirmText: "ใช้รายการเดิม",
+          cancelText: "ล้างรายการ",
+        });
+        if (cancelled) return;
+        if (keep) setRows(parsed);
+        else window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+      } catch {
+        window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+      }
+    };
+    void restoreDraft();
+    return () => { cancelled = true; };
+  }, [confirm]);
+
+  useEffect(() => {
+    if (rows.length > 0) window.localStorage.setItem(RECEIVE_CART_DRAFT_KEY, JSON.stringify(rows));
+    else window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+  }, [rows]);
 
   const patchRow = (id: string, patch: Partial<CartRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -275,6 +309,10 @@ export default function ReceiveCart() {
       }
 
       if (okCount > 0) toast.success(`รับเข้าสำเร็จ ${okCount} รายการ${failCount ? ` · ล้มเหลว ${failCount}` : ""}`);
+      if (okCount > 0) {
+        window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+        onSaved?.();
+      }
       // ลบแถวที่สำเร็จ เก็บแถว fail ไว้ retry
       setRows((prev) => prev.filter((r) => !okIds.has(r.id)));
       qc.invalidateQueries({ queryKey: ["stock", "standards"] });

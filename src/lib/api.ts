@@ -919,6 +919,11 @@ export const api = {
     }),
   getPetition: (petitionId: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
+  requestPetitionRecheck: (petitionId: string, actor?: string) =>
+    request(`/petitions/status-petition-log`, {
+      method: "POST",
+      body: JSON.stringify({ petitionId, actor }),
+    }),
   findRejectedByBatch: (batchNo: string, employeeId: string) => {
     const qs = new URLSearchParams({ batchNo, employeeId }).toString();
     return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Clock, FlaskConical, RefreshCw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, Clock, FlaskConical, RefreshCw, RotateCcw, ShieldCheck, Sparkles, Volume2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
@@ -281,6 +281,27 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   const initializedNewIdsRef = useRef(false);
   const popupTimerRef = useRef<number | null>(null);
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [soundReady, setSoundReady] = useState(false);
+
+  const activateNotificationSound = useCallback(async () => {
+    if (!isNotificationSoundEnabled("queueNew")) return;
+
+    const audio = alertAudioRef.current ?? new Audio(NEW_SAMPLE_SOUND_URL);
+    audio.preload = "auto";
+    audio.loop = true;
+    alertAudioRef.current = audio;
+
+    try {
+      audio.muted = true;
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+      setSoundReady(true);
+    } catch {
+      setSoundReady(false);
+    }
+  }, []);
 
   // "Today" is bound at mount and refreshed at midnight so the board auto-clears
   // when the local day rolls over.
@@ -496,10 +517,10 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     }
 
     if (isNotificationSoundEnabled("queueNew")) {
-      const audio = new Audio(`${NEW_SAMPLE_SOUND_URL}?v=${Date.now()}`);
+      const audio = alertAudioRef.current ?? new Audio(NEW_SAMPLE_SOUND_URL);
       audio.loop = true;
       alertAudioRef.current = audio;
-      audio.play().catch(() => undefined);
+      audio.play().then(() => setSoundReady(true)).catch(() => setSoundReady(false));
     }
 
     setNewWorkPopup({
@@ -610,9 +631,21 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
           <div className="text-lg text-slate-500">ในคิว</div>
           <div className="text-4xl font-bold text-primary-700">{allItems.length}</div>
         </div>
-        <div className="flex items-center gap-2 text-base text-slate-600 sm:text-xl">
-          <RefreshCw className="h-5 w-5" />
-          อัปเดตอัตโนมัติทุก 5 วินาที
+        <div className="flex flex-wrap items-center gap-3 text-base text-slate-600 sm:text-xl">
+          {isNotificationSoundEnabled("queueNew") && !soundReady && (
+            <button
+              type="button"
+              onClick={() => void activateNotificationSound()}
+              className="inline-flex items-center gap-2 rounded-lg border border-primary-200 bg-primary px-4 py-2 font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <Volume2 className="h-5 w-5" />
+              เปิดเสียงแจ้งเตือน
+            </button>
+          )}
+          <span className="inline-flex items-center gap-2">
+            <RefreshCw className="h-5 w-5" />
+            อัปเดตอัตโนมัติทุก 5 วินาที
+          </span>
         </div>
       </section>
 

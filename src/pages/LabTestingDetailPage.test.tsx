@@ -209,6 +209,17 @@ describe("LabTestingDetailPage", () => {
     expect(screen.queryByText(/เกณฑ์กลาง 1\.7100–1\.8900 %/)).not.toBeInTheDocument();
   });
 
+  it("expands a legacy %AI parameter into input, average, and RSD fields", async () => {
+    render(<LabTestingDetailPage />);
+
+    expect(await screen.findByText("Area Inj.1")).toBeInTheDocument();
+    expect(screen.getByText("Area Inj.3")).toBeInTheDocument();
+    expect(screen.getByText("% Sample 1")).toBeInTheDocument();
+    expect(screen.getByText("% Sample 3")).toBeInTheDocument();
+    expect(screen.getByText("Area Average")).toBeInTheDocument();
+    expect(screen.getByText("% Sample %RSD")).toBeInTheDocument();
+  });
+
   it("shows only Lab-scope parameters for R&D petitions", async () => {
     mockState.activeFixtures = researchFixtures;
 
@@ -216,5 +227,22 @@ describe("LabTestingDetailPage", () => {
 
     expect(await screen.findByText("Lab value")).toBeInTheDocument();
     expect(screen.queryByText("QC value")).not.toBeInTheDocument();
+  });
+
+  it("allows an assigned Lab user to edit a Lab result after Lab approval", async () => {
+    mockState.activeFixtures = {
+      ...fixtures,
+      petition: {
+        ...fixtures.petition,
+        status: "success",
+        labCompletedAt: "2026-07-13T03:00:00.000Z",
+        labApprovedAt: "2026-07-13T04:00:00.000Z",
+      },
+    };
+
+    render(<LabTestingDetailPage />);
+
+    expect((await screen.findAllByRole("spinbutton"))[0]).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /บันทึกการแก้ไข/ })).toBeEnabled();
   });
 });

@@ -38,7 +38,10 @@ async function resultRoundContext(req, res, parameter) {
       res.status(user ? 403 : 401).json({ error: 'ไม่มีสิทธิ์บันทึกผลให้ฝ่ายนี้' });
       return null;
     }
-    if (['approved', 'rejected'].includes(petition.status) || petition[side + 'CompletedAt']) {
+    const sideIsClosed = side === 'qc'
+      ? Boolean(petition.qcCompletedAt)
+      : false;
+    if (['approved', 'rejected'].includes(petition.status) || sideIsClosed) {
       res.status(409).json({ error: 'ฝ่ายนี้ยืนยันผลแล้ว ไม่สามารถแก้ผลตรวจได้' });
       return null;
     }

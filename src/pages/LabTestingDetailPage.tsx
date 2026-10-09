@@ -32,6 +32,7 @@ import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { aiGridClass, calculateAi, calculatedAiFieldKind, formatCalculatedAi } from '@/lib/aiCalculation';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import AdditionalSampleRequestDialog from '@/components/petition/AdditionalSampleRequestDialog';
 import { createResultAutosaveQueue, currentSampleResults, pendingAdditionalSample, sampleRoundFor, sampleRoundIdFor } from '@/lib/additionalSamples';
@@ -76,6 +77,37 @@ function formatTime(d: Date | string | undefined) {
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
+}
+
+function aiDensity(values: Record<string, unknown>, context: ConditionContext) {
+  const records = [values, ...Object.values(context.otherParams)];
+  for (const record of records) {
+    for (const [label, rawValue] of Object.entries(record)) {
+      if (!/^(density|ค่าถพ\.)$/i.test(label.trim())) continue;
+      const value = Number(rawValue);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+  }
+  return 1;
+}
+
+const AI_FIELD_ORDER = [
+  'Area Inj.1', 'Area Inj.2', 'Area Inj.3',
+  '% Sample 1', '% Sample 2', '% Sample 3',
+  'Area Average', 'Area %RSD', '% Sample Average', '% Sample %RSD', '%AI',
+] as const;
+
+function aiFieldsForParameter(fields: ParameterValueField[]) {
+  if (!fields.some((field) => calculatedAiFieldKind(field.label) === 'ai')) return fields;
+  const byLabel = new Map(fields.map((field) => [field.label.trim().toLowerCase(), field]));
+  const aiField = fields.find((field) => calculatedAiFieldKind(field.label) === 'ai');
+  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => (label === '%AI' ? aiField! : byLabel.get(label.toLowerCase())) ?? ({
+    label,
+    type: 'float',
+    unit: label.includes('Sample') || label === '%AI' ? '%' : undefined,
+  }));
+  const known = new Set(AI_FIELD_ORDER.map((label) => label.toLowerCase()));
+  return [...generated, ...fields.filter((field) => calculatedAiFieldKind(field.label) !== 'ai' && !known.has(field.label.trim().toLowerCase()))];
 }
 
 function labParametersForPetition(petition: Petition, params: ParameterItem[]): ParameterItem[] {
@@ -135,7 +167,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  return formatLabelToleranceRange(rv, unit);
+  return formatLabelToleranceRange(rv, unit, { showAutoPass: true, multiline: true, autoPassLabel: 'ผ่านเกณฑ์ 25%' });
 }
 
 interface TestFieldProps {
@@ -198,7 +230,7 @@ function TestField({
           {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
         </label>
         {headerMeta}
-        {!readOnly && saveInfo?.state === 'saved' && saveInfo.savedBy && (
+        {saveInfo?.state === 'saved' && saveInfo.savedBy && (
           <span className="text-xs text-muted-foreground">
             กรอกโดย {saveInfo.savedBy} เมื่อ {formatTime(saveInfo.savedAt)}
           </span>
@@ -891,6 +923,19 @@ export default function LabTestingDetailPage() {
     }
   };
 
+  const handleRecheck = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await api.requestPetitionRecheck(petition._id, user?.name ?? user?.email ?? 'system');
+      toast.success('แจ้งขอตรวจสอบซ้ำไปยัง QC Head และผู้ส่งคำขอแล้ว');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'แจ้งขอตรวจสอบซ้ำไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmitResult = async () => {
     if (pendingSample || submitting || additionalSampleOpen || loadedResultsKey !== resultsKey) return;
     const missing = validate();
@@ -938,7 +983,9 @@ export default function LabTestingDetailPage() {
 
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
-  const isLocked = !!petition.labApprovedAt || petition.status === 'rejected' || !isAssigned || !!pendingSample;
+  // ผล Lab ที่ออกแล้วแก้ไขได้จนกว่าคำร้องจะปิด Final Result; การกด
+  // "แก้ไขผล Lab" จากหน้ารายการจึงต้องเปิดช่องกรอกจริงตามชื่อปุ่ม.
+  const isLocked = ['approved', 'rejected'].includes(petition.status) || !isAssigned || !!pendingSample;
   const hasSubmittedLab = !!petition.labCompletedAt;
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
@@ -1092,7 +1139,7 @@ export default function LabTestingDetailPage() {
                     {/* Lab-owned parameters (editable) */}
                     {labOwnedParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = visibleFields(param, effectivePhase, item);
+                      const fields = aiFieldsForParameter(visibleFields(param, effectivePhase, item));
                       if (fields.length === 0) return null;
                       // Build the condition context for resolving conditionalMode standards:
                       // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1153,6 +1200,9 @@ export default function LabTestingDetailPage() {
                                 : undefined;
                               const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
                               const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
+                              const isAiParameter = (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai');
+                              const aiFieldKind = isAiParameter ? calculatedAiFieldKind(unit.field.label) : null;
+                              const calculatedAi = aiFieldKind ? calculateAi(srcValues, aiDensity(srcValues, condCtx)) : null;
 
                               // Field-level `multiple` — repeatable list of bare value rows.
                               // Each row shares the field's standard/abnormal rule; per-row
@@ -1235,16 +1285,17 @@ export default function LabTestingDetailPage() {
                                   })()
                                 : null;
                               return (
-                                <div key={unit.key}>
+                                <div key={unit.key} className={aiGridClass(unit.field.label)}>
                                   <TestField
                                     field={effectiveField}
                                     item={item}
                                     itemGroupIds={idsFor(item)}
-                                    value={srcValues[unit.key] ?? ''}
+                                    value={aiFieldKind ? (calculatedAi?.[aiFieldKind] != null ? formatCalculatedAi(calculatedAi[aiFieldKind]) : srcValues[unit.key] ?? '') : srcValues[unit.key] ?? ''}
                                     noteValue={srcValues[noteLabel] ?? ''}
                                     saveInfo={saveInfoSrc?.[unit.key]}
                                     noteSaveInfo={saveInfoSrc?.[noteLabel]}
                                     disabled={fieldDisabled}
+                                    readOnly={!!aiFieldKind}
                                     instrumentSource={srcField}
                                     provenance={provenance}
                                     onPull={
@@ -1263,7 +1314,16 @@ export default function LabTestingDetailPage() {
                                         : undefined
                                     }
                                     onChange={(val) => {
+                                      if (aiFieldKind) return;
                                       onUnitChange(unit.key, val);
+                                      if (isAiParameter) {
+                                        const nextValues = { ...srcValues, [unit.key]: val };
+                                        const derived = calculateAi(nextValues, aiDensity(nextValues, condCtx));
+                                        fields.forEach((candidate) => {
+                                          const kind = calculatedAiFieldKind(candidate.label);
+                                          if (kind) onUnitChange(candidate.label, formatCalculatedAi(derived[kind]));
+                                        });
+                                      }
                                       // Manual edit after a pull → mark provenance as edited (once).
                                       if (scalarExtras && provenance && provenance.source === 'instrument' && String(val) !== String(provenance.rawValue ?? '')) {
                                         onUnitChange(sourceLabel, JSON.stringify({ ...provenance, source: 'instrument-edited' }));
@@ -1275,7 +1335,7 @@ export default function LabTestingDetailPage() {
                                     outputResult={outputResult}
                                     headerMeta={
                                       labelToleranceInfo?.criteriaText ? (
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="text-xs text-muted-foreground whitespace-pre-line">
                                           {labelToleranceInfo.criteriaText}
                                         </span>
                                       ) : undefined
@@ -1304,7 +1364,10 @@ export default function LabTestingDetailPage() {
                               saveInfoSrc: Record<string, FieldSaveInfo> | undefined,
                               scalarExtras: boolean,
                             ) => (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
+                              <div className={cn(
+                                'grid grid-cols-1 gap-4 pl-2',
+                                (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-6' : 'sm:grid-cols-2',
+                              )}>
                                 {fields.map((field) => {
                                   if (field.type === 'reference') {
                                     const { value: refValue, sourceName } = resolveReference(item.seq, field);
@@ -1396,7 +1459,7 @@ export default function LabTestingDetailPage() {
                     {/* Shared QC parameters (read-only) */}
                     {sharedQcParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = visibleFields(param, effectivePhase, item);
+                      const fields = aiFieldsForParameter(visibleFields(param, effectivePhase, item));
                       if (fields.length === 0) return null;
                       // Build the condition context for resolving conditionalMode standards:
                       // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1666,6 +1729,10 @@ export default function LabTestingDetailPage() {
             {abnormalCount > 0 && labReceivedAt(petition) && (
               <Button variant="outline" onClick={() => setAdditionalSampleOpen(true)} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey}>ขอตัวอย่างเพิ่ม</Button>
             )}
+            <Button variant="outline" onClick={handleRecheck} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey} className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Re-check
+            </Button>
             <Button
               variant={isComplete ? 'primary' : 'outline'}
               onClick={hasSubmittedLab ? handleSaveDraft : isComplete ? handleSubmitResult : handleSaveDraft}
