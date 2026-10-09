@@ -162,6 +162,9 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
   const groupMembership = useItemGroupMembership();
   const { data: labRequests } = useLabRequestsByPetition(data?._id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editReasonOpen, setEditReasonOpen] = useState(false);
+  const [editReasonType, setEditReasonType] = useState('กรอกผลผิด');
+  const [editReasonOther, setEditReasonOther] = useState('');
   const [deleting, setDeleting] = useState(false);
   const autoPrintDone = useRef(false);
   const [printOpen, setPrintOpen] = useState(false);
@@ -368,10 +371,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         </Button>
                       )}
                       {isResultMode && (isQcHead || isAdmin) && (
-                        <Button variant="primary-outline" size="sm" onClick={() => {
-                          const reason = window.prompt('เหตุผลการแก้ไขผล (แก้ไขการกรอกผิด / ทบทวนตามเอกสาร / อื่นๆ)');
-                          if (reason?.trim()) navigate(`/qc-testing/${data._id}?edit=1&reason=${encodeURIComponent(reason.trim())}`);
-                        }}>
+                        <Button variant="primary-outline" size="sm" onClick={() => setEditReasonOpen(true)}>
                           <Pencil className="h-4 w-4" />
                           แก้ไขผล (QC Head)
                         </Button>
@@ -504,6 +504,35 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                       >
                         {deleting ? 'กำลังลบ...' : 'ยืนยัน'}
                       </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <AlertDialog open={editReasonOpen} onOpenChange={setEditReasonOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>ระบุเหตุผลการแก้ไขผล</AlertDialogTitle>
+                      <AlertDialogDescription>เหตุผลจะถูกบันทึกในประวัติและแจ้งเตือน QC Head / Admin</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-3">
+                      <label className="space-y-1 text-sm font-medium">
+                        เหตุผล
+                        <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editReasonType} onChange={(e) => setEditReasonType(e.target.value)}>
+                          <option>กรอกผลผิด</option>
+                          <option>ทบทวนตามเอกสารต้นฉบับ</option>
+                          <option>แก้ไขตามผลการตรวจสอบซ้ำ</option>
+                          <option value="อื่นๆ">อื่นๆ</option>
+                        </select>
+                      </label>
+                      {editReasonType === 'อื่นๆ' && <textarea className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="ระบุเหตุผลเพิ่มเติม" value={editReasonOther} onChange={(e) => setEditReasonOther(e.target.value)} />}
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                      <AlertDialogAction disabled={editReasonType === 'อื่นๆ' && !editReasonOther.trim()} onClick={() => {
+                        const reason = editReasonType === 'อื่นๆ' ? editReasonOther.trim() : editReasonType;
+                        setEditReasonOpen(false);
+                        navigate(`/qc-testing/${data._id}?edit=1&reason=${encodeURIComponent(reason)}`);
+                      }}>ดำเนินการแก้ไข</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
