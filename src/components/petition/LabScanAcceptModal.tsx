@@ -82,13 +82,8 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
         return;
       }
 
-      // Check assignment
-      if (!found.assignedTo) {
-        setErrorMsg('คำร้องนี้ยังไม่ได้รับการมอบหมาย กรุณาติดต่อหัวหน้า');
-        setPhase('error');
-        return;
-      }
-      if (!isFullAccess && !isAssignedTo(found.assignedTo, user)) {
+      // Assignment is intentionally performed after Lab receives the sample.
+      if (found.assignedTo && !isFullAccess && !isAssignedTo(found.assignedTo, user)) {
         setErrorMsg(`คุณไม่ได้ถูก assign งานนี้ (มอบหมายให้: ${found.assignedTo.name})`);
         setPhase('error');
         return;

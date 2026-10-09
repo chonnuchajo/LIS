@@ -891,6 +891,19 @@ export default function LabTestingDetailPage() {
     }
   };
 
+  const handleRecheck = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await api.requestPetitionRecheck(petition._id, user?.name ?? user?.email ?? 'system');
+      toast.success('แจ้งขอตรวจสอบซ้ำไปยัง QC Head และผู้ส่งคำขอแล้ว');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'แจ้งขอตรวจสอบซ้ำไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmitResult = async () => {
     if (pendingSample || submitting || additionalSampleOpen || loadedResultsKey !== resultsKey) return;
     const missing = validate();
@@ -1674,6 +1687,10 @@ export default function LabTestingDetailPage() {
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {hasSubmittedLab ? 'บันทึกการแก้ไข' : isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
+            </Button>
+            <Button variant="outline" onClick={handleRecheck} disabled={submitting || additionalSampleOpen || loadedResultsKey !== resultsKey} className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Re-check
             </Button>
           </div>
         )}
