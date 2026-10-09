@@ -12,6 +12,9 @@ export const BROMADIOLONE_ANALYSIS_CSS = `
 .brom-form-field-wide { min-width: 67mm; }
 .brom-form-field-small { min-width: 20mm; }
 .brom-form-line-row { display: grid; grid-template-columns: 37mm 37mm 37mm 37mm 37mm; gap: 18mm; margin-top: 7mm; font-size: 10pt; }
+.brom-form-control-row { display: grid; grid-template-columns: 96mm 74mm; gap: 18mm; margin-top: 8mm; font-size: 10pt; }
+.brom-form-control-row > div { min-width: 0; white-space: nowrap; }
+.brom-form-line { display: block; border-bottom: .6pt solid #000; min-height: 7mm; }
 .brom-form-line-cell { text-align: center; }
 .brom-form-line-cell .brom-form-line { display: block; border-bottom: .6pt solid #000; min-height: 7mm; padding-top: 2mm; }
 .brom-form-section { margin-top: 6mm; font-size: 10pt; }
@@ -53,7 +56,7 @@ export default function BromadioloneAnalysisForm({ page }: { page: LabReportPage
         <div className="brom-form-heading" style={{ marginTop: "4mm", gridTemplateColumns: "42% 58%" }}><div>เลขที่ Standard <span className="brom-form-field">{standardNo}</span></div><div>เลขที่ Solvent number <span className="brom-form-field">{solventNo}</span></div></div>
         <div className="brom-form-section">System suitability</div>
         <div className="brom-form-line-row">{['Area Inj.1', 'Area Inj.2', 'Area Inj.3', 'Average', '% RSD (ไม่เกิน 2 %)'].map((label, index) => <div className="brom-form-line-cell" key={label}>{label}<span className="brom-form-line">{area[index] || "-"}</span></div>)}</div>
-        <div className="brom-form-line-row" style={{ marginTop: "8mm" }}><div>Control&nbsp; Sample <span className="brom-form-line">= &nbsp; {firstValue(page, /control/i, "-")} % WW</span></div>{[1, 2, 3, 4].map((index) => <div className="brom-form-line-cell" key={index}>&nbsp;<span className="brom-form-line">-</span></div>)}</div>
+        <div className="brom-form-control-row"><div>Control&nbsp; Sample = &nbsp;{firstValue(page, /control/i, "-")} % WW<span className="brom-form-line" /></div><div><span className="brom-form-line">-</span></div></div>
         <div className="brom-form-line-row" style={{ marginTop: "8mm" }}>{['% Sample 1', '% Sample 2', '% Sample 3', 'Average', '% RSD (ไม่เกิน 2 %)'].map((label, index) => <div className="brom-form-line-cell" key={label}>{label}<span className="brom-form-line">{sampleValues[index] || (index === 3 ? sampleAverage : "-")}</span></div>)}</div>
         <div className="brom-form-summary"><div className="brom-form-summary-row"><span>Average</span><span className="brom-form-line">{sampleAverage}</span><span>% W/W</span></div><div className="brom-form-summary-row"><span>Density</span><span className="brom-form-line">{firstValue(page, /density|ถพ\.?/i, "1.000")}</span><span>g/cm³</span></div><div className="brom-form-summary-row"><span>Report</span><span className="brom-form-line">{sampleAverage}</span><span>% W/W</span></div><div className="brom-form-summary-row"><span>Date</span><span className="brom-form-line">{page.reportDate || "-"}</span><span>&nbsp;</span></div></div>
         <div className="brom-form-signatures"><div>Analyst <span className="brom-form-signature-line" /><div className="brom-form-signature-name">(..........{page.analystName || "-"}..........)</div></div><div>Approved <span className="brom-form-signature-line" /><div className="brom-form-signature-name">(..........{page.labHeadName || "-"}..........)</div></div></div>
