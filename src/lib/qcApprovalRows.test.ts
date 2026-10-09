@@ -92,6 +92,43 @@ describe("buildApprovalGroups", () => {
     expect(row.standardText).toContain("เกณฑ์กรม 0.9500–1.0500");
   });
 
+  it("แสดงเฉพาะเกณฑ์กรมในหน้ารายละเอียดผล Lab", () => {
+    const labelParam = param({
+      valueFields: [
+        {
+          label: "Assay",
+          type: "number",
+          unit: "%",
+          labelToleranceMode: true,
+          labelToleranceStandards: [
+            { substance: "A", autoPct: 2.5, headPct: 5 },
+          ],
+        },
+      ],
+    });
+    const labelPetition = {
+      ...petition(),
+      items: [
+        { seq: 1, sampleName: "Sample A", commonName: "A 1%", sampleId: "S1", batchNo: "B1", testItems: "density" },
+      ],
+    } as unknown as Petition;
+    const qcResult = {
+      itemSeq: 1,
+      parameterId: "p1",
+      parameterName: "density",
+      values: { "Assay::a": 1 },
+    } as unknown as QCTestResult;
+
+    const groups = buildApprovalGroups(labelPetition, [labelParam], [qcResult], new Map(), {
+      includeRestrictedStandards: true,
+      showAutoPassRange: false,
+    });
+    const row = groups[0].params[0].rows[0];
+
+    expect(row.standardText).toBe("เกณฑ์กรม 0.9500–1.0500 %");
+    expect(row.standardText).not.toContain("ผ่านเกณฑ์ 25%");
+  });
+
   it("รวม lab param เข้ากลุ่มของ lab item พร้อมติด scope=lab (qc param ยัง scope=qc)", () => {
     const qcParam = param({ _id: "q1", name: "qc-density" });
     const labParam = param({ _id: "l1", name: "lab-assay", scope: "lab" });

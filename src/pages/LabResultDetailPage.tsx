@@ -57,6 +57,7 @@ export default function LabResultDetailPage() {
     if (!petition) return [];
     return buildApprovalGroups(petition, parameters.filter((parameter) => parameter.scope === "lab"), results, groupMembership, {
       includeRestrictedStandards: canSeeRestrictedStandards,
+      showAutoPassRange: false,
     });
   }, [petition, parameters, results, groupMembership, canSeeRestrictedStandards]);
 

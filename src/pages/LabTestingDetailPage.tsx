@@ -167,8 +167,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  // Lab result pages show only the authoritative department criterion.
-  return formatLabelToleranceRange(rv, unit, { showAutoPass: false, multiline: true });
+  return formatLabelToleranceRange(rv, unit, { showAutoPass: true, multiline: true, autoPassLabel: 'ผ่านเกณฑ์ 25%' });
 }
 
 interface TestFieldProps {

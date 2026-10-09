@@ -205,7 +205,6 @@ describe("LabTestingDetailPage", () => {
     const headerRow = fieldName.closest("div");
     expect(headerRow).not.toBeNull();
     expect(within(headerRow as HTMLElement).getByText(/เกณฑ์กรม 1\.7100–1\.8900 %/)).toBeInTheDocument();
-    expect(screen.queryByText(/ผ่านเกณฑ์ 25%/)).not.toBeInTheDocument();
     expect(within(headerRow as HTMLElement).getByText(/กรอกโดย พรหมพิริยะ ทองรุ่งรัตนกุล เมื่อ/)).toBeInTheDocument();
     expect(screen.queryByText(/เกณฑ์กลาง 1\.7100–1\.8900 %/)).not.toBeInTheDocument();
   });

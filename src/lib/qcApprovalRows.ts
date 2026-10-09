@@ -58,9 +58,10 @@ export function buildApprovalGroups(
   parameters: ParameterItem[],
   results: QCTestResult[],
   groupMembership: Map<string, string[]>,
-  options?: { includeRestrictedStandards?: boolean },
+  options?: { includeRestrictedStandards?: boolean; showAutoPassRange?: boolean },
 ): ApprovalItemGroup[] {
   const includeRestrictedStandards = options?.includeRestrictedStandards ?? false;
+  const showAutoPassRange = options?.showAutoPassRange ?? true;
   const petitionCategory = getPetitionCategory(petition);
   // Cross-parameter conditional context uses each result's primary (entry-0) values.
   const v1: Record<string, Record<string, unknown>> = {};
@@ -144,7 +145,7 @@ export function buildApprovalGroups(
                 if (unit.labelTolerance) {
                   const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
                   const range = formatLabelToleranceRange(rv, unit.field.unit ?? "", {
-                    showAutoPass: true,
+                    showAutoPass: showAutoPassRange,
                     multiline: true,
                     autoPassLabel: "ผ่านเกณฑ์ 25%",
                   });
