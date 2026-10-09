@@ -1181,7 +1181,8 @@ export default function LabTestingDetailPage() {
                                 : undefined;
                               const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
                               const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
-                              const aiFieldKind = param.name.trim().toLowerCase() === '%ai' ? calculatedAiFieldKind(unit.field.label) : null;
+                              const isAiParameter = (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai');
+                              const aiFieldKind = isAiParameter ? calculatedAiFieldKind(unit.field.label) : null;
                               const calculatedAi = aiFieldKind ? calculateAi(srcValues, aiDensity(srcValues, condCtx)) : null;
 
                               // Field-level `multiple` — repeatable list of bare value rows.
@@ -1296,7 +1297,7 @@ export default function LabTestingDetailPage() {
                                     onChange={(val) => {
                                       if (aiFieldKind) return;
                                       onUnitChange(unit.key, val);
-                                      if (param.name.trim().toLowerCase() === '%ai') {
+                                      if (isAiParameter) {
                                         const nextValues = { ...srcValues, [unit.key]: val };
                                         const derived = calculateAi(nextValues, aiDensity(nextValues, condCtx));
                                         fields.forEach((candidate) => {
@@ -1346,7 +1347,7 @@ export default function LabTestingDetailPage() {
                             ) => (
                               <div className={cn(
                                 'grid grid-cols-1 gap-4 pl-2',
-                                param.name.trim().toLowerCase() === '%ai' ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
+                                (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
                               )}>
                                 {fields.map((field) => {
                                   if (field.type === 'reference') {
