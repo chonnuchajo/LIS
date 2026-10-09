@@ -53,7 +53,17 @@ const CATEGORY_LABEL: Record<CartCategory, string> = {
   glassware: "เครื่องแก้ว",
 };
 
-export default function ReceiveCart() {
+const RECEIVE_CART_DRAFT_KEY = "lis.stock.receive-cart-draft";
+
+function confirmDraftRestore() {
+  try {
+    return typeof window.confirm === "function" ? window.confirm("มีรายการรับเข้าที่บันทึกค้างไว้ ต้องการเก็บไว้ใช้งานต่อหรือไม่?") : false;
+  } catch {
+    return false;
+  }
+}
+
+export default function ReceiveCart({ onSaved }: { onSaved?: () => void } = {}) {
   const qc = useQueryClient();
   const { data: standards = [] } = useQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards });
   const { data: solvents = [] } = useQuery({ queryKey: ["stock", "solvents"], queryFn: api.getSolvents });
@@ -75,7 +85,19 @@ export default function ReceiveCart() {
     return [...std, ...sol, ...gla];
   }, [standards, solvents, glassware]);
 
-  const [rows, setRows] = useState<CartRow[]>(() => []);
+  const [rows, setRows] = useState<CartRow[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(RECEIVE_CART_DRAFT_KEY);
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return [];
+      const keep = confirmDraftRestore();
+      if (!keep) window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+      return keep ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [printAfter, setPrintAfter] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pendingLabels, setPendingLabels] = useState<string[]>([]);
@@ -88,6 +110,11 @@ export default function ReceiveCart() {
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [detailDialogMode, setDetailDialogMode] = useState<"add" | "edit">("edit");
+
+  useEffect(() => {
+    if (rows.length > 0) window.localStorage.setItem(RECEIVE_CART_DRAFT_KEY, JSON.stringify(rows));
+    else window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+  }, [rows]);
 
   const patchRow = (id: string, patch: Partial<CartRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -275,6 +302,10 @@ export default function ReceiveCart() {
       }
 
       if (okCount > 0) toast.success(`รับเข้าสำเร็จ ${okCount} รายการ${failCount ? ` · ล้มเหลว ${failCount}` : ""}`);
+      if (okCount > 0) {
+        window.localStorage.removeItem(RECEIVE_CART_DRAFT_KEY);
+        onSaved?.();
+      }
       // ลบแถวที่สำเร็จ เก็บแถว fail ไว้ retry
       setRows((prev) => prev.filter((r) => !okIds.has(r.id)));
       qc.invalidateQueries({ queryKey: ["stock", "standards"] });

@@ -258,7 +258,9 @@ export default function ChemicalRequisitionDialog({
             <Button
               type="button"
               disabled={!canSave || saveMutation.isPending}
-              onClick={() => saveMutation.mutate()}
+              onClick={() => {
+                if (window.confirm("ต้องการเบิก stock ออกจากคลังใช่หรือไม่?")) saveMutation.mutate();
+              }}
             >
               {saveMutation.isPending ? "กำลังบันทึก..." : "เบิก"}
             </Button>

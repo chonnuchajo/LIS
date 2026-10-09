@@ -442,7 +442,9 @@ export default function StandardRequisitionDialog({ initialQrId, initialUnit, on
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="button" disabled={!canSave || busy} onClick={submit}>
+          <Button type="button" disabled={!canSave || busy} onClick={() => {
+            if (window.confirm("ต้องการเบิก stock ออกจากคลังใช่หรือไม่?")) submit();
+          }}>
             {busy ? "กำลังบันทึก..." : "เบิก"}
           </Button>
         </DialogFooter>

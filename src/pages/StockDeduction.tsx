@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
+import { ArrowDownToLine, Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { readStockLabelCodeFromImage } from "@/lib/aiApi";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
+import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
@@ -140,6 +141,7 @@ const StockDeduction = () => {
   const [deleting, setDeleting] = useState<StockTransactionItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
@@ -433,6 +435,9 @@ const StockDeduction = () => {
             <Button type="button" variant="outline" onClick={openCameraScanner}>
               <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
             </Button>
+            <Button type="button" onClick={() => setReceiveOpen(true)}>
+              <ArrowDownToLine className="mr-1 h-4 w-4" /> รับเข้า Stock
+            </Button>
             <StockRequisitionButton
               roomSlug={ANALYSIS_ROOM_SLUG}
               instruments={analysisInstruments}
@@ -545,6 +550,27 @@ const StockDeduction = () => {
         onScanned={applyScannedQrId}
         onCaptureImage={handleCaptureImage}
       />
+
+      <Dialog open={receiveOpen} onOpenChange={(open) => {
+        if (open) {
+          setReceiveOpen(true);
+          return;
+        }
+        if (window.confirm("หากปิดตอนนี้ รายการรับเข้าที่ยังไม่บันทึกจะถูกเก็บไว้สำหรับครั้งหน้า ต้องการปิดหรือไม่?")) {
+          setReceiveOpen(false);
+        }
+      }}>
+        <DialogContent className="max-h-[92vh] max-w-[98vw] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>รับเข้า Stock</DialogTitle>
+            <DialogDescription>เพิ่มรายการที่นำเข้า ตรวจสอบรายละเอียด แล้วกดรับเข้าเพื่อบันทึก</DialogDescription>
+          </DialogHeader>
+          <ReceiveCart onSaved={() => {
+            refreshStockDeductions();
+            setReceiveOpen(false);
+          }} />
+        </DialogContent>
+      </Dialog>
 
       <DeductionDetailSheet
         transaction={selected}
