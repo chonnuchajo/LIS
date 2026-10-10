@@ -47,6 +47,15 @@ function bellDescribe(petition, log) {
   const side = log?.metadata?.side;
 
   switch (log?.event) {
+    case 'recheck': {
+      const requesterIds = log?.metadata?.recipientEmployeeIds || [];
+      return {
+        audiences: ['qc'],
+        recipientEmployeeIds: requesterIds,
+        title: `🔎 ขอตรวจสอบซ้ำ ${no}`,
+        message: 'มีการแจ้งเตือนไปยัง QC Head และผู้ส่งคำขอแล้ว',
+      };
+    }
     case 'received': {
       if (side !== 'lab' && side !== 'qc') return null;
       return { audiences: [side], title: `📥 ${SIDE_LABELS[side]} รับตัวอย่าง ${no}` };

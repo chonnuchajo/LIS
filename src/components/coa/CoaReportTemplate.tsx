@@ -32,8 +32,11 @@ export const COA_REPORT_CSS = `
 .coa-brom-meta { margin-top: 7mm; text-align: right; line-height: 1.7; }
 .coa-brom-fields { margin-top: 7mm; line-height: 2.35; }
 .coa-brom-label { font-weight: 700; }
-.coa-brom-table { margin-top: 8mm; width: 128mm; }
-.coa-brom-table th, .coa-brom-table td { text-align: center; vertical-align: middle; }
+.coa-brom-table { margin-top: 8mm; width: 128mm; border: 0.8pt solid #000; }
+.coa-brom-table th, .coa-brom-table td { text-align: center; vertical-align: middle; border: 0.8pt solid #000; padding: 2.2mm 2.6mm; line-height: 1.35; }
+.coa-brom-table th:nth-child(1), .coa-brom-table td:nth-child(1) { width: 42%; }
+.coa-brom-table th:nth-child(2), .coa-brom-table td:nth-child(2) { width: 34%; }
+.coa-brom-table th:nth-child(3), .coa-brom-table td:nth-child(3) { width: 24%; }
 .coa-brom-sign { margin-top: 30mm; margin-left: auto; width: 78mm; text-align: center; line-height: 1.55; }
 @media screen { .coa-page { margin: 0 auto; box-shadow: 0 0 0 1px #ddd; } }
 .coa-root h1, .coa-root th, .coa-title, .print-heading { font-weight: ${A4_PRINT_HEADING_FONT_WEIGHT} !important; }

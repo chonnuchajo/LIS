@@ -61,7 +61,7 @@ describe('petitionQueueVisibility', () => {
     expect(isVisibleInAssignQueue(labReceivedPetition)).toBe(true);
   });
 
-  it('does not count Lab-received petitions as waiting for assignment', () => {
+  it('keeps Lab-received petitions waiting for assignment until an assignee is selected', () => {
     const labReceivedWithoutAssignee = {
       ...receivedStalePetition,
       status: 'pendingReview',
@@ -71,6 +71,7 @@ describe('petitionQueueVisibility', () => {
       qcReceivedAt: undefined,
     } as Petition;
 
-    expect(isWaitingForAssignment(labReceivedWithoutAssignee)).toBe(false);
+    expect(isVisibleInAssignQueue(labReceivedWithoutAssignee)).toBe(true);
+    expect(isWaitingForAssignment(labReceivedWithoutAssignee)).toBe(true);
   });
 });

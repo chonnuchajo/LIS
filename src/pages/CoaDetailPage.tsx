@@ -53,7 +53,13 @@ export default function CoaDetailPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["coa", id] });
   const submit = useMutation({ mutationFn: () => api.submitCoaDocument(id, { _user: actor }), onSuccess: invalidate });
   const save = useMutation({ mutationFn: () => api.updateCoaDocument(id, { remark, _user: actor }), onSuccess: invalidate });
-  const approve = useMutation({ mutationFn: () => api.approveCoaDocument(id, { _user: actor }), onSuccess: invalidate });
+  const approve = useMutation({
+    mutationFn: () => api.approveCoaDocument(id, { _user: actor }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["coa", id] });
+      setPrintOpen(true);
+    },
+  });
   const reject = useMutation({ mutationFn: () => api.rejectCoaDocument(id, { reason, _user: actor }), onSuccess: invalidate });
   const revise = useMutation({ mutationFn: () => api.reviseCoaDocument(id, { _user: actor }), onSuccess: (next) => navigate(`/coa/${next._id}`) });
   const cancel = useMutation({ mutationFn: () => api.cancelCoaDocument(id, { reason, _user: actor }), onSuccess: invalidate });

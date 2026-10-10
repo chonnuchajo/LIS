@@ -445,7 +445,7 @@ export default function QCApprovalReviewPage() {
                                 {param.hasPhases && <span className="ml-1 text-[10px] text-amber-600">P{row.phase}</span>}
                               </td>
                               <td className="py-1.5 pr-3 font-mono font-semibold break-words">{row.value || "-"}</td>
-                              <td className="py-1.5 pr-3 text-grey-500 break-words">{row.standardText || "-"}</td>
+                              <td className="py-1.5 pr-3 text-grey-500 break-words whitespace-pre-line">{row.standardText || "-"}</td>
                               <td className="py-1.5 pr-3">
                                 {row.abnormal ? (
                                   <span className="inline-flex items-center gap-1 text-red-600">

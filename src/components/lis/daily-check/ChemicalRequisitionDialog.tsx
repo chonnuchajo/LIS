@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmDialog";
 import { api } from "@/lib/api";
 import { rankSearchResults } from "@/lib/searchRanking";
 import { todayStr, validateRequisitionQty } from "@/lib/chemicalRequisition";
@@ -50,6 +51,7 @@ export default function ChemicalRequisitionDialog({
   onSaved,
 }: Props) {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [instrumentId, setInstrumentId] = useState(presetInstrumentId ?? "");
   const [solventId, setSolventId] = useState(initialSolventId ?? "");
   const [solventUnitQrId, setSolventUnitQrId] = useState(initialSolventUnitQrId ?? "");
@@ -258,7 +260,15 @@ export default function ChemicalRequisitionDialog({
             <Button
               type="button"
               disabled={!canSave || saveMutation.isPending}
-              onClick={() => saveMutation.mutate()}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "ยืนยันการเบิกสารเคมี",
+                  description: "ต้องการนำรายการนี้ออกจาก Stock ใช่หรือไม่?",
+                  confirmText: "ยืนยันการเบิก",
+                  cancelText: "ยกเลิก",
+                });
+                if (ok) saveMutation.mutate();
+              }}
             >
               {saveMutation.isPending ? "กำลังบันทึก..." : "เบิก"}
             </Button>

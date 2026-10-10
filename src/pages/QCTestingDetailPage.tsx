@@ -14,6 +14,7 @@ import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStand
 import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
 import { describeResolvedStandard, describeStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
+import { aiGridClass, calculateAi, calculatedAiFieldKind, formatCalculatedAi } from '@/lib/aiCalculation';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
@@ -73,6 +74,27 @@ function formatTime(d: Date | string | undefined) {
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
+}
+
+const AI_FIELD_ORDER = ['Area Inj.1', 'Area Inj.2', 'Area Inj.3', '% Sample 1', '% Sample 2', '% Sample 3', 'Area Average', 'Area %RSD', '% Sample Average', '% Sample %RSD', '%AI'] as const;
+function aiFieldsForParameter(fields: ParameterValueField[]) {
+  if (!fields.some((field) => calculatedAiFieldKind(field.label) === 'ai')) return fields;
+  const byLabel = new Map(fields.map((field) => [field.label.trim().toLowerCase(), field]));
+  const aiField = fields.find((field) => calculatedAiFieldKind(field.label) === 'ai');
+  const generated = AI_FIELD_ORDER.map((label): ParameterValueField => (label === '%AI' ? aiField! : byLabel.get(label.toLowerCase())) ?? ({ label, type: 'float', unit: label.includes('Sample') || label === '%AI' ? '%' : undefined }));
+  const known = new Set(AI_FIELD_ORDER.map((label) => label.toLowerCase()));
+  return [...generated, ...fields.filter((field) => calculatedAiFieldKind(field.label) !== 'ai' && !known.has(field.label.trim().toLowerCase()))];
+}
+
+function aiDensity(values: Record<string, unknown>, context: ConditionContext) {
+  for (const record of [values, ...Object.values(context.otherParams)]) {
+    for (const [label, rawValue] of Object.entries(record)) {
+      if (!/^(density|ค่าถพ\.)$/i.test(label.trim())) continue;
+      const value = Number(rawValue);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+  }
+  return 1;
 }
 
 export const noteLabelFor = (mainLabel: string) => `${mainLabel}__note`;
@@ -1270,7 +1292,7 @@ export default function QCTestingDetailPage() {
               ) : (
                 matchedParams.map((param) => {
                   const k = resultKey(item.seq, param._id!);
-                  const fields = visibleFields(param, effectivePhase, item);
+                  const fields = aiFieldsForParameter(visibleFields(param, effectivePhase, item));
                   if (fields.length === 0) return null;
                   // Build the condition context for resolving conditionalMode standards:
                   // sameParam = this parameter's live values; otherParams = each OTHER
@@ -1308,6 +1330,9 @@ export default function QCTestingDetailPage() {
                       : null;
                     const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
                     const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
+                    const isAiParameter = (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai');
+                    const aiFieldKind = isAiParameter ? calculatedAiFieldKind(unit.field.label) : null;
+                    const calculatedAi = aiFieldKind ? calculateAi(srcValues, aiDensity(srcValues, condCtx)) : null;
                     const beforeRef =
                       param.hasPhases &&
                       effectivePhase === 2 &&
@@ -1333,7 +1358,7 @@ export default function QCTestingDetailPage() {
                       unit.field.label.trim().startsWith(SG_VALUE_LABEL) ||
                       (param.name ?? '').includes('ถพ.')
                     ) && !unit.field.label.includes(SG_TEMP_LABEL);
-                    const unitDisabled = fieldDisabled || (isSgMachineField && !isSgValueUnit);
+                    const unitDisabled = fieldDisabled || !!aiFieldKind || (isSgMachineField && !isSgValueUnit);
                     const densityOptions = densityOptionsByKey[resultKey(item.seq, param._id!) ] ?? [];
                     // Match by label too: legacy SG parameters may not carry requestValueSource.
                     const densityValue = srcValues[unit.key] == null ? '' : String(srcValues[unit.key]);
@@ -1432,19 +1457,28 @@ export default function QCTestingDetailPage() {
                     }
 
                     return (
-                      <div key={unit.key}>
+                      <div key={unit.key} className={aiGridClass(unit.field.label)}>
                         <TestField
                           field={effectiveField}
                           item={item}
                           itemGroupIds={idsFor(item)}
-                          value={srcValues[unit.key] ?? ''}
+                          value={aiFieldKind ? (calculatedAi?.[aiFieldKind] != null ? formatCalculatedAi(calculatedAi[aiFieldKind]) : srcValues[unit.key] ?? '') : srcValues[unit.key] ?? ''}
                           noteValue={srcValues[noteLabel] ?? ''}
                           hideStandard={(unit as { hiddenStandard?: boolean }).hiddenStandard === true}
                           saveInfo={saveInfoSrc?.[unit.key]}
                           noteSaveInfo={saveInfoSrc?.[noteLabel]}
                           disabled={unitDisabled}
                           onChange={(val) => {
+                            if (aiFieldKind) return;
                             onUnitChange(unit.key, val);
+                            if (isAiParameter) {
+                              const nextValues = { ...srcValues, [unit.key]: val };
+                              const derived = calculateAi(nextValues, aiDensity(nextValues, condCtx));
+                              fields.forEach((candidate) => {
+                                const kind = calculatedAiFieldKind(candidate.label);
+                                if (kind) onUnitChange(candidate.label, formatCalculatedAi(derived[kind]));
+                              });
+                            }
                             handleOutlierCheck(
                               item.commonName ?? '',
                               String(param._id),
@@ -1467,7 +1501,7 @@ export default function QCTestingDetailPage() {
                           const badge = labelToleranceBadge(rv.status, rv.center);
                           return (
                             <div className="mt-1 space-y-0.5">
-                              <p className="text-xs text-muted-foreground">{formatLabelToleranceRange(rv, unit.field.unit ?? '')}</p>
+                              <p className="text-xs text-muted-foreground whitespace-pre-line">{formatLabelToleranceRange(rv, unit.field.unit ?? '', { showAutoPass: true, multiline: true, autoPassLabel: 'ผ่านเกณฑ์ 25%' })}</p>
                               {badge && <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${badge.cls}`}>{badge.text}</span>}
                             </div>
                           );
@@ -1487,7 +1521,10 @@ export default function QCTestingDetailPage() {
                     onUnitChange: (label: string, val: unknown) => void,
                     saveInfoSrc: Record<string, FieldSaveInfo> | undefined,
                   ) => (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
+                    <div className={cn(
+                      'grid grid-cols-1 gap-4 pl-2',
+                      (param.valueFields ?? []).some((candidate) => calculatedAiFieldKind(candidate.label) === 'ai') ? 'sm:grid-cols-6' : 'sm:grid-cols-2',
+                    )}>
                       {fields.map((field) => {
                         if (field.type === 'reference') {
                           const { value: refValue, sourceName } = resolveReference(item.seq, field);

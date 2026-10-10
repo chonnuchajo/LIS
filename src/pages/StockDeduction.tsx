@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
+import { ArrowDownToLine, Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +14,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmDialog";
 import { api } from "@/lib/api";
 import { readStockLabelCodeFromImage } from "@/lib/aiApi";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
+import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
@@ -27,6 +29,7 @@ import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
 import { isLikelyHardwareStockScan, parseScannedQrId } from "@/lib/stockUnit";
 import { getRoomCatalog } from "@/lib/roomEquipment";
+import { normalizeRoles } from "@/lib/roles";
 import type { StockTransactionItem } from "@/types/stock";
 
 const analysisInstruments =
@@ -132,6 +135,7 @@ function normalizeStockLabelCandidate(value: string) {
 
 const StockDeduction = () => {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [type, setType] = useState<string>("");
@@ -140,9 +144,11 @@ const StockDeduction = () => {
   const [deleting, setDeleting] = useState<StockTransactionItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
+  const canReceiveStock = normalizeRoles(user).some((role) => role === "admin" || role === "lab-inventory");
   const hardwareScanRef = useRef<HardwareScanBuffer>({ text: "", firstAt: 0, lastAt: 0, snapshot: null });
   const queryQrId = searchParams.get("qrId")?.trim() || null;
   const initialQrId = scannedQrId ?? queryQrId;
@@ -433,6 +439,11 @@ const StockDeduction = () => {
             <Button type="button" variant="outline" onClick={openCameraScanner}>
               <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
             </Button>
+            {canReceiveStock ? (
+              <Button type="button" onClick={() => setReceiveOpen(true)}>
+                <ArrowDownToLine className="mr-1 h-4 w-4" /> รับเข้า Stock
+              </Button>
+            ) : null}
             <StockRequisitionButton
               roomSlug={ANALYSIS_ROOM_SLUG}
               instruments={analysisInstruments}
@@ -545,6 +556,30 @@ const StockDeduction = () => {
         onScanned={applyScannedQrId}
         onCaptureImage={handleCaptureImage}
       />
+
+      <Dialog open={receiveOpen} onOpenChange={(open) => {
+        if (open) {
+          setReceiveOpen(true);
+          return;
+        }
+        void confirm({
+          title: "ปิดหน้ารับเข้า Stock?",
+          description: "รายการที่ยังไม่บันทึกจะถูกเก็บไว้ และนำกลับมาใช้ต่อได้ในครั้งหน้า",
+          confirmText: "ปิดและเก็บไว้",
+          cancelText: "ทำรายการต่อ",
+        }).then((ok) => { if (ok) setReceiveOpen(false); });
+      }}>
+        <DialogContent className="max-h-[92vh] max-w-[98vw] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>รับเข้า Stock</DialogTitle>
+            <DialogDescription>เพิ่มรายการที่นำเข้า ตรวจสอบรายละเอียด แล้วกดรับเข้าเพื่อบันทึก</DialogDescription>
+          </DialogHeader>
+          <ReceiveCart onSaved={() => {
+            refreshStockDeductions();
+            setReceiveOpen(false);
+          }} />
+        </DialogContent>
+      </Dialog>
 
       <DeductionDetailSheet
         transaction={selected}
