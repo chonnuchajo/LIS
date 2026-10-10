@@ -45,6 +45,7 @@ import type {
 } from "@/lib/apiKeys";
 
 type StockUserPayload = { _user?: { email?: string; name?: string } };
+type ApiError = Error & { response?: { data: unknown }; field?: string; status?: number };
 type StockBarcodeRegistration = {
   barcode: string;
   category: StockItemType;
@@ -99,6 +100,7 @@ const API_BASES = Array.from(
       normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL),
       APP_API_BASE,
       "/api",
+      "/LIS/api",
     ].filter(Boolean),
   ),
 );
@@ -163,10 +165,8 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
               "API Error",
           )
         : "API Error";
-    const err = new Error(message) as Error & {
-      response?: { data: unknown };
-      field?: string;
-    };
+    const err = new Error(message) as ApiError;
+    err.status = res.status;
     err.response = { data: body };
     const field =
       typeof body === "object" && body
@@ -929,7 +929,16 @@ export const api = {
     const qs = new URLSearchParams({ batchNo, employeeId }).toString();
     return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
   },
-  batchExists: (batchNo: string) => request<{ exists: boolean }>(`/petitions/batch-exists?${new URLSearchParams({ batchNo }).toString()}`),
+  batchExists: async (batchNo: string) => {
+    try {
+      return await request<{ exists: boolean }>(`/petitions/batch-exists?${new URLSearchParams({ batchNo }).toString()}`);
+    } catch (error) {
+      // Older deployments do not have the advisory duplicate-check route yet.
+      // Keep request creation available; the server still validates the submitted payload.
+      if ((error as ApiError).status === 404) return { exists: false };
+      throw error;
+    }
+  },
 
   // Methods (admin-managed method registry)
   getMethods: () => request<MethodDoc[]>("/methods"),

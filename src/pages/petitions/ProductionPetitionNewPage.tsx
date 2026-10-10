@@ -822,8 +822,8 @@ export default function ProductionPetitionNewPage({
       const repeatedBatches = [...new Set(items.map((item) => String(item.batchNo ?? '').trim()).filter(Boolean))];
       for (const batchNo of repeatedBatches) {
         try {
-          const { data } = await api.batchExists(batchNo);
-          if (data.exists && !window.confirm(`Batch ${batchNo} เคยส่งไปแล้ว ต้องการส่งอีกใช่ไหม?`)) return;
+          const { exists } = await api.batchExists(batchNo);
+          if (exists && !window.confirm(`Batch ${batchNo} เคยส่งไปแล้ว ต้องการส่งอีกใช่ไหม?`)) return;
         } catch {
           setError('ตรวจสอบประวัติ batch ไม่สำเร็จ กรุณาลองใหม่');
           return;
