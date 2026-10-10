@@ -104,7 +104,7 @@ function audiencesForEvent(petition, payload) {
         const selected = payload.metadata.audience;
         if (selected === 'lab') return ['lab'];
         if (selected === 'requester') return [petition?.dept].filter(Boolean);
-        if (selected === 'all') return [...bothSides, petition?.dept].filter(Boolean);
+        if (selected === 'all') return [...new Set([...bothSides, petition?.dept, 'all'].filter(Boolean))];
       }
       // per-track บันทึกผล / lab-approve / lab-reject — notify only that side
       const side = payload?.metadata?.side;

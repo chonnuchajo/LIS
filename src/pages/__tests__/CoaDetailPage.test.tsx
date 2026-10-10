@@ -96,7 +96,7 @@ describe("CoaDetailPage", () => {
     const { container } = renderPage();
 
     expect(await screen.findByText("P-2608-0001")).toBeInTheDocument();
-    expect(container.querySelector(".bg-sky-50")).toBeInTheDocument();
+    expect(container.querySelector(".bg-muted\\/50")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /เปิดดูไฟล์/ })).toBeEnabled();
   });
 

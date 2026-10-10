@@ -415,16 +415,23 @@ describe("CoaCenterPage", () => {
 
     fireEvent.change(screen.getByLabelText("Batch No. *"), { target: { value: "B-ERP-1" } });
     fireEvent.change(screen.getByLabelText("วันที่ผลิต *"), { target: { value: "2026-10-01" } });
-    fireEvent.change(screen.getByLabelText("รายการทดสอบ *"), { target: { value: "Appearance" } });
-    fireEvent.change(screen.getByLabelText("เกณฑ์มาตรฐาน *"), { target: { value: "Clear liquid" } });
-    fireEvent.change(screen.getByLabelText("ผลทดสอบ *"), { target: { value: "Conform" } });
+    fireEvent.change(screen.getByLabelText("Date of analysis *"), { target: { value: "2026-10-08" } });
+    fireEvent.change(screen.getByLabelText("เกณฑ์ความคลาดเคลื่อน *"), { target: { value: "24% ± 1.20" } });
+    fireEvent.change(screen.getByLabelText("Density at 30°C (g/cm³) *"), { target: { value: "1.100" } });
+    fireEvent.change(screen.getByLabelText("%AI content (W/V) *"), { target: { value: "24" } });
+    fireEvent.change(screen.getByLabelText("Appearance *"), { target: { value: "Clear liquid" } });
     vi.mocked(api.createErpManualCoaDocument).mockRejectedValueOnce(new Error("บันทึกไม่สำเร็จ"));
     fireEvent.click(screen.getByRole("button", { name: "บันทึกร่าง COA" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("บันทึกไม่สำเร็จ");
     expect(api.createErpManualCoaDocument).toHaveBeenCalledWith(expect.objectContaining({
       externalRequestId: "external-coa-request-SO26040020-10000",
       sample: expect.objectContaining({ batchNo: "B-ERP-1", productionDate: "2026-10-01" }),
-      results: [expect.objectContaining({ testItem: "Appearance", criteria: "Clear liquid", result: "Conform" })],
+      results: expect.arrayContaining([
+        expect.objectContaining({ testItem: "Appearance", criteria: "Clear liquid", result: "Conform" }),
+        expect.objectContaining({ testItem: "%AI content (W/V)", criteria: "24% ± 1.20", result: "24%" }),
+        expect.objectContaining({ testItem: "Density at 30°C (g/cm³)", result: "1.100" }),
+        expect.objectContaining({ testItem: "Date of analysis", result: "2026-10-08" }),
+      ]),
     }));
     const entered = vi.mocked(api.createErpManualCoaDocument).mock.calls.at(-1)![0];
     vi.mocked(api.createErpManualCoaDocument).mockResolvedValueOnce({
@@ -473,7 +480,7 @@ describe("CoaCenterPage", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Batch No. *")).toHaveValue("FG260902-008"));
     expect(screen.getByLabelText("วันที่ผลิต *")).toHaveValue("2026-09-02");
-    expect(screen.getByLabelText("ผลทดสอบ *")).toHaveValue("48.35%");
+    expect(screen.getByLabelText("%AI content (W/V) *")).toHaveValue("48.35%");
     expect(screen.getByText("แบบฟอร์ม: ยาน้ำ")).toBeInTheDocument();
   });
 

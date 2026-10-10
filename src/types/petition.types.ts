@@ -331,4 +331,5 @@ export interface SaveQCResultPayload {
   enteredBy: { name: string; email: string };
   // 1 = Phase 1 (default, ค่าก่อน), 2 = Phase 2 retest values
   phase?: PetitionPhase;
+  overrideReason?: string;
 }

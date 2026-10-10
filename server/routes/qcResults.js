@@ -9,6 +9,8 @@ const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { qcResultAuditEvent, qcResultNote } = require('../lib/auditEvents');
 const { pendingAdditionalSamples, requiredSampleRoundId } = require('../lib/additionalSamples');
 const { currentUser, canTestSide } = require('./additionalSamples');
+const { normalizeRoles } = require('../lib/roles');
+const { notifyPetitionEvent } = require('../lib/lineNotify');
 const { serializePetitionWrite } = require('../lib/petitionWriteQueue');
 const {
   computeAbnormalFlags,
@@ -214,6 +216,7 @@ router.put("/", serializePetitionWrite(async (req, res) => {
       parameterId, parameterName,
       fieldLabel, value, entryIndex,
       enteredBy,
+      overrideReason,
       phase, // 1 = Phase 1 (default), 2 = Phase 2 (after)
     } = req.body;
 
@@ -228,6 +231,18 @@ router.put("/", serializePetitionWrite(async (req, res) => {
 
     // Reject saves for reference fields — their value is computed, not entered
     const paramForCheck = await Parameter.findById(parameterId).lean();
+    const petitionForEdit = await Petition.findById(petitionId).lean();
+    const existingUser = await currentUser(req);
+    const isClosed = ['approved', 'rejected'].includes(petitionForEdit?.status);
+    const roles = normalizeRoles(existingUser);
+    if (isClosed) {
+      if (!roles.includes('qc-head') && !roles.includes('admin')) {
+        return res.status(403).json({ error: 'แก้ไขผลที่ปิดงานแล้วได้เฉพาะ QC Head' });
+      }
+      if (!String(overrideReason || '').trim()) {
+        return res.status(400).json({ error: 'กรุณาระบุเหตุผลการแก้ไขผล' });
+      }
+    }
     const roundContext = await resultRoundContext(req, res, paramForCheck);
     if (!roundContext) return;
     const fieldDef = paramForCheck?.valueFields?.find((f) => f.label === fieldLabel);
@@ -295,10 +310,19 @@ router.put("/", serializePetitionWrite(async (req, res) => {
         petitionNo,
         event: auditEvent,
         actor: enteredBy?.name || enteredBy?.email || 'system',
-        note: qcResultNote(auditEvent, { parameterName, parameterId, fieldLabel, sampleName }),
-        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum, entryIndex },
+        note: isClosed ? `แก้ไขผลหลังปิดงาน: ${String(overrideReason).trim()} · ${qcResultNote(auditEvent, { parameterName, parameterId, fieldLabel, sampleName })}` : qcResultNote(auditEvent, { parameterName, parameterId, fieldLabel, sampleName }),
+        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum, entryIndex, overrideReason: isClosed ? String(overrideReason).trim() : undefined },
       }).catch((err) => {
         console.error('[audit-log] qc-result write failed:', err.message);
+      });
+    }
+
+    if (isClosed) {
+      notifyPetitionEvent(petitionForEdit, {
+        event: 'updated',
+        actor: enteredBy?.name || enteredBy?.email || 'QC Head',
+        note: `QC Head แก้ไขผล ${parameterName || parameterId} · เหตุผล: ${String(overrideReason).trim()}`,
+        metadata: { audience: 'all' },
       });
     }
 
@@ -331,7 +355,7 @@ router.put("/entries", serializePetitionWrite(async (req, res) => {
   try {
     const {
       petitionId, petitionNo, itemSeq, sampleId, sampleName, commonName,
-      parameterId, parameterName, entries, enteredBy,
+      parameterId, parameterName, entries, enteredBy, overrideReason,
     } = req.body;
     if (!petitionId || itemSeq == null || !parameterId || !Array.isArray(entries)) {
       return res.status(400).json({ error: "petitionId, itemSeq, parameterId, entries[] required" });
@@ -340,6 +364,12 @@ router.put("/entries", serializePetitionWrite(async (req, res) => {
       return res.status(400).json({ error: "entries เกินจำนวนที่อนุญาต" });
     }
     const parameter = await Parameter.findById(parameterId).lean();
+    const petitionForEdit = await Petition.findById(petitionId).lean();
+    const entryUser = await currentUser(req);
+    const isClosed = ['approved', 'rejected'].includes(petitionForEdit?.status);
+    const entryRoles = normalizeRoles(entryUser);
+    if (isClosed && (!entryRoles.includes('qc-head') && !entryRoles.includes('admin'))) return res.status(403).json({ error: 'แก้ไขผลที่ปิดงานแล้วได้เฉพาะ QC Head' });
+    if (isClosed && !String(overrideReason || '').trim()) return res.status(400).json({ error: 'กรุณาระบุเหตุผลการแก้ไขผล' });
     const roundContext = await resultRoundContext(req, res, parameter);
     if (!roundContext) return;
     const filter = { petitionId, itemSeq, parameterId };
@@ -375,12 +405,13 @@ router.put("/entries", serializePetitionWrite(async (req, res) => {
         petitionNo,
         event: 'resultUpdated',
         actor: enteredBy?.name || enteredBy?.email || 'system',
-        note: `QC ปรับรายการหลายค่า ${parameterName || parameterId}: ${entries.length} รายการ${sampleName ? ` (${sampleName})` : ''}`,
-        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, entryCount: entries.length },
+        note: `${isClosed ? `แก้ไขผลหลังปิดงาน: ${String(overrideReason).trim()} · ` : ''}QC ปรับรายการหลายค่า ${parameterName || parameterId}: ${entries.length} รายการ${sampleName ? ` (${sampleName})` : ''}`,
+        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, entryCount: entries.length, overrideReason: isClosed ? String(overrideReason).trim() : undefined },
       }).catch((err) => {
         console.error('[audit-log] qc-result entries write failed:', err.message);
       });
     }
+    if (isClosed) notifyPetitionEvent(petitionForEdit, { event: 'updated', actor: enteredBy?.name || enteredBy?.email || 'QC Head', note: `QC Head แก้ไขผล ${parameterName || parameterId} · เหตุผล: ${String(overrideReason).trim()}`, metadata: { audience: 'all' } });
 
     res.json(doc);
   } catch (err) {

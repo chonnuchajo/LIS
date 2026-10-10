@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
@@ -343,6 +343,9 @@ function TestField({
 export default function QCTestingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editOverride = searchParams.get('edit') === '1';
+  const overrideReason = searchParams.get('reason') || '';
   const { user } = useAuth();
   const canSeeRestrictedStandards = normalizeRoles(user).some((role) => role === 'admin' || role === 'qc-head');
   const confirm = useConfirm();
@@ -592,6 +595,7 @@ export default function QCTestingDetailPage() {
               name: user?.name ?? 'Unknown',
               email: user?.email ?? '',
             },
+            overrideReason: overrideReason || undefined,
             phase,
           });
           const now = new Date();
@@ -657,6 +661,7 @@ export default function QCTestingDetailPage() {
             value: newVal,
             entryIndex,
             enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+            overrideReason: overrideReason || undefined,
           });
           if (id) await loadResults(id);
         } catch (error) {
@@ -695,6 +700,7 @@ export default function QCTestingDetailPage() {
             parameterName: param.name,
             entries: trimmed,
             enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+            overrideReason: overrideReason || undefined,
           });
         });
         if (id) await loadResults(id);
@@ -739,6 +745,7 @@ export default function QCTestingDetailPage() {
             parameterName: param.name,
             entries: rows,
             enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+            overrideReason: overrideReason || undefined,
           });
         });
         if (id) await loadResults(id);
@@ -1087,7 +1094,7 @@ export default function QCTestingDetailPage() {
   };
 
   // Final approval/rejection locks the QC form; submitted results remain editable.
-  const isLocked = ['approved', 'rejected'].includes(petition.status) || !!pendingSample;
+  const isLocked = (!editOverride && ['approved', 'rejected'].includes(petition.status)) || !!pendingSample;
   const hasSubmittedQc = !!petition.qcCompletedAt;
 
   return (
