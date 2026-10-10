@@ -34,6 +34,13 @@ describe("GlobalStockQrScanListener", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/stock-deduction?qrId=u_scan");
   });
 
+  it("ignores key events without a key value", () => {
+    renderWithRoutes("/report");
+
+    expect(() => fireEvent.keyDown(window, { key: undefined })).not.toThrow();
+    expect(screen.getByTestId("location")).toHaveTextContent("/report");
+  });
+
   it("ignores non-stock QR input", async () => {
     renderWithRoutes("/report");
 

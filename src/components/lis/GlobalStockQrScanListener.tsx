@@ -47,7 +47,9 @@ export default function GlobalStockQrScanListener() {
         return;
       }
 
-      if (event.key.length === 1) bufferRef.current += event.key;
+      // Some scanner/browser integrations can dispatch a key event without a key value.
+      // Ignore those malformed events instead of breaking the app-wide listener.
+      if (typeof event.key === "string" && event.key.length === 1) bufferRef.current += event.key;
     };
 
     window.addEventListener("keydown", handleKeyDown, true);
