@@ -46,6 +46,21 @@ function pick(row, keys) {
   return '';
 }
 
+function itemCode(value) {
+  return text(value).toUpperCase();
+}
+
+// MF rows expose the production order separately from the finished-product
+// batch. Never use prod_order_no as the COA Batch No. fallback.
+function batchFromRow(row) {
+  return pick(row, [
+    'batch_no', 'batchNo', 'BatchNo', 'Batch No.', 'Batch No',
+    'batch', 'Batch', 'batch_number', 'batchNumber',
+    'lot_no', 'lotNo', 'LotNo', 'Lot No.', 'Lot No', 'lot', 'Lot',
+    'production_batch_no', 'productionBatchNo', 'prod_batch_no', 'prodBatchNo',
+  ]);
+}
+
 function normalizeIsoDate(value) {
   const source = text(value);
   const iso = source.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
@@ -178,8 +193,9 @@ function findBestLabItem(petitions, sample) {
 function sampleFromSources(source, stockRows, mfRows) {
   const itemNo = text(source?.externalCoaRequest?.itemNo || source?.sampleSnapshots?.[0]?.sampleId);
   const commonName = text(source?.sampleSnapshots?.[0]?.commonName);
-  const productRows = stockRows.filter((row) => itemNo && text(row.item_no || row.itemNo) === itemNo);
-  const commonRows = stockRows.filter((row) => !itemNo && normalizeText(row.common_name || row.commonName) === normalizeText(commonName));
+  const normalizedItemNo = itemCode(itemNo);
+  const productRows = stockRows.filter((row) => normalizedItemNo && itemCode(row.item_no || row.itemNo) === normalizedItemNo);
+  const commonRows = stockRows.filter((row) => !normalizedItemNo && normalizeText(row.common_name || row.commonName) === normalizeText(commonName));
   const stockCandidates = [...productRows, ...commonRows]
     .filter((row) => text(row.lot_no || row.lotNo))
     .sort((left, right) => {
@@ -191,18 +207,20 @@ function sampleFromSources(source, stockRows, mfRows) {
     });
   const stock = stockCandidates[0];
   const mfCandidates = mfRows.filter((row) => {
-    const rowItem = text(row.item_no || row.itemNo);
-    return itemNo ? rowItem === itemNo : normalizeText(row.common_name || row.commonName) === normalizeText(commonName);
+    const rowItem = itemCode(row.item_no || row.itemNo);
+    return normalizedItemNo ? rowItem === normalizedItemNo : normalizeText(row.common_name || row.commonName) === normalizeText(commonName);
   });
   const mf = mfCandidates[0];
   const sourceBatch = text(source?.sampleSnapshots?.[0]?.batchNo || source?.sampleSnapshots?.[0]?.lotNo);
+  const mfBatch = batchFromRow(mf);
+  const mfDate = normalizeIsoDate(pick(mf, ['create_date', 'createDate', 'production_date', 'productionDate', 'mfg_date', 'manufacture_date']));
   const lot = sourceBatch
     ? lotSnapshot(sourceBatch, source?.sampleSnapshots?.[0]?.productionDate)
-    : stock ? lotSnapshot(stock.lot_no || stock.lotNo, stock.registering_date) : { lotNo: '', batchNo: '', productionDate: '' };
-  if (!lot.batchNo && mf) {
-    lot.batchNo = pick(mf, ['prod_order_no', 'prodOrderNo']);
-    lot.productionDate = normalizeIsoDate(pick(mf, ['create_date', 'createDate']));
-  }
+    : stock
+      ? lotSnapshot(stock.lot_no || stock.lotNo, stock.registering_date)
+      : mfBatch
+        ? lotSnapshot(mfBatch, mfDate)
+        : { lotNo: '', batchNo: '', productionDate: mfDate };
   return {
     sample: {
       itemSeq: Number(source.selectedItemSeqs?.[0] || 1),
@@ -221,8 +239,8 @@ function sampleFromSources(source, stockRows, mfRows) {
       itemNo: text(row.item_no || row.itemNo),
     })),
     mfCandidates: mfCandidates.slice(0, 10).map((row) => ({
-      batchNo: pick(row, ['prod_order_no', 'prodOrderNo']),
-      productionDate: normalizeIsoDate(pick(row, ['create_date', 'createDate'])),
+      batchNo: batchFromRow(row),
+      productionDate: normalizeIsoDate(pick(row, ['create_date', 'createDate', 'production_date', 'productionDate', 'mfg_date', 'manufacture_date'])),
       itemNo: text(row.item_no || row.itemNo),
     })),
   };
@@ -299,4 +317,5 @@ module.exports = {
   resultRowsFromQc,
   rowsFromPayload,
   sampleFromSources,
+  batchFromRow,
 };

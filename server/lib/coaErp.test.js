@@ -1,10 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  batchFromRow,
   batchSimilarity,
   lotSnapshot,
   physicalFromQc,
   resultRowsFromQc,
+  sampleFromSources,
 } = require('./coaErp');
 
 test('LOT No. FGYYMMDD-NNN supplies the COA batch and production date', () => {
@@ -18,6 +20,42 @@ test('LOT No. FGYYMMDD-NNN supplies the COA batch and production date', () => {
 test('batch matching ranks the exact number first and nearby numbers above unrelated batches', () => {
   assert.equal(batchSimilarity('26S-GLY48-005', '26S-GLY48-005'), 1);
   assert.ok(batchSimilarity('26S-GLY48-005', '26S-GLY48-006') > batchSimilarity('26S-GLY48-005', '26S-OMT50-515'));
+});
+
+test('reads the batch field between the product name and production date', () => {
+  const source = {
+    selectedItemSeqs: [10000],
+    sampleSnapshots: [{ sampleName: 'Trade A', commonName: 'COMMON A' }],
+    externalCoaRequest: { itemNo: 'ITEM-A' },
+  };
+  const result = sampleFromSources(source, [], [{
+    item_no: 'item-a',
+    prod_descript: 'Trade A',
+    batch_no: 'FG260518-019',
+    create_date: '2026-05-18T00:00:00.000Z',
+    prod_order_no: 'MF26050019',
+  }]);
+
+  assert.equal(batchFromRow({ batch_no: 'FG260518-019', prod_order_no: 'MF26050019' }), 'FG260518-019');
+  assert.equal(result.sample.batchNo, 'FG260518-019');
+  assert.equal(result.sample.productionDate, '2026-05-18');
+  assert.equal(result.mfCandidates[0].batchNo, 'FG260518-019');
+});
+
+test('does not use the MF production order as a Batch No.', () => {
+  const result = sampleFromSources({
+    selectedItemSeqs: [1],
+    sampleSnapshots: [{ commonName: 'COMMON A' }],
+    externalCoaRequest: { itemNo: 'ITEM-A' },
+  }, [], [{
+    item_no: 'ITEM-A',
+    prod_descript: 'Trade A',
+    prod_order_no: 'MF26050019',
+    create_date: '2026-05-18T00:00:00.000Z',
+  }]);
+
+  assert.equal(result.sample.batchNo, '');
+  assert.equal(result.sample.productionDate, '2026-05-18');
 });
 
 test('physical QC values are translated to English and preserve unknown values for review', () => {
