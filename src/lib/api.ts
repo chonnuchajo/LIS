@@ -99,6 +99,7 @@ const API_BASES = Array.from(
       normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL),
       APP_API_BASE,
       "/api",
+      "/LIS/api",
     ].filter(Boolean),
   ),
 );
