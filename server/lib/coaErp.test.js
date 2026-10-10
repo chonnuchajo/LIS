@@ -58,6 +58,33 @@ test('does not use the MF production order as a Batch No.', () => {
   assert.equal(result.sample.productionDate, '2026-05-18');
 });
 
+test('reads positional Batch values after the product name and before production date', () => {
+  const source = {
+    selectedItemSeqs: [1],
+    sampleSnapshots: [{ sampleName: '\u0e0a\u0e49\u0e32\u0e07\u0e21\u0e32\u0e23\u0e4c\u0e01\u0e35\u0e49', commonName: 'BROMADIOLONE 0.005% W/W' }],
+    externalCoaRequest: { itemNo: 'FCPH-TO-CK-1X10' },
+  };
+  const result080 = sampleFromSources(source, [], [[
+    'FCPH-TO-CK-1X10', '\u0e0a\u0e49\u0e32\u0e07\u0e21\u0e32\u0e23\u0e4c\u0e01\u0e35\u0e49', '080', '2026-07-22',
+  ]]);
+  const result081 = sampleFromSources({
+    ...source,
+    externalCoaRequest: { itemNo: 'FCPH-TO-CK-1000X12' },
+  }, [], [[
+    'FCPH-TO-CK-1000X12', '\u0e0a\u0e49\u0e32\u0e07\u0e21\u0e32\u0e23\u0e4c\u0e01\u0e35\u0e49', '081', '2026-03-28',
+  ]]);
+
+  assert.equal(batchFromRow(['FCPH-TO-CK-1X10', '\u0e0a\u0e49\u0e32\u0e07\u0e21\u0e32\u0e23\u0e4c\u0e01\u0e35\u0e49', '080', '2026-07-22']), '080');
+  assert.equal(batchFromRow(['FCPH-TO-CK-1000X12', '\u0e0a\u0e49\u0e32\u0e07\u0e21\u0e32\u0e23\u0e4c\u0e01\u0e35\u0e49', '081', '2026-03-28']), '081');
+  assert.equal(batchFromRow({
+    saleDate: '2026-06-19', TradeName: '\u0e0a\u0e49\u0e32\u0e07\u0e21\u0e32\u0e23\u0e4c\u0e01\u0e35\u0e49', unnamedBatch: '080', shipmentDate: '2026-07-22',
+  }), '080');
+  assert.equal(result080.sample.batchNo, '080');
+  assert.equal(result080.sample.productionDate, '2026-07-22');
+  assert.equal(result081.sample.batchNo, '081');
+  assert.equal(result081.sample.productionDate, '2026-03-28');
+});
+
 test('physical QC values are translated to English and preserve unknown values for review', () => {
   assert.deepEqual(physicalFromQc({ values: { 'ลักษณะ': 'ของเหลวใส', 'สี': 'สีส้ม' } }), {
     raw: 'ของเหลวใส สีส้ม',
